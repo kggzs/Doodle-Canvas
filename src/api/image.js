@@ -87,34 +87,17 @@ export const generateImage = async (data, options = {}) => {
     console.log(`[generateImage] provider=${provider}, model=${model}, isAliyun=${isAliyun}`)
   }
 
-  // 阿里云万相:优先使用同步调用,超时则降级为异步
+  // 阿里云万相:直接使用同步调用(阿里云会自动处理超时降级)
   if (isAliyun) {
     const config = getProviderConfig('aliyun')
     const syncEndpoint = config.endpoints.image
 
-    try {
-      // wan2.7 同步调用
-      return await request({
-        url: syncEndpoint,
-        method: 'post',
-        data,
-        timeout: 120000 // 同步调用可能耗时较长,设置2分钟超时
-      })
-    } catch (syncError) {
-      // 如果同步调用超时或失败,降级为异步调用
-      if (import.meta.env.DEV) {
-        console.warn('[generateImage] 同步调用失败,降级为异步调用:', syncError.message)
-      }
-
-      const taskResponse = await createAsyncTask(data)
-
-      if (!taskResponse.output?.task_id) {
-        throw new Error('创建任务失败')
-      }
-
-      // 等待任务完成
-      return await waitAsyncTask(taskResponse.output.task_id)
-    }
+    return await request({
+      url: syncEndpoint,
+      method: 'post',
+      data,
+      timeout: 180000 // 同步调用可能耗时较长,设置3分钟超时
+    })
   }
 
   // 其他渠道使用标准接口

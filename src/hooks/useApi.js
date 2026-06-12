@@ -188,6 +188,11 @@ export const useImageGeneration = () => {
       const currentProvider = modelStore.currentProvider
       const modelName = params.model
 
+      // 调试日志:确认只调用一次
+      if (import.meta.env.DEV) {
+        console.log(`[useImageGeneration] 开始生成, provider=${currentProvider}, model=${modelName}`)
+      }
+
       // Call API | 调用 API
       const response = await generateImage(adaptedParams, {
         requestType: 'json',
