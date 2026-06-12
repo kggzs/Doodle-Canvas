@@ -35,6 +35,9 @@ import { NDropdown, NIcon } from 'naive-ui'
 import { ChevronDownOutline } from '@vicons/ionicons5'
 import { edges } from '../../stores/canvas'
 
+// VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
+defineOptions({ inheritAttrs: false })
+
 // Get VueFlow instance | 获取 VueFlow 实例
 const { updateEdgeData } = useVueFlow()
 
