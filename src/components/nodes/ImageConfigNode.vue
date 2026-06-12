@@ -476,6 +476,14 @@ const handleModelSelect = (key) => {
   localModel.value = key
   const config = getModelConfig(key)
 
+  // 根据模型的 provider 自动切换渠道
+  if (config?.provider?.length > 0) {
+    const targetProvider = config.provider[0]
+    if (modelStore.currentProvider !== targetProvider) {
+      modelStore.setProvider(targetProvider)
+    }
+  }
+
   // 同步 Quality 到模型默认值
   if (config?.defaultParams?.quality) {
     localQuality.value = config.defaultParams.quality

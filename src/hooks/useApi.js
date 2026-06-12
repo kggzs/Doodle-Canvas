@@ -192,7 +192,7 @@ export const useImageGeneration = () => {
       const response = await generateImage(adaptedParams, {
         requestType: 'json',
         endpoint: modelStore.getImageEndpoint(),
-        provider: currentProvider,
+        provider: currentProvider,  // Pinia store的ref在JS中会自动解包
         model: modelName
       })
 

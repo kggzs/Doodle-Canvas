@@ -240,14 +240,13 @@ export const PROVIDERS = {
   },
   aliyun: {
     label: '阿里云万相 (Aliyun Wan)',
-    defaultBaseUrl: '', // 使用代理,Base URL为空
-    // 端点路径
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
+    // 端点路径(北京域名)
     endpoints: {
       chat: '/v1/chat/completions',
-      image: '/services/aigc/multimodal-generation/generation', // wan2.6同步
-      imageAsync: '/services/aigc/image-generation/generation', // wan2.6异步
-      imageLegacy: '/services/aigc/text2image/image-synthesis', // wan2.5及以下版本
-      imageQuery: '/tasks/{taskId}', // 任务查询
+      image: '/services/aigc/multimodal-generation/generation', // wan2.7 同步端点
+      imageAsync: '/services/aigc/image-generation/generation', // wan2.7 异步端点
+      imageQuery: '/tasks/{taskId}', // 异步任务查询
       video: '/v1/video/generations',
       videoQuery: '/v1/video/task/{taskId}'
     },
@@ -264,59 +263,31 @@ export const PROVIDERS = {
         return adapted
       },
       image: (params) => {
-        const model = params.model || ''
-        
-        // wan2.6 使用 messages 格式
-        if (model.includes('wan2.6')) {
-          const adapted = {
-            model: model,
-            input: {
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      text: params.prompt || ''
-                    }
-                  ]
-                }
-              ]
-            },
-            parameters: {}
-          }
-          
-          // 添加可选参数
-          if (params.size) adapted.parameters.size = params.size
-          if (params.n) adapted.parameters.n = params.n
-          if (params.negative_prompt) adapted.parameters.negative_prompt = params.negative_prompt
-          if (params.prompt_extend !== undefined) adapted.parameters.prompt_extend = params.prompt_extend
-          if (params.watermark !== undefined) adapted.parameters.watermark = params.watermark
-          if (params.seed !== undefined) adapted.parameters.seed = params.seed
-          
-          return adapted
-        }
-        
-        // wan2.5及以下版本使用 prompt 格式
+        // wan2.7 统一使用 messages 格式
         const adapted = {
-          model: model,
+          model: params.model,
           input: {
-            prompt: params.prompt || ''
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    text: params.prompt || ''
+                  }
+                ]
+              }
+            ]
           },
           parameters: {}
         }
-        
-        // 添加反向提示词
-        if (params.negative_prompt) {
-          adapted.input.negative_prompt = params.negative_prompt
-        }
-        
+
         // 添加可选参数
         if (params.size) adapted.parameters.size = params.size
         if (params.n) adapted.parameters.n = params.n
-        if (params.prompt_extend !== undefined) adapted.parameters.prompt_extend = params.prompt_extend
+        if (params.thinking_mode !== undefined) adapted.parameters.thinking_mode = params.thinking_mode
         if (params.watermark !== undefined) adapted.parameters.watermark = params.watermark
         if (params.seed !== undefined) adapted.parameters.seed = params.seed
-        
+
         return adapted
       },
       video: (params) => {
@@ -340,24 +311,32 @@ export const PROVIDERS = {
         return ''
       },
       image: (response) => {
-        // 同步调用响应(wan2.6)
+        // 同步调用响应(wan2.7)
         if (response.output?.choices) {
           const choices = response.output.choices || []
-          return choices.map(choice => ({
-            url: choice.message?.content?.[0]?.image || '',
-            revisedPrompt: ''
-          }))
+          return choices.flatMap(choice =>
+            (choice.message?.content || [])
+              .filter(c => c.type === 'image' && c.image)
+              .map(c => ({
+                url: c.image,
+                revisedPrompt: ''
+              }))
+          )
         }
-        
-        // 异步调用响应
-        if (response.output?.results) {
-          const results = response.output.results || []
-          return results.map(result => ({
-            url: result.url || '',
-            revisedPrompt: result.actual_prompt || result.orig_prompt || ''
-          }))
+
+        // 异步调用响应(任务查询结果)
+        if (response.output?.task_status === 'SUCCEEDED' && response.output?.choices) {
+          const choices = response.output.choices || []
+          return choices.flatMap(choice =>
+            (choice.message?.content || [])
+              .filter(c => c.type === 'image' && c.image)
+              .map(c => ({
+                url: c.image,
+                revisedPrompt: ''
+              }))
+          )
         }
-        
+
         // 任务创建响应
         if (response.output?.task_id) {
           return {
@@ -366,7 +345,7 @@ export const PROVIDERS = {
             isAsync: true
           }
         }
-        
+
         return []
       },
       video: (response) => {

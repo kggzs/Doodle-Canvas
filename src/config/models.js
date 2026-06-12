@@ -46,61 +46,41 @@ export const BANANA_SIZE_OPTIONS = [
 ]
 
 // Wan (阿里云万相) image size options | 万相图片尺寸选项
+// wan2.7 使用分辨率规格(1K/2K/4K),不再使用像素值
 export const WAN_SIZE_OPTIONS = [
-    { label: '1:1', key: '1280*1280' },
-    { label: '3:4', key: '1104*1472' },
-    { label: '4:3', key: '1472*1104' },
-    { label: '9:16', key: '960*1696' },
-    { label: '16:9', key: '1696*960' }
+    { label: '1K', key: '1K' },
+    { label: '2K (推荐)', key: '2K' },
+]
+
+export const WAN_PRO_SIZE_OPTIONS = [
+    { label: '1K', key: '1K' },
+    { label: '2K (推荐)', key: '2K' },
+    { label: '4K 高清', key: '4K' },
 ]
 
 // Image generation models | 图片生成模型
 export const IMAGE_MODELS = [
     {
-        label: '万相 2.6 (推荐)',
-        key: 'wan2.6-t2i',
-        provider: ['aliyun'], // 阿里云渠道
+        label: '万相 2.7 Pro (推荐)',
+        key: 'wan2.7-image-pro',
+        provider: ['aliyun'],
+        sizes: WAN_PRO_SIZE_OPTIONS.map(s => s.key),
+        defaultParams: {
+            size: '2K',
+            n: 1,
+            thinking_mode: true,
+            watermark: false
+        }
+    },
+    {
+        label: '万相 2.7',
+        key: 'wan2.7-image',
+        provider: ['aliyun'],
         sizes: WAN_SIZE_OPTIONS.map(s => s.key),
         defaultParams: {
-            size: '1280*1280',
+            size: '2K',
             n: 1,
-            prompt_extend: true,
-            watermark: false
-        }
-    },
-    {
-        label: '万相 2.5 Preview (推荐)',
-        key: 'wan2.5-t2i-preview',
-        provider: ['aliyun'], // 阿里云渠道
-        sizes: WAN_SIZE_OPTIONS.map(s => s.key),
-        defaultParams: {
-            size: '1280*1280',
-            n: 1,
-            prompt_extend: true,
-            watermark: false
-        }
-    },
-    {
-        label: '万相 2.2 Flash',
-        key: 'wan2.2-t2i-flash',
-        provider: ['aliyun'], // 阿里云渠道
-        sizes: ['1024*1024', '1280*1280', '1440*1440'],
-        defaultParams: {
-            size: '1024*1024',
-            n: 1,
-            prompt_extend: true,
-            watermark: false
-        }
-    },
-    {
-        label: '万相 2.2 Plus',
-        key: 'wan2.2-t2i-plus',
-        provider: ['aliyun'], // 阿里云渠道
-        sizes: ['1024*1024', '1280*1280', '1440*1440'],
-        defaultParams: {
-            size: '1024*1024',
-            n: 1,
-            prompt_extend: true,
+            thinking_mode: true,
             watermark: false
         }
     },

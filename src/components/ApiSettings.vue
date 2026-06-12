@@ -15,8 +15,12 @@
           <n-form-item label="Base URL" path="baseUrl">
             <n-input
               v-model:value="formData.baseUrl"
-              placeholder="https://api.chatfire.site/v1"
+              :placeholder="baseUrlPlaceholder"
+              :disabled="isAliyunProvider"
             />
+            <template #feedback v-if="isAliyunProvider">
+              <span class="text-xs text-[var(--text-secondary)]">阿里云万相使用本地代理，无需手动配置</span>
+            </template>
           </n-form-item>
           <n-form-item label="API Key" path="apiKey">
             <n-input
@@ -171,15 +175,10 @@
 
     <template #footer>
       <div class="flex justify-between items-center">
-        <a 
-          href="https://api.chatfire.site/login?inviteCode=EEE80324" 
-          target="_blank"
-          class="text-xs text-[var(--text-secondary)] hover:text-[var(--accent-color)] transition-colors"
-        >
-          没有 API Key？点击注册
-        </a>
+        <n-button @click="handleClearCache" type="warning" size="small" tertiary>
+          清理缓存
+        </n-button>
         <div class="flex gap-2">
-          <n-button @click="handleClear" tertiary>清除配置</n-button>
           <n-button @click="showModal = false">取消</n-button>
           <n-button type="primary" @click="handleSave">保存</n-button>
         </div>
@@ -232,6 +231,15 @@ const currentEndpoints = computed(() => {
   }
 })
 
+// 是否为阿里云渠道
+const isAliyunProvider = computed(() => formData.provider === 'aliyun')
+
+// Base URL 占位符
+const baseUrlPlaceholder = computed(() => {
+  if (isAliyunProvider.value) return 'https://dashscope.aliyuncs.com/api/v1'
+  return 'https://api.chatfire.site/v1'
+})
+
 // 全局模型列表（不区分渠道）
 const allChatModels = computed(() => modelStore.allChatModels)
 const allImageModels = computed(() => modelStore.allImageModels)
@@ -258,9 +266,9 @@ const updateFormApiConfig = () => {
   const config = getProviderConfig(provider)
   formData.apiKey = modelStore.apiKeysByProvider[provider] || ''
   
-  // 阿里云万相使用代理,Base URL必须为空
+  // 阿里云万相:自动填入URL,使用代理转发
   if (provider === 'aliyun') {
-    formData.baseUrl = ''
+    formData.baseUrl = 'https://dashscope.aliyuncs.com/api/v1'
   } else {
     formData.baseUrl = modelStore.baseUrlsByProvider[provider] || config.defaultBaseUrl || ''
   }
@@ -329,10 +337,8 @@ const handleSave = () => {
     modelStore.setApiKeyByProvider(formData.provider, formData.apiKey)
   }
   
-  // 阿里云万相的baseUrl必须为空(使用代理)
-  if (formData.provider === 'aliyun') {
-    modelStore.setBaseUrlByProvider(formData.provider, '')
-  } else if (formData.baseUrl) {
+  // 保存 baseUrl(阿里云保存实际URL,请求时走代理)
+  if (formData.baseUrl) {
     modelStore.setBaseUrlByProvider(formData.provider, formData.baseUrl)
   }
   
@@ -340,12 +346,14 @@ const handleSave = () => {
   emit('saved')
 }
 
-// Handle clear | 处理清除
-const handleClear = () => {
-  modelStore.clearApiConfigByProvider(formData.provider)
-  modelStore.clearCustomModels()
+// Handle clear cache | 处理清理缓存(保留生成的图片)
+const handleClearCache = () => {
+  modelStore.clearConfigCache()
+  // 重置表单
+  formData.provider = modelStore.currentProvider
   formData.apiKey = ''
   formData.baseUrl = ''
+  window.$message?.success('缓存已清理，生成的图片不受影响')
 }
 </script>
 

@@ -157,12 +157,6 @@ export const useModelStore = defineStore('model', () => {
   // 按渠道存储的 API 配置
   const apiKeysByProvider = ref(getStoredJson(STORAGE_KEYS.API_KEYS_BY_PROVIDER, {}))
   const baseUrlsByProvider = ref(getStoredJson(STORAGE_KEYS.BASE_URLS_BY_PROVIDER, {}))
-  
-  // 初始化:清除阿里云的旧baseUrl配置(确保使用代理)
-  if (baseUrlsByProvider.value.aliyun && baseUrlsByProvider.value.aliyun !== '') {
-    baseUrlsByProvider.value.aliyun = ''
-    setStoredJson(STORAGE_KEYS.BASE_URLS_BY_PROVIDER, baseUrlsByProvider.value)
-  }
 
   // 当前渠道的 API Key 和 Base URL
   const currentApiKey = computed(() => apiKeysByProvider.value[currentProvider.value] || '')
@@ -282,6 +276,28 @@ export const useModelStore = defineStore('model', () => {
       key: m.key
     }))
   )
+
+  // ============ 校验选中的模型是否有效 ============
+
+  // 校验选中的模型是否在当前模型列表中,不存在则重置为默认值
+  const validateSelectedModels = () => {
+    const allImageKeys = allImageModels.value.map(m => m.key)
+    const allVideoKeys = allVideoModels.value.map(m => m.key)
+    const allChatKeys = allChatModels.value.map(m => m.key)
+
+    if (selectedImageModel.value && !allImageKeys.includes(selectedImageModel.value)) {
+      selectedImageModel.value = DEFAULT_IMAGE_MODEL
+    }
+    if (selectedVideoModel.value && !allVideoKeys.includes(selectedVideoModel.value)) {
+      selectedVideoModel.value = DEFAULT_VIDEO_MODEL
+    }
+    if (selectedChatModel.value && !allChatKeys.includes(selectedChatModel.value)) {
+      selectedChatModel.value = DEFAULT_CHAT_MODEL
+    }
+  }
+
+  // 初始化时校验一次
+  validateSelectedModels()
 
   // ============ Computed: Model Options for UI (filtered by provider - deprecated, use all* instead) ============
 
@@ -507,6 +523,55 @@ export const useModelStore = defineStore('model', () => {
     selectedVideoModel.value = DEFAULT_VIDEO_MODEL
   }
 
+  // ============ Methods: Clear Config Cache ============
+
+  /**
+   * 清除配置缓存(保留生成的图片和主题)
+   * 清除范围: 渠道选择、API Key、Base URL、自定义模型、选中的模型
+   * 保留范围: ai-canvas-projects(生成的图片)、theme(主题)
+   */
+  const clearConfigCache = () => {
+    // 需要清除的 localStorage 键
+    const keysToClear = [
+      STORAGE_KEYS.PROVIDER,
+      STORAGE_KEYS.CUSTOM_CHAT_MODELS,
+      STORAGE_KEYS.CUSTOM_IMAGE_MODELS,
+      STORAGE_KEYS.CUSTOM_VIDEO_MODELS,
+      STORAGE_KEYS.SELECTED_CHAT_MODEL,
+      STORAGE_KEYS.SELECTED_IMAGE_MODEL,
+      STORAGE_KEYS.SELECTED_VIDEO_MODEL,
+      STORAGE_KEYS.CUSTOM_CHAT_MODELS_BY_PROVIDER,
+      STORAGE_KEYS.CUSTOM_IMAGE_MODELS_BY_PROVIDER,
+      STORAGE_KEYS.CUSTOM_VIDEO_MODELS_BY_PROVIDER,
+      STORAGE_KEYS.API_KEYS_BY_PROVIDER,
+      STORAGE_KEYS.BASE_URLS_BY_PROVIDER,
+      // 其他可能存在的旧缓存键
+      'apiKey',
+      'api-keys-by-provider',
+      'base-urls-by-provider'
+    ]
+
+    keysToClear.forEach(key => {
+      try { localStorage.removeItem(key) } catch { /* ignore */ }
+    })
+
+    // 重置响应式状态
+    currentProvider.value = getDefaultProvider()
+    customChatModels.value = []
+    customImageModels.value = []
+    customVideoModels.value = []
+    customChatModelsByProvider.value = {}
+    customImageModelsByProvider.value = {}
+    customVideoModelsByProvider.value = {}
+    apiKeysByProvider.value = {}
+    baseUrlsByProvider.value = {}
+    selectedChatModel.value = DEFAULT_CHAT_MODEL
+    selectedImageModel.value = DEFAULT_IMAGE_MODEL
+    selectedVideoModel.value = DEFAULT_VIDEO_MODEL
+
+    return true
+  }
+
   // ============ Watch & Persist ============
 
   // 监听并持久化自定义模型
@@ -606,6 +671,9 @@ export const useModelStore = defineStore('model', () => {
 
     // Clear all custom models
     clearCustomModels,
+
+    // Clear config cache (preserve generated images)
+    clearConfigCache,
 
     // API Config by provider
     currentApiKey,

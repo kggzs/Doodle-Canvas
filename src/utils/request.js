@@ -41,11 +41,11 @@ instance.interceptors.request.use(
     }
 
     // Set base URL for this request | 为此请求设置 Base URL
-    // 阿里云万相:baseUrl为空,使用Vite代理,baseURL设为"/"
-    if (baseUrl) {
-      config.baseURL = baseUrl
-    } else if (currentProvider === 'aliyun') {
+    // 阿里云万相:强制走Vite代理,忽略保存的baseUrl
+    if (currentProvider === 'aliyun') {
       config.baseURL = '/'
+    } else if (baseUrl) {
+      config.baseURL = baseUrl
     }
 
     // Skip auth for certain endpoints | 跳过某些端点的认证
@@ -98,10 +98,18 @@ instance.interceptors.response.use(
     
     if (response) {
       const { status, data } = response
-      const message = data?.message || data?.error?.message || error.message
+      // 优先显示阿里云等API返回的详细错误信息
+      const message = data?.message || data?.error?.message || data?.code || error.message
+      
+      // 调试日志:输出完整错误响应
+      if (import.meta.env.DEV) {
+        console.error(`[Response Error] status=${status}, url=${response.config?.url}, data=`, data)
+      }
       
       if (status === 401) {
         window.$message?.error('API Key 无效或已过期')
+      } else if (status === 403) {
+        window.$message?.error(`访问被拒绝: ${message}`)
       } else if (status === 429) {
         window.$message?.error('请求过于频繁，请稍后再试')
       } else {

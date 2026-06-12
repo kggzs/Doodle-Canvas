@@ -8,48 +8,38 @@ import { getProviderConfig } from '@/config/providers'
 /**
  * 创建异步任务(阿里云万相)
  * @param {Object} data - 请求数据
- * @param {Object} options - 选项
  * @returns {Promise}
  */
-const createAsyncTask = async (data, options = {}) => {
-  const { provider = 'aliyun', model } = options
-  const config = getProviderConfig(provider)
-  
-  // 根据模型版本选择不同的端点
-  let endpoint = config.endpoints.imageAsync // wan2.6异步
-  if (model && !model.includes('wan2.6')) {
-    endpoint = config.endpoints.imageLegacy // wan2.5及以下版本
-  }
-  
-  // 创建任务
+const createAsyncTask = async (data) => {
+  const config = getProviderConfig('aliyun')
+  const endpoint = config.endpoints.imageAsync
+
   const response = await request({
     url: endpoint,
     method: 'post',
     data,
     headers: {
-      'X-DashScope-Async': 'enable' // 必须添加此头部
+      'X-DashScope-Async': 'enable'
     }
   })
-  
+
   return response
 }
 
 /**
  * 查询异步任务状态(阿里云万相)
  * @param {string} taskId - 任务ID
- * @param {Object} options - 选项
  * @returns {Promise}
  */
-const queryAsyncTask = async (taskId, options = {}) => {
-  const { provider = 'aliyun' } = options
-  const config = getProviderConfig(provider)
+const queryAsyncTask = async (taskId) => {
+  const config = getProviderConfig('aliyun')
   const endpoint = config.endpoints.imageQuery.replace('{taskId}', taskId)
-  
+
   const response = await request({
     url: endpoint,
     method: 'get'
   })
-  
+
   return response
 }
 
@@ -60,23 +50,23 @@ const queryAsyncTask = async (taskId, options = {}) => {
  * @returns {Promise}
  */
 const waitAsyncTask = async (taskId, options = {}) => {
-  const { maxRetries = 30, interval = 3000 } = options
-  
+  const { maxRetries = 60, interval = 3000 } = options
+
   for (let i = 0; i < maxRetries; i++) {
-    const response = await queryAsyncTask(taskId, options)
-    
+    const response = await queryAsyncTask(taskId)
+
     if (response.output?.task_status === 'SUCCEEDED') {
       return response
     }
-    
+
     if (response.output?.task_status === 'FAILED') {
       throw new Error(response.message || '任务执行失败')
     }
-    
+
     // 等待一段时间后继续查询
     await new Promise(resolve => setTimeout(resolve, interval))
   }
-  
+
   throw new Error('任务超时')
 }
 
@@ -88,38 +78,55 @@ const waitAsyncTask = async (taskId, options = {}) => {
  */
 export const generateImage = async (data, options = {}) => {
   const { requestType = 'json', endpoint = '/images/generations', provider, model } = options
-  
-  // 阿里云万相特殊处理:使用 provider 配置中的端点,不走默认拼接逻辑
-  if (provider === 'aliyun') {
-    const config = getProviderConfig(provider)
-    
-    // wan2.6 使用同步调用
-    if (model && model.includes('wan2.6')) {
-      const syncEndpoint = config.endpoints.image
-      
-      return request({
+
+  // 判断是否为阿里云万相(双重检查:通过provider或model名称)
+  const isAliyun = provider === 'aliyun' || (model && model.startsWith('wan'))
+
+  // 调试日志
+  if (import.meta.env.DEV) {
+    console.log(`[generateImage] provider=${provider}, model=${model}, isAliyun=${isAliyun}`)
+  }
+
+  // 阿里云万相:优先使用同步调用,超时则降级为异步
+  if (isAliyun) {
+    const config = getProviderConfig('aliyun')
+    const syncEndpoint = config.endpoints.image
+
+    try {
+      // wan2.7 同步调用
+      return await request({
         url: syncEndpoint,
         method: 'post',
-        data
+        data,
+        timeout: 120000 // 同步调用可能耗时较长,设置2分钟超时
       })
+    } catch (syncError) {
+      // 如果同步调用超时或失败,降级为异步调用
+      if (import.meta.env.DEV) {
+        console.warn('[generateImage] 同步调用失败,降级为异步调用:', syncError.message)
+      }
+
+      const taskResponse = await createAsyncTask(data)
+
+      if (!taskResponse.output?.task_id) {
+        throw new Error('创建任务失败')
+      }
+
+      // 等待任务完成
+      return await waitAsyncTask(taskResponse.output.task_id)
     }
-    
-    // wan2.5及以下版本必须使用异步调用
-    const taskResponse = await createAsyncTask(data, { provider, model })
-    
-    if (!taskResponse.output?.task_id) {
-      throw new Error('创建任务失败')
-    }
-    
-    // 等待任务完成
-    const result = await waitAsyncTask(taskResponse.output.task_id, { provider })
-    
-    return result
   }
-  
+
   // 其他渠道使用标准接口
+  // 安全检查:如果URL指向阿里云,强制走代理
+  let requestUrl = endpoint
+  if (requestUrl.includes('dashscope')) {
+    const config = getProviderConfig('aliyun')
+    requestUrl = config.endpoints.image
+  }
+
   return request({
-    url: endpoint,
+    url: requestUrl,
     method: 'post',
     data,
     headers: requestType === 'formdata' ? { 'Content-Type': 'multipart/form-data' } : {}

@@ -1,17 +1,19 @@
-Failed to load resource: the server responded with a status of 404 (Not Found)
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+GET http://localhost:5173/@vite/client net::ERR_ABORTED 404 (Not Found)
+（匿名） @ VM3053:3
+（匿名） @ VM3053:7
+main.js:14 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}createdAt: 1781264914799label: "文生图"loading: falsemodel: "wan2.7-image"publicProps: {name: '图片'}updatedAt: 1781264931589url: "https://dashscope-7c2c.oss-accelerate.aliyuncs.com/1d/92/20260612/d512d15a/090a6f2d-6bba-46fa-ba1a-3d73454f93ba_0.png?Expires=1781351331&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D"[[Prototype]]: Object  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
@@ -45,19 +47,38 @@ callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queuePostFlushCb @ chunk-5HDFFJ6C.js?v=272b2048:2509
+queueEffectWithSuspense @ chunk-5HDFFJ6C.js?v=272b2048:9765
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3069
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+notify @ chunk-5HDFFJ6C.js?v=272b2048:876
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:850
+set value @ chunk-5HDFFJ6C.js?v=272b2048:1764
+finalizeNavigation @ vue-router.js?v=272b2048:2213
+（匿名） @ vue-router.js?v=272b2048:2151
+Promise.then
+pushWithRedirect @ vue-router.js?v=272b2048:2138
+push @ vue-router.js?v=272b2048:2089
+install @ vue-router.js?v=272b2048:2321
+use @ chunk-5HDFFJ6C.js?v=272b2048:6366
+（匿名） @ main.js:14
+main.js:14 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
@@ -91,19 +112,38 @@ callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queuePostFlushCb @ chunk-5HDFFJ6C.js?v=272b2048:2509
+queueEffectWithSuspense @ chunk-5HDFFJ6C.js?v=272b2048:9765
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3069
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+notify @ chunk-5HDFFJ6C.js?v=272b2048:876
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:850
+set value @ chunk-5HDFFJ6C.js?v=272b2048:1764
+finalizeNavigation @ vue-router.js?v=272b2048:2213
+（匿名） @ vue-router.js?v=272b2048:2151
+Promise.then
+pushWithRedirect @ vue-router.js?v=272b2048:2138
+push @ vue-router.js?v=272b2048:2089
+install @ vue-router.js?v=272b2048:2321
+use @ chunk-5HDFFJ6C.js?v=272b2048:6366
+（匿名） @ main.js:14
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
@@ -122,19 +162,33 @@ run @ chunk-5HDFFJ6C.js?v=272b2048:528
 runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
@@ -153,143 +207,33 @@ run @ chunk-5HDFFJ6C.js?v=272b2048:528
 runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
@@ -309,19 +253,33 @@ runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
@@ -341,19 +299,33 @@ runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
@@ -372,19 +344,33 @@ run @ chunk-5HDFFJ6C.js?v=272b2048:528
 runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
@@ -403,144 +389,33 @@ run @ chunk-5HDFFJ6C.js?v=272b2048:528
 runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-:5173/services/aigc/multimodal-generation/generation:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>
 warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
 renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
@@ -560,112 +435,31 @@ runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
 callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
 flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
+Promise.then
+queueFlush @ chunk-5HDFFJ6C.js?v=272b2048:2495
+queueJob @ chunk-5HDFFJ6C.js?v=272b2048:2490
+baseWatchOptions.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:3077
+effect2.scheduler @ chunk-5HDFFJ6C.js?v=272b2048:2119
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:556
+endBatch @ chunk-5HDFFJ6C.js?v=272b2048:614
+trigger @ chunk-5HDFFJ6C.js?v=272b2048:1003
+set @ chunk-5HDFFJ6C.js?v=272b2048:1327
+updateNodeDimensions @ chunk-O4AQJ3R6.js?v=272b2048:6395
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
+Promise.then
+nextTick @ chunk-5HDFFJ6C.js?v=272b2048:2462
+（匿名） @ chunk-O4AQJ3R6.js?v=272b2048:9862
 chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
+  at <ImageNode id="node_3" type="image" data= {url: 'https://dashscope-7c2c.oss-accelerate.aliyuncs.com…rym1&Signature=Kgjv4I3ptoLU%2FN5%2BGyAwOwGXg2I%3D', label: '文生图', publicProps: {…}, loading: false, createdAt: 1781264914799, …}  ... > 
+  at <Node id="node_3" key="node_3" resize-observer= ResizeObserver {} > 
   at <Nodes> 
   at <Transform> 
   at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
   at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <VueFlow key=1781265024832 nodes= (3) [Proxy(Object), Proxy(Object), Proxy(Object)] onUpdate:nodes=fn  ... > 
+  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) {__v_skip: true} > > 
   at <RouterView> 
   at <DialogProvider> 
   at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-updateComponent @ chunk-5HDFFJ6C.js?v=272b2048:8273
-processComponent @ chunk-5HDFFJ6C.js?v=272b2048:8207
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7693
-patchKeyedChildren @ chunk-5HDFFJ6C.js?v=272b2048:8615
-patchChildren @ chunk-5HDFFJ6C.js?v=272b2048:8529
-patchElement @ chunk-5HDFFJ6C.js?v=272b2048:7997
-processElement @ chunk-5HDFFJ6C.js?v=272b2048:7831
-patch @ chunk-5HDFFJ6C.js?v=272b2048:7681
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8424
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2603
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6840
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-props attributes (type, events, selected, resizing, dragging, connectable, position, dimensions, isValidTargetPos, isValidSourcePos, parent, parentNodeId, zIndex, targetPosition, sourcePosition, label, dragHandle) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
-  at <App>
-warn$1 @ chunk-5HDFFJ6C.js?v=272b2048:2226
-renderComponentRoot @ chunk-5HDFFJ6C.js?v=272b2048:6835
-componentUpdateFn @ chunk-5HDFFJ6C.js?v=272b2048:8415
-run @ chunk-5HDFFJ6C.js?v=272b2048:528
-runIfDirty @ chunk-5HDFFJ6C.js?v=272b2048:566
-callWithErrorHandling @ chunk-5HDFFJ6C.js?v=272b2048:2373
-flushJobs @ chunk-5HDFFJ6C.js?v=272b2048:2581
-chunk-5HDFFJ6C.js?v=272b2048:2226 [Vue warn]: Extraneous non-emits event listeners (updateNodeInternals) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option. 
-  at <ImageNode id="node_2" type="image" data= Object  ... > 
-  at <Node id="node_2" key="node_2" resize-observer= ResizeObserver > 
-  at <Nodes> 
-  at <Transform> 
-  at <Pane is-selecting=false selection-key-pressed=false class="draggable" > 
-  at <Viewport> 
-  at <VueFlow key=1781260336558 nodes= Array(3) onUpdate:nodes=fn  ... > 
-  at <Canvas onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
-  at <RouterView> 
-  at <DialogProvider> 
-  at <MessageProvider> 
-  at <ConfigProvider theme=null theme-overrides= Object > 
+  at <ConfigProvider theme=null theme-overrides= {common: {…}, Dialog: {…}, Modal: {…}, Card: {…}, Button: {…}, …} > 
   at <App>

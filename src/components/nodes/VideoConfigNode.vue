@@ -249,6 +249,15 @@ const handleModelSelect = (key) => {
   // Update ratio and duration to model's default | 更新为模型默认比例和时长
   const config = getModelConfig(key)
   const updates = { model: key }
+
+  // 根据模型的 provider 自动切换渠道
+  if (config?.provider?.length > 0) {
+    const targetProvider = config.provider[0]
+    if (modelStore.currentProvider !== targetProvider) {
+      modelStore.setProvider(targetProvider)
+    }
+  }
+
   if (config?.defaultParams?.ratio) {
     localRatio.value = config.defaultParams.ratio
     updates.ratio = config.defaultParams.ratio
