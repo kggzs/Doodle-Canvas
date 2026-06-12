@@ -6,7 +6,7 @@
 import axios from 'axios'
 
 // Base URL from environment or default
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.chatfire.site'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.openai.com'
 
 // Create axios instance | 创建 axios 实例
 const instance = axios.create({
@@ -18,7 +18,7 @@ const instance = axios.create({
 instance.interceptors.request.use(
   (config) => {
     // Get current provider | 获取当前渠道
-    const currentProvider = localStorage.getItem('api-provider') || 'chatfire'
+    const currentProvider = localStorage.getItem('api-provider') || 'openai'
 
     // Get API keys from new storage | 从新存储结构获取 API Keys
     let apiKey = ''

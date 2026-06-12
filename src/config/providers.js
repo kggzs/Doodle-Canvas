@@ -5,169 +5,6 @@
 
 // 渠道适配配置
 export const PROVIDERS = {
-  chatfire: {
-    label: '火宝 (Chatfire)',
-    defaultBaseUrl: 'https://api.chatfire.site',
-    // 端点路径
-    endpoints: {
-      chat: '/v1/chat/completions',
-      image: '/v1/images/generations',
-      video: '/v1/video/generations',
-      videoQuery: '/v1/video/task/{taskId}'
-    },
-    // 火宝渠道请求适配
-    requestAdapter: {
-      chat: (params) => {
-        const adapted = {
-          model: params.model,
-          messages: params.messages
-        }
-        if (params.temperature !== undefined) adapted.temperature = params.temperature
-        if (params.max_tokens !== undefined) adapted.max_tokens = params.max_tokens
-        if (params.stream !== undefined) adapted.stream = params.stream
-        return adapted
-      },
-      image: (params) => {
-        const adapted = {
-          model: params.model,
-          prompt: params.prompt
-        }
-        if (params.size) adapted.size = params.size
-        if (params.n) adapted.n = params.n
-        if (params.quality) adapted.quality = params.quality
-        if (params.style) adapted.style = params.style
-        if (params.image) adapted.image = params.image
-        return adapted
-      },
-      video: (params) => {
-        const model = params.model || ''
-
-        // Seedance 模型 - 使用 content 数组格式
-        if (model.includes('seedance')) {
-          const content = []
-
-          // 构建完整参数文本
-          // 格式: prompt --resolution 720p --ratio 16:9 --dur 5 --fps 24 --wm true --seed 11 --cf false
-          let textPrompt = params.prompt || ''
-
-          // 添加 resolution 参数
-          if (params.resolution) {
-            textPrompt += ` --resolution ${params.resolution}`
-          }
-
-          // 添加 ratio 参数 (图生视频用 16:9)
-          if (params.size) {
-            textPrompt += ` --ratio ${params.size}`
-          }
-
-          // 添加 duration 参数
-          if (params.seconds) {
-            textPrompt += ` --dur ${params.seconds}`
-          }
-
-          // 添加 fps (固定 24)
-          textPrompt += ` --fps 24`
-
-          // 添加水印参数 (默认 true)
-          textPrompt += ` --wm ${params.wm !== false ? 'true' : 'false'}`
-
-          // 添加 seed 参数 (可选)
-          if (params.seed !== undefined) {
-            textPrompt += ` --seed ${params.seed}`
-          }
-
-          // 添加 cf 参数 (默认 false)
-          textPrompt += ` --cf ${params.cf === true ? 'true' : 'false'}`
-
-          content.push({
-            type: 'text',
-            text: textPrompt
-          })
-
-          // 添加参考图（如果有）
-          if (params.first_frame_image) {
-            content.push({
-              type: 'image_url',
-              image_url: {
-                url: params.first_frame_image
-              }
-            })
-          }
-
-          const adapted = {
-            model: model,
-            content: content,
-            generate_audio: params.generateAudio !== false
-          }
-
-          return adapted
-        }
-
-        // Kling 模型 - 使用 kling 特定格式
-        if (model.includes('kling')) {
-          // 将 ratio 转换为 aspect_ratio 格式
-          const ratioMap = {
-            '16:9': '16:9',
-            '9:16': '9:16',
-            '1:1': '1:1',
-            '4:3': '4:3',
-            '3:4': '3:4'
-          }
-
-          const adapted = {
-            model_name: model,
-            mode: 'std',
-            prompt: params.prompt || '',
-            aspect_ratio: ratioMap[params.size] || '16:9',
-            duration: params.seconds || 5,
-            negative_prompt: '',
-            cfg_scale: 0.5
-          }
-
-          // 添加参考图（如果有）
-          if (params.first_frame_image) {
-            adapted.image = params.first_frame_image
-          }
-
-          return adapted
-        }
-
-        // 默认格式（veo 等）
-        const adapted = {
-          model: params.model,
-          prompt: params.prompt || ''
-        }
-        if (params.first_frame_image) adapted.first_frame_image = params.first_frame_image
-        if (params.last_frame_image) adapted.last_frame_image = params.last_frame_image
-        if (params.size) adapted.size = params.size
-        if (params.seconds) adapted.seconds = params.seconds
-
-        return adapted
-      }
-    },
-    // 火宝渠道响应格式
-    responseAdapter: {
-      chat: (response) => {
-        if (response.choices && response.choices.length > 0) {
-          return response.choices[0].message?.content || ''
-        }
-        return ''
-      },
-      image: (response) => {
-        const data = response.data || response
-        return (Array.isArray(data) ? data : [data]).map(item => ({
-          url: item.url || item.b64_json || '',
-          revisedPrompt: item.revised_prompt || ''
-        }))
-      },
-      video: (response) => {
-        return {
-          url: response.data?.url || response.url || response.data?.[0]?.url || '',
-          ...response
-        }
-      }
-    }
-  },
   openai: {
     label: 'OpenAI',
     defaultBaseUrl: 'https://api.chatfire.cn',
@@ -247,8 +84,8 @@ export const PROVIDERS = {
       image: '/services/aigc/multimodal-generation/generation', // wan2.7 同步端点
       imageAsync: '/services/aigc/image-generation/generation', // wan2.7 异步端点
       imageQuery: '/tasks/{taskId}', // 异步任务查询
-      video: '/v1/video/generations',
-      videoQuery: '/v1/video/task/{taskId}'
+      video: '/services/aigc/video-generation/video-synthesis', // wan2.7 视频生成端点
+      videoQuery: '/tasks/{taskId}' // 视频异步任务查询
     },
     // 阿里云万相请求适配
     requestAdapter: {
@@ -263,18 +100,26 @@ export const PROVIDERS = {
         return adapted
       },
       image: (params) => {
-        // wan2.7 统一使用 messages 格式
+        // wan2.7 统一使用 messages 格式，支持文生图和图生图
+        const content = []
+
+        // 图生图：将参考图按顺序添加到 content 前面
+        if (params.image && Array.isArray(params.image) && params.image.length > 0) {
+          for (const imgUrl of params.image) {
+            content.push({ image: imgUrl })
+          }
+        }
+
+        // 添加文本提示词
+        content.push({ text: params.prompt || '' })
+
         const adapted = {
           model: params.model,
           input: {
             messages: [
               {
                 role: 'user',
-                content: [
-                  {
-                    text: params.prompt || ''
-                  }
-                ]
+                content
               }
             ]
           },
@@ -284,21 +129,53 @@ export const PROVIDERS = {
         // 添加可选参数
         if (params.size) adapted.parameters.size = params.size
         if (params.n) adapted.parameters.n = params.n
-        if (params.thinking_mode !== undefined) adapted.parameters.thinking_mode = params.thinking_mode
+        // thinking_mode 仅在文生图（无图片输入）时生效
+        if (params.thinking_mode !== undefined && (!params.image || params.image.length === 0)) {
+          adapted.parameters.thinking_mode = params.thinking_mode
+        }
         if (params.watermark !== undefined) adapted.parameters.watermark = params.watermark
         if (params.seed !== undefined) adapted.parameters.seed = params.seed
 
         return adapted
       },
       video: (params) => {
-        const adapted = {
-          model: params.model,
+        // wan2.7 视频生成 API 格式
+        // 图生视频(i2v): model + input.prompt + input.media + parameters
+        // 文生视频(t2v): model + input.prompt + parameters
+        const input = {
           prompt: params.prompt || ''
         }
-        if (params.first_frame_image) adapted.first_frame_image = params.first_frame_image
-        if (params.last_frame_image) adapted.last_frame_image = params.last_frame_image
-        if (params.size) adapted.size = params.size
-        if (params.seconds) adapted.seconds = params.seconds
+
+        // 构建媒体素材数组（图生视频时使用）
+        const media = []
+        if (params.first_frame_image) {
+          media.push({ type: 'first_frame', url: params.first_frame_image })
+        }
+        if (params.last_frame_image) {
+          media.push({ type: 'last_frame', url: params.last_frame_image })
+        }
+        if (params.first_clip) {
+          media.push({ type: 'first_clip', url: params.first_clip })
+        }
+        if (params.driving_audio) {
+          media.push({ type: 'driving_audio', url: params.driving_audio })
+        }
+        if (media.length > 0) {
+          input.media = media
+        }
+
+        const parameters = {}
+        if (params.resolution) parameters.resolution = params.resolution
+        if (params.duration) parameters.duration = params.duration
+        if (params.prompt_extend !== undefined) parameters.prompt_extend = params.prompt_extend
+        if (params.watermark !== undefined) parameters.watermark = params.watermark
+        if (params.seed !== undefined) parameters.seed = params.seed
+
+        const adapted = {
+          model: params.model,
+          input,
+          parameters
+        }
         return adapted
       }
     },
@@ -311,7 +188,12 @@ export const PROVIDERS = {
         return ''
       },
       image: (response) => {
-        // 同步调用响应(wan2.7)
+        // 阿里云错误响应：包含 code 字段时表示失败
+        if (response.code && response.code !== '200' && response.code !== '') {
+          throw new Error(response.message || `阿里云 API 错误: ${response.code}`)
+        }
+
+        // 同步/异步调用成功响应：output.choices 结构一致
         if (response.output?.choices) {
           const choices = response.output.choices || []
           return choices.flatMap(choice =>
@@ -324,20 +206,7 @@ export const PROVIDERS = {
           )
         }
 
-        // 异步调用响应(任务查询结果)
-        if (response.output?.task_status === 'SUCCEEDED' && response.output?.choices) {
-          const choices = response.output.choices || []
-          return choices.flatMap(choice =>
-            (choice.message?.content || [])
-              .filter(c => c.type === 'image' && c.image)
-              .map(c => ({
-                url: c.image,
-                revisedPrompt: ''
-              }))
-          )
-        }
-
-        // 任务创建响应
+        // 异步任务创建响应：返回 task_id 用于轮询
         if (response.output?.task_id) {
           return {
             taskId: response.output.task_id,
@@ -349,8 +218,43 @@ export const PROVIDERS = {
         return []
       },
       video: (response) => {
+        // wan2.7 视频任务查询成功响应（优先检查 task_status，因为轮询响应也包含 task_id）
+        if (response.output?.task_status === 'SUCCEEDED') {
+          return {
+            url: response.output.video_url || '',
+            status: 'completed'
+          }
+        }
+
+        // 任务处理中
+        if (response.output?.task_status === 'PENDING' || response.output?.task_status === 'RUNNING') {
+          return {
+            status: response.output.task_status === 'PENDING' ? 'pending' : 'running',
+            taskStatus: response.output.task_status
+          }
+        }
+
+        // 任务失败
+        if (response.output?.task_status === 'FAILED' || response.output?.task_status === 'UNKNOWN') {
+          const errMsg = response.output?.message || response.message || '视频生成失败'
+          return {
+            status: 'failed',
+            error: errMsg
+          }
+        }
+
+        // wan2.7 视频生成异步任务创建响应（task_status 为 PENDING 时创建成功）
+        if (response.output?.task_id) {
+          return {
+            taskId: response.output.task_id,
+            taskStatus: response.output.task_status,
+            isAsync: true
+          }
+        }
+
+        // 兜底
         return {
-          url: response.data?.url || response.url || response.data?.[0]?.url || '',
+          url: response.output?.video_url || response.data?.url || response.url || '',
           ...response
         }
       }
@@ -358,7 +262,7 @@ export const PROVIDERS = {
   },
 
   // 默认使用 OpenAI 格式
-  default: 'chatfire'
+  default: 'openai'
 }
 
 // 获取渠道列表
@@ -373,7 +277,7 @@ export const getProviderList = () => {
 
 // 获取默认渠道
 export const getDefaultProvider = () => {
-  return PROVIDERS.default || 'chatfire'
+  return PROVIDERS.default || 'openai'
 }
 
 // 获取渠道的默认 Base URL

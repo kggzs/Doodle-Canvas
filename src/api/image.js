@@ -87,17 +87,36 @@ export const generateImage = async (data, options = {}) => {
     console.log(`[generateImage] provider=${provider}, model=${model}, isAliyun=${isAliyun}`)
   }
 
-  // 阿里云万相:直接使用同步调用(阿里云会自动处理超时降级)
+  // 阿里云万相:使用同步调用，支持降级到异步
   if (isAliyun) {
     const config = getProviderConfig('aliyun')
     const syncEndpoint = config.endpoints.image
 
-    return await request({
+    const response = await request({
       url: syncEndpoint,
       method: 'post',
       data,
       timeout: 180000 // 同步调用可能耗时较长,设置3分钟超时
     })
+
+    // 检查阿里云 API 错误码
+    if (response.code && response.code !== '200' && response.code !== '') {
+      throw new Error(response.message || `阿里云 API 错误: ${response.code}`)
+    }
+
+    // 同步调用成功，直接返回
+    if (response.output?.choices) {
+      return response
+    }
+
+    // 同步调用降级为异步：返回了 task_id 而非直接结果
+    if (response.output?.task_id) {
+      const taskId = response.output.task_id
+      const asyncResult = await waitAsyncTask(taskId)
+      return asyncResult
+    }
+
+    return response
   }
 
   // 其他渠道使用标准接口

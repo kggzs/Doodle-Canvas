@@ -21,7 +21,7 @@
       <section class="text-center mb-12">
         <div class="flex items-center justify-center gap-4 mb-8">
           <img src="../assets/logo.png" alt="Logo" class="w-12 h-12 md:w-16 md:h-16" />
-          <h1 class="text-2xl md:text-4xl font-bold text-[var(--text-primary)]">欢迎来到火宝无限画布</h1>
+          <h1 class="text-2xl md:text-4xl font-bold text-[var(--text-primary)]">欢迎来到万能涂鸦画布</h1>
         </div>
         
         <!-- Input area | 输入区域 -->

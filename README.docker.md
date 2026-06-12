@@ -58,7 +58,7 @@ docker run -d -p 3000:80 --name huobao-canvas peigen666/huobao-canvas:latest
 ### Nginx 配置
 
 - 静态文件路径：`/usr/share/nginx/html/huobao-canvas`
-- API 代理：`/v1` → `https://api.chatfire.site`
+- API 代理：`/v1` → `https://api.openai.com`
 - Gzip 压缩：已启用
 - 静态资源缓存：1 年
 

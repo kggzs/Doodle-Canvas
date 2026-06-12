@@ -55,17 +55,7 @@
           </div>
 
           <n-alert v-if="!isConfigured" type="warning" title="未配置" class="mb-4">
-            <div class="flex flex-col gap-2">
-              <p>请配置 API Key 以使用 AI 功能</p>
-              <a 
-                href="https://api.chatfire.site/login?inviteCode=EEE80324" 
-                target="_blank"
-                class="text-[var(--accent-color)] hover:underline text-sm flex items-center gap-1"
-              >
-                🔗 点击获取 API Key
-                <span class="text-xs">（新用户注册）</span>
-              </a>
-            </div>
+            <p>请配置 API Key 以使用 AI 功能</p>
           </n-alert>
 
           <n-alert v-else type="success" title="已配置" class="mb-4">
@@ -237,7 +227,7 @@ const isAliyunProvider = computed(() => formData.provider === 'aliyun')
 // Base URL 占位符
 const baseUrlPlaceholder = computed(() => {
   if (isAliyunProvider.value) return 'https://dashscope.aliyuncs.com/api/v1'
-  return 'https://api.chatfire.site/v1'
+  return 'https://api.openai.com/v1'
 })
 
 // 全局模型列表（不区分渠道）

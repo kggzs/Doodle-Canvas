@@ -678,10 +678,12 @@ const handleGenerate = async (mode = 'auto') => {
 
     // Update image node with generated URL | 更新图片节点 URL
     if (result && result.length > 0) {
+      // 区分文生图和图生图标签
+      const genLabel = refImages.length > 0 ? '图生图' : '文生图'
       updateNode(imageNodeId, {
         url: result[0].url,
         loading: false,
-        label: '文生图',
+        label: genLabel,
         model: localModel.value,
         updatedAt: Date.now()
       })

@@ -48,8 +48,21 @@
           </n-dropdown>
         </div>
 
-        <!-- Aspect ratio selector | 宽高比选择 -->
-        <div class="flex items-center justify-between">
+        <!-- Resolution selector (for wan models) | 分辨率选择（万相模型） -->
+        <div v-if="isWanVideoModel" class="flex items-center justify-between">
+          <span class="text-xs text-[var(--text-secondary)]">分辨率</span>
+          <n-dropdown :options="resolutionOptions" @select="handleResolutionSelect">
+            <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
+              {{ localResolution }}
+              <n-icon :size="12">
+                <ChevronForwardOutline />
+              </n-icon>
+            </button>
+          </n-dropdown>
+        </div>
+
+        <!-- Aspect ratio selector (for non-wan models) | 宽高比选择（非万相模型） -->
+        <div v-else class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">比例</span>
           <n-dropdown :options="ratioOptions" @select="handleRatioSelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
@@ -151,7 +164,7 @@ import { useVideoGeneration } from '../../hooks'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes, edges } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import { useModelStore } from '../../stores/pinia'
-import { getModelRatioOptions, getModelDurationOptions, getModelConfig, DEFAULT_VIDEO_MODEL } from '../../stores/models'
+import { getModelRatioOptions, getModelDurationOptions, getModelResolutionOptions, getModelConfig, DEFAULT_VIDEO_MODEL } from '../../stores/models'
 
 // 使用 Pinia store 获取模型选项（根据渠道过滤）
 const modelStore = useModelStore()
@@ -182,6 +195,7 @@ const isGenerating = ref(false)  // 任务创建中状态
 const localModel = ref(props.data?.model || DEFAULT_VIDEO_MODEL)
 const localRatio = ref(props.data?.ratio || '16:9')
 const localDuration = ref(props.data?.dur || 5)
+const localResolution = ref(props.data?.resolution || '720P')
 
 // Label editing state | Label 编辑状态
 const isEditingLabel = ref(false)
@@ -224,6 +238,14 @@ const imagesByRole = computed(() => {
 
 // Get current model config | 获取当前模型配置
 const currentModelConfig = computed(() => getModelConfig(localModel.value))
+
+// 判断是否为阿里云万相视频模型
+const isWanVideoModel = computed(() => localModel.value && localModel.value.startsWith('wan2.7'))
+
+// Resolution options based on model | 基于模型的分辨率选项
+const resolutionOptions = computed(() => {
+  return getModelResolutionOptions(localModel.value)
+})
 
 // Model options from Pinia store (filtered by provider) | 从 Pinia store 获取模型选项（根据渠道过滤）
 const modelOptions = computed(() => modelStore.allVideoModelOptions)
@@ -272,6 +294,10 @@ const handleModelSelect = (key) => {
     localDuration.value = config.defaultParams.duration
     updates.dur = config.defaultParams.duration
   }
+  if (config?.defaultParams?.resolution) {
+    localResolution.value = config.defaultParams.resolution
+    updates.resolution = config.defaultParams.resolution
+  }
   updateNode(props.id, updates)
 }
 
@@ -290,6 +316,12 @@ const handleDuplicate = () => {
 const handleRatioSelect = (key) => {
   localRatio.value = key
   updateNode(props.id, { ratio: key })
+}
+
+// Handle resolution selection | 处理分辨率选择
+const handleResolutionSelect = (key) => {
+  localResolution.value = key
+  updateNode(props.id, { resolution: key })
 }
 
 // Handle duration selection | 处理时长选择
@@ -416,8 +448,13 @@ const handleGenerate = async () => {
     }
 
     // Add ratio/size | 添加比例参数
-    if (localRatio.value) {
+    if (localRatio.value && !isWanVideoModel.value) {
       params.ratio = localRatio.value
+    }
+
+    // Add resolution (for wan models) | 添加分辨率参数（万相模型）
+    if (localResolution.value && isWanVideoModel.value) {
+      params.resolution = localResolution.value
     }
 
     // Add duration | 添加时长

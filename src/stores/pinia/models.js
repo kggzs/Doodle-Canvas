@@ -390,12 +390,20 @@ export const useModelStore = defineStore('model', () => {
   // 获取图片端点
   const getImageEndpoint = () => {
     const endpoint = providerConfig.value.endpoints?.image || '/images/generations'
+    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
+    if (currentProvider.value === 'aliyun') {
+      return endpoint
+    }
     return `${currentBaseUrl.value}${endpoint}`
   }
 
   // 获取视频生成端点
   const getVideoEndpoint = () => {
     const endpoint = providerConfig.value.endpoints?.video || '/videos'
+    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
+    if (currentProvider.value === 'aliyun') {
+      return endpoint
+    }
     return `${currentBaseUrl.value}${endpoint}`
   }
 
@@ -404,12 +412,20 @@ export const useModelStore = defineStore('model', () => {
     const config = providerConfig.value
     // 优先使用 videoQuery 端点，支持 {taskId} 占位符替换
     let endpoint = config.endpoints?.videoQuery || config.endpoints?.video || '/videos'
+    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
+    if (currentProvider.value === 'aliyun') {
+      return endpoint
+    }
     return `${currentBaseUrl.value}${endpoint}`
   }
 
   // 获取聊天端点（支持参考图片）
   const getChatEndpoint = () => {
     const endpoint = providerConfig.value?.endpoints?.chat || '/chat/completions'
+    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
+    if (currentProvider.value === 'aliyun') {
+      return endpoint
+    }
     return `${currentBaseUrl.value}${endpoint}`
   }
 

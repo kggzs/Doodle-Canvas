@@ -84,57 +84,6 @@ export const IMAGE_MODELS = [
             watermark: false
         }
     },
-    {
-        label: 'Nano Banana 2',
-        key: 'nano-banana-2',
-        provider: ['chatfire'], // 火宝渠道
-        sizes: BANANA_SIZE_OPTIONS.map(s => s.key),
-        // qualities: SEEDREAM_QUALITY_OPTIONS,
-        // getSizesByQuality: (quality) => quality === '4k' ? SEEDREAM_4K_SIZE_OPTIONS : SEEDREAM_SIZE_OPTIONS,
-        defaultParams: {
-            size: '1x1',
-            quality: 'standard',
-            style: 'vivid'
-        }
-    },
-    {
-        label: 'Nano Banana Pro',
-        key: 'nano-banana-pro',
-        provider: ['chatfire'], // 火宝渠道
-        sizes: BANANA_SIZE_OPTIONS.map(s => s.key),
-        // qualities: SEEDREAM_QUALITY_OPTIONS,
-        // getSizesByQuality: (quality) => quality === '4k' ? SEEDREAM_4K_SIZE_OPTIONS : SEEDREAM_SIZE_OPTIONS,
-        defaultParams: {
-            size: '1x1',
-            quality: 'standard',
-            style: 'vivid'
-        }
-    },
-    {
-        label: '豆包 Seedream 4.5',
-        key: 'doubao-seedream-4-5-251128',
-        provider: ['chatfire'], // 火宝渠道
-        sizes: SEEDREAM_SIZE_OPTIONS.map(s => s.key),
-        qualities: SEEDREAM_QUALITY_OPTIONS,
-        getSizesByQuality: (quality) => quality === '4k' ? SEEDREAM_4K_SIZE_OPTIONS : SEEDREAM_SIZE_OPTIONS,
-        defaultParams: {
-            size: '2048x2048',
-            quality: 'standard',
-            style: 'vivid'
-        }
-    },
-    {
-        label: 'Nano Banana',
-        key: 'nano-banana',
-        provider: ['chatfire'], // 火宝渠道
-        tips: '尺寸写在提示词中: 尺寸 9:16',
-        sizes: [],
-        defaultParams: {
-            quality: 'standard',
-            style: 'vivid'
-        }
-    },
-
 ]
 
 // Video ratio options | 视频比例选项
@@ -153,104 +102,88 @@ export const SEEDANCE_RESOLUTION_OPTIONS = [
     { label: '1080p', key: '1080p' }
 ]
 
+// Wan (阿里云万相) 视频分辨率选项 | 万相视频分辨率选项
+export const WAN_VIDEO_RESOLUTION_OPTIONS = [
+    { label: '720P', key: '720P' },
+    { label: '1080P', key: '1080P' }
+]
+
+// Wan (阿里云万相) 视频时长选项 | 万相视频时长选项
+export const WAN_VIDEO_DURATION_OPTIONS = [
+    { label: '2 秒', key: 2 },
+    { label: '3 秒', key: 3 },
+    { label: '4 秒', key: 4 },
+    { label: '5 秒', key: 5 },
+    { label: '6 秒', key: 6 },
+    { label: '7 秒', key: 7 },
+    { label: '8 秒', key: 8 },
+    { label: '9 秒', key: 9 },
+    { label: '10 秒', key: 10 },
+    { label: '11 秒', key: 11 },
+    { label: '12 秒', key: 12 },
+    { label: '13 秒', key: 13 },
+    { label: '14 秒', key: 14 },
+    { label: '15 秒', key: 15 }
+]
+
 // Video generation models | 视频生成模型
 export const VIDEO_MODELS = [
-     // Seedance 模型 - 1.5 Pro
     {
-        label: 'Seedance 1.5 Pro (图文视频)',
-        key: 'doubao-seedance-1-5-pro-251215',
-        provider: ['chatfire'],
-        type: 't2v+i2v',
-        ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        resolutions: ['480p', '720p', '1080p'],
-        defaultResolution: '1080p',
-        defaultParams: { ratio: '16:9', duration: 10, resolution: '1080p' }
+        label: '万相 2.7 图生视频 (推荐)',
+        key: 'wan2.7-i2v-2026-04-25',
+        provider: ['aliyun'],
+        type: 'i2v',  // 图生视频
+        resolutions: WAN_VIDEO_RESOLUTION_OPTIONS.map(r => r.key),
+        durs: WAN_VIDEO_DURATION_OPTIONS,
+        defaultParams: {
+            resolution: '720P',
+            duration: 5,
+            watermark: true,
+            prompt_extend: true
+        }
     },
-    // Seedance 模型 - 文生视频
     {
-        label: 'Seedance 1.0 Lite (文生视频)',
-        key: 'doubao-seedance-1-0-lite-t2v-250428',
-        provider: ['chatfire'],
-        type: 't2v', // 文生视频
-        ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        resolutions: ['480p', '720p', '1080p'],
-        defaultResolution: '720p',
-        defaultParams: { ratio: '16:9', duration: 5, resolution: '720p' }
+        label: '万相 2.7 图生视频',
+        key: 'wan2.7-i2v',
+        provider: ['aliyun'],
+        type: 'i2v',
+        resolutions: WAN_VIDEO_RESOLUTION_OPTIONS.map(r => r.key),
+        durs: WAN_VIDEO_DURATION_OPTIONS,
+        defaultParams: {
+            resolution: '720P',
+            duration: 5,
+            watermark: true,
+            prompt_extend: true
+        }
     },
-    // Seedance 模型 - 图生视频
     {
-        label: 'Seedance 1.0 Lite (图生视频)',
-        key: 'doubao-seedance-1-0-lite-i2v-250428',
-        provider: ['chatfire'],
-        type: 'i2v', // 图生视频
-        ratios: ['16:9'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        resolutions: ['480p', '720p', '1080p'],
-        defaultResolution: '720p',
-        defaultParams: { ratio: '16:9', duration: 5, resolution: '720p' }
+        label: '万相 2.7 文生视频 (推荐)',
+        key: 'wan2.7-t2v-2026-04-25',
+        provider: ['aliyun'],
+        type: 't2v',  // 文生视频
+        resolutions: WAN_VIDEO_RESOLUTION_OPTIONS.map(r => r.key),
+        durs: WAN_VIDEO_DURATION_OPTIONS,
+        defaultParams: {
+            resolution: '720P',
+            duration: 5,
+            watermark: true,
+            prompt_extend: true
+        }
     },
-    // Seedance 模型 - 图文视频 Pro
     {
-        label: 'Seedance 1.0 Pro (图文视频)',
-        key: 'doubao-seedance-1-0-pro-250528',
-        provider: ['chatfire'],
-        type: 't2v+i2v', // 图文视频
-        ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', '16:9'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        resolutions: ['480p', '720p', '1080p'],
-        defaultResolution: '1080p',
-        defaultParams: { ratio: '16:9', duration: 5, resolution: '1080p' }
-    },
-   
-    // Seedance 模型 - 1.0 Pro Fast
-    {
-        label: 'Seedance 1.0 Pro Fast (图文视频)',
-        key: 'doubao-seedance-1-0-pro-fast-251015',
-        provider: ['chatfire'],
-        type: 't2v+i2v',
-        ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        resolutions: ['480p', '720p', '1080p'],
-        defaultResolution: '1080p',
-        defaultParams: { ratio: '16:9', duration: 5, resolution: '1080p' }
-    },
-    // 可灵 Kling
-    // {
-    //     label: '可灵 Kling v2.5-turbo',
-    //     key: 'kling-v2-1',
-    //     provider: ['chatfire'], // 仅火宝渠道
-    //     ratios: VIDEO_RATIO_LIST.map(s => s.key),
-    //     durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-    //     defaultParams: { ratio: '9:16', duration: 10 }
-    // },
-    // {
-    //     label: 'runway/gen4-turbo',
-    //     key: 'runway/gen4-turbo',
-    //     ratios: VIDEO_RATIO_LIST.map(s => s.key),
-    //     durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-    //     defaultParams: { ratio: '16:9', duration: 5 }
-    // },
-    // {
-    //     label: '可灵视频 O1',
-    //     key: 'kling-video-o1',
-    //     ratios: VIDEO_RATIO_LIST.map(s => s.key),
-    //     durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-    //     defaultParams: { ratio: '16:9', duration: 5 }
-    // },
-    // {
-    //     label: 'viduq2-pro_720p', key: 'viduq2-pro_720p',
-    //     ratios: VIDEO_RATIO_LIST.map(s => s.key),
-    //     durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-    //     defaultParams: { ratio: '16:9', duration: 5 }
-    // },
-    // {
-    //     label: 'Sora 2', key: 'sora-2',
-    //     ratios: VIDEO_RATIO_LIST.map(s => s.key),
-    //     durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-    //     defaultParams: { ratio: '16:9', duration: 5 }
-    // }
+        label: '万相 2.7 文生视频',
+        key: 'wan2.7-t2v',
+        provider: ['aliyun'],
+        type: 't2v',
+        resolutions: WAN_VIDEO_RESOLUTION_OPTIONS.map(r => r.key),
+        durs: WAN_VIDEO_DURATION_OPTIONS,
+        defaultParams: {
+            resolution: '720P',
+            duration: 5,
+            watermark: true,
+            prompt_extend: true
+        }
+    }
 ]
 
 // Chat/LLM models | 对话模型
@@ -258,8 +191,7 @@ export const CHAT_MODELS = [
     { label: 'GPT-4o Mini', key: 'gpt-4o-mini', provider: ['openai'] },
     { label: 'GPT-4o', key: 'gpt-4o', provider: ['openai'] },
     { label: 'GPT-5.2', key: 'gpt-5.2', provider: ['openai'] },
-    { label: 'DeepSeek Chat', key: 'deepseek-chat', provider: ['openai', 'chatfire'] },
-    { label: '豆包 Seed Flash', key: 'doubao-seed-1-6-flash-250615', provider: ['chatfire'] },
+    { label: 'DeepSeek Chat', key: 'deepseek-chat', provider: ['openai'] },
     { label: 'Gemini 3 Pro', key: 'gemini-3-pro', provider: ['openai'] }
 ]
 
@@ -292,8 +224,8 @@ export const VIDEO_DURATION_OPTIONS = [
 ]
 
 // Default values | 默认值
-export const DEFAULT_IMAGE_MODEL = 'nano-banana-pro'
-export const DEFAULT_VIDEO_MODEL = 'doubao-seedance-1-5-pro-251215'
+export const DEFAULT_IMAGE_MODEL = 'wan2.7-image-pro'
+export const DEFAULT_VIDEO_MODEL = 'wan2.7-i2v-2026-04-25'
 export const DEFAULT_CHAT_MODEL = 'gpt-4o-mini'
 export const DEFAULT_IMAGE_SIZE = '2048x2048'
 export const DEFAULT_VIDEO_RATIO = '16:9'

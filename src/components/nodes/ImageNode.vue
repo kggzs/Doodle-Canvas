@@ -135,7 +135,7 @@
           ref="imageContainerRef"
         >
           <img 
-            :src="data.url" 
+            :src="displayUrl" 
             :alt="data.label" 
             class="w-full h-auto object-cover"
             :class="{ 'pointer-events-none': isInpaintMode }"
@@ -267,7 +267,7 @@
   <!-- Image preview dialog | 图片预览弹窗 -->
   <n-image-preview
     v-model:show="showRef"
-    :src="props.data?.url"
+    :src="displayUrl"
   />
 
   <!-- Replace image modal | 替换图片弹窗 -->
@@ -322,12 +322,13 @@
  * Image node component | 图片节点组件
  * Displays and manages image content with loading state
  */
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, computed, watch } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NTooltip, NSwitch, NImagePreview, NModal, NButton } from 'naive-ui'
 import { TrashOutline, ExpandOutline, ImageOutline, CloseCircleOutline, CopyOutline, VideocamOutline, DownloadOutline, EyeOutline, BrushOutline, RefreshOutline, ColorWandOutline, SwapHorizontalOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
+import { getCachedImage, cacheImage } from '../../utils/imageCache'
 
 // VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
 defineOptions({ inheritAttrs: false })
@@ -336,6 +337,42 @@ const props = defineProps({
   id: String,
   data: Object
 })
+
+// 图片显示 URL：优先 base64 > IndexedDB 缓存 > 原始 URL
+const displayUrl = ref('')
+
+// 加载本地缓存用于图片显示
+const loadDisplayUrl = async () => {
+  const url = props.data?.url
+  const base64 = props.data?.base64
+
+  // 优先使用 base64
+  if (base64) {
+    displayUrl.value = base64
+    return
+  }
+
+  // 已经是 base64 data URL
+  if (url?.startsWith('data:')) {
+    displayUrl.value = url
+    return
+  }
+
+  // 无 URL
+  if (!url) {
+    displayUrl.value = ''
+    return
+  }
+
+  // 远程 URL 或 upload:// 缓存 key：尝试从 IndexedDB 获取
+  const cached = await getCachedImage(url)
+  displayUrl.value = cached || url
+}
+
+// 监听 URL 变化重新加载
+watch(() => [props.data?.url, props.data?.base64], () => {
+  loadDisplayUrl()
+}, { immediate: true })
 
 // 声明 VueFlow 传递的事件,避免 non-emits 警告
 defineEmits(['updateNodeInternals'])
@@ -688,10 +725,13 @@ const handleFileUpload = async (event) => {
     try {
       // Convert to base64 | 转换为 base64
       const base64 = await fileToBase64(file)
-      // Store both display URL and base64 | 同时存储显示 URL 和 base64
+      // 生成缓存 key 并缓存到 IndexedDB
+      const cacheKey = `upload://${props.id}/${Date.now()}`
+      await cacheImage(cacheKey, base64)
+      // 使用缓存 key 作为 url（保存时不会被删除），base64 存在 IndexedDB
       updateNode(props.id, {
-        url: base64,  // Use base64 as display URL | 使用 base64 作为显示 URL
-        base64: base64,  // Store base64 for API calls | 存储 base64 用于 API 调用
+        url: cacheKey,
+        base64: base64,
         fileName: file.name,
         fileType: file.type,
         label: '参考图',
@@ -720,6 +760,7 @@ const handleUrlSubmit = () => {
   
   // Preload image to check validity | 预加载图片检查有效性
   const img = new Image()
+  img.crossOrigin = 'anonymous'
   img.onload = () => {
     // Update node with URL | 更新节点 URL
     updateNode(props.id, {
@@ -729,6 +770,8 @@ const handleUrlSubmit = () => {
     })
     urlInput.value = ''
     urlLoading.value = false
+    // 异步缓存远程图片到 IndexedDB
+    cacheImage(url).catch(() => {})
   }
   img.onerror = () => {
     window.$message?.error('图片加载失败，请检查地址是否正确')
@@ -745,8 +788,11 @@ const handleReplaceFileUpload = async (event) => {
   if (file) {
     try {
       const base64 = await fileToBase64(file)
+      // 缓存到 IndexedDB
+      const cacheKey = `upload://${props.id}/${Date.now()}`
+      await cacheImage(cacheKey, base64)
       updateNode(props.id, {
-        url: base64,
+        url: cacheKey,
         base64: base64,
         fileName: file.name,
         fileType: file.type,
@@ -774,6 +820,7 @@ const handleReplaceUrlSubmit = () => {
   }
 
   const img = new Image()
+  img.crossOrigin = 'anonymous'
   img.onload = () => {
     updateNode(props.id, {
       url: url,
@@ -783,6 +830,8 @@ const handleReplaceUrlSubmit = () => {
     showReplaceModal.value = false
     replaceUrlInput.value = ''
     window.$message?.success('图片已替换')
+    // 异步缓存远程图片到 IndexedDB
+    cacheImage(url).catch(() => {})
   }
   img.onerror = () => {
     window.$message?.error('图片加载失败，请检查地址是否正确')
@@ -903,9 +952,10 @@ const handlePreview = () => {
 
 // Handle download | 处理下载
 const handleDownload = () => {
-  if (props.data.url) {
+  const downloadUrl = displayUrl.value || props.data.url
+  if (downloadUrl) {
     const link = document.createElement('a')
-    link.href = props.data.url
+    link.href = downloadUrl
     link.download = props.data.fileName || `image_${Date.now()}.png`
     document.body.appendChild(link)
     link.click()

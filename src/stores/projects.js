@@ -44,25 +44,24 @@ export const loadProjects = () => {
 
 /**
  * Clean node data for storage | 清理节点数据用于存储
- * Removes base64 data URLs to reduce storage size | 移除 base64 数据减小存储大小
+ * 保留远程 URL（加载时通过 IndexedDB 缓存回填），移除 base64 减小存储大小
  */
 const cleanNodeForStorage = (node) => {
   if (!node.data) return node
   
   const cleanedData = { ...node.data }
   
-  // Remove base64 data | 移除 base64 数据
+  // 移除 base64 字段（体积大，不存 localStorage）
   if (cleanedData.base64) {
     delete cleanedData.base64
   }
   
-  // If url is a base64 data URL, keep it only if it's from external source | 如果 url 是 base64，只有外部来源才保留
+  // 保留远程 URL 和 upload:// 缓存 key（加载时通过 IndexedDB 回填），移除 data: 开头的 base64 URL
   if (cleanedData.url?.startsWith?.('data:')) {
-    // For uploaded images, we can't persist them in localStorage | 上传的图片无法持久化到 localStorage
     delete cleanedData.url
   }
   
-  // Remove mask data | 移除蒙版数据
+  // 移除蒙版数据
   if (cleanedData.maskData) {
     delete cleanedData.maskData
   }

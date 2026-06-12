@@ -14,6 +14,7 @@ import { getModelByName } from '@/config/models'
 import { useApiConfig } from './useApiConfig'
 import { useProvider } from './useProvider'
 import { useModelStore } from '@/stores/pinia'
+import { cacheImage } from '@/utils/imageCache'
 
 /**
  * Base API state hook | 基础 API 状态 Hook
@@ -100,14 +101,26 @@ export const useChat = (options = {}) => {
         abortController = new AbortController()
         let fullResponse = ''
 
-        // 使用 modelStore 获取完整 URL
+        // 获取聊天端点
         const chatUrl = modelStore.getChatEndpoint()
-        const endpoint = new URL(chatUrl).pathname
+        // chatUrl 可能是完整 URL 或纯路径（阿里云走代理时只返回路径）
+        let streamBaseUrl, streamEndpoint
+        if (chatUrl.startsWith('http')) {
+          streamBaseUrl = new URL(chatUrl).origin
+          streamEndpoint = new URL(chatUrl).pathname
+        } else {
+          // 纯路径：使用当前页面 origin + 路径（走 Vite 代理）
+          streamBaseUrl = window.location.origin
+          streamEndpoint = chatUrl
+        }
+
+        // 获取当前渠道的 API Key
+        const currentApiKey = modelStore.currentApiKey
 
         for await (const chunk of streamChatCompletions(
           adaptedParams,
           abortController.signal,
-          { baseUrl: new URL(chatUrl).origin, endpoint }
+          { baseUrl: streamBaseUrl, endpoint: streamEndpoint, apiKey: currentApiKey }
         )) {
           fullResponse += chunk
           currentResponse.value = fullResponse
@@ -173,12 +186,27 @@ export const useImageGeneration = () => {
         model: params.model,
         prompt: params.prompt,
         size: params.size || modelConfig?.defaultParams?.size || '2048x2048',
-        // n: params.n || 1
+        n: params.n || 1
       }
 
       // Add reference image if provided | 添加参考图
       if (params.image) {
         requestData.image = params.image
+      }
+
+      // 万相模型不支持 quality/style 参数，仅传万相专用参数
+      const isWanModel = params.model && params.model.startsWith('wan')
+      if (!isWanModel) {
+        if (params.quality) requestData.quality = params.quality
+        if (params.style) requestData.style = params.style
+      } else {
+        // 万相模型：透传 thinking_mode 和 watermark
+        if (modelConfig?.defaultParams?.thinking_mode !== undefined) {
+          requestData.thinking_mode = modelConfig.defaultParams.thinking_mode
+        }
+        if (modelConfig?.defaultParams?.watermark !== undefined) {
+          requestData.watermark = modelConfig.defaultParams.watermark
+        }
       }
 
       // 适配请求参数
@@ -203,6 +231,15 @@ export const useImageGeneration = () => {
 
       // 适配响应数据
       const adaptedData = adaptResponse('image', response)
+
+      // 异步缓存生成的图片到 IndexedDB（不阻塞返回）
+      if (adaptedData && adaptedData.length > 0) {
+        for (const item of adaptedData) {
+          if (item.url && !item.url.startsWith('data:')) {
+            cacheImage(item.url).catch(() => {})
+          }
+        }
+      }
 
       images.value = adaptedData
       currentImage.value = adaptedData[0] || null
@@ -241,16 +278,35 @@ export const useVideoGeneration = () => {
   const createVideoTaskOnly = async (params) => {
     const modelConfig = getModelByName(params.model)
 
+    // 判断是否为阿里云万相模型
+    const isAliyunWan = params.model && params.model.startsWith('wan2.7')
+
     // Build request data | 构建请求数据
     const requestData = {
       model: params.model,
       prompt: params.prompt || ''
     }
-    // Add optional params | 添加可选参数
-    if (params.first_frame_image) requestData.first_frame_image = params.first_frame_image
-    if (params.last_frame_image) requestData.last_frame_image = params.last_frame_image
-    if (params.ratio) requestData.size = params.ratio
-    if (params.dur) requestData.seconds = params.dur
+
+    if (isAliyunWan) {
+      // 阿里云万相视频模型：使用 resolution/duration/media 格式
+      if (params.first_frame_image) requestData.first_frame_image = params.first_frame_image
+      if (params.last_frame_image) requestData.last_frame_image = params.last_frame_image
+      if (params.resolution) requestData.resolution = params.resolution
+      if (params.duration) requestData.duration = params.duration
+      // 透传万相专用参数
+      if (modelConfig?.defaultParams?.watermark !== undefined) {
+        requestData.watermark = modelConfig.defaultParams.watermark
+      }
+      if (modelConfig?.defaultParams?.prompt_extend !== undefined) {
+        requestData.prompt_extend = modelConfig.defaultParams.prompt_extend
+      }
+    } else {
+      // 其他模型：使用 size/seconds 格式
+      if (params.first_frame_image) requestData.first_frame_image = params.first_frame_image
+      if (params.last_frame_image) requestData.last_frame_image = params.last_frame_image
+      if (params.ratio) requestData.size = params.ratio
+      if (params.dur) requestData.seconds = params.dur
+    }
 
     // 适配请求参数
     const adaptedParams = adaptRequest('video', requestData)
@@ -258,13 +314,29 @@ export const useVideoGeneration = () => {
     // Call API to create task | 调用 API 创建任务
     const task = await createVideoTask(adaptedParams, {
       requestType: 'json',
-      endpoint: modelStore.getVideoEndpoint()
+      endpoint: modelStore.getVideoEndpoint(),
+      provider: modelStore.currentProvider,
+      model: params.model
     })
 
-    // Check if async (need polling) | 检查是否异步
-    const isAsync = modelConfig?.async !== false
+    // 阿里云万相：异步任务创建响应
+    if (isAliyunWan) {
+      // 适配响应
+      const adaptedResponse = adaptResponse('video', task)
 
-    // If has video URL directly, return | 如果直接有视频 URL，返回
+      if (adaptedResponse.isAsync && adaptedResponse.taskId) {
+        return { taskId: adaptedResponse.taskId }
+      }
+
+      if (adaptedResponse.url) {
+        return { taskId: null, url: adaptedResponse.url }
+      }
+
+      throw new Error('未获取到任务 ID')
+    }
+
+    // 其他模型：原有逻辑
+    const isAsync = modelConfig?.async !== false
     if (!isAsync || task.data?.url || task.url || task.content?.video_url) {
       return {
         taskId: null,
@@ -272,7 +344,6 @@ export const useVideoGeneration = () => {
       }
     }
 
-    // Get task ID | 获取任务 ID
     const newTaskId = task.id || task.task_id || task.taskId
     if (!newTaskId) {
       throw new Error('未获取到任务 ID')
@@ -285,8 +356,8 @@ export const useVideoGeneration = () => {
    * Poll video task | 轮询视频任务
    */
   const pollVideoTask = async (pollTaskId, onProgress = () => {}) => {
-    const maxAttempts = 120
-    const interval = 5000
+    const maxAttempts = 60
+    const interval = 30000
 
     for (let i = 0; i < maxAttempts; i++) {
       onProgress(i + 1, Math.min(Math.round((i / maxAttempts) * 100), 99))
@@ -304,13 +375,21 @@ export const useVideoGeneration = () => {
       // 适配轮询响应
       const adaptedResult = adaptResponse('video', result)
 
-      // Check for completion | 检查是否完成
-      if (result.status === 'completed' || result.status === 'succeeded' || result.data) {
-        const videoUrl = adaptedResult.url || result.data?.url || result.data?.[0]?.url || result.url || result.content?.video_url || result.video_url
-        return { ...adaptedResult, url: videoUrl,  }
+      // 阿里云万相：检查 task_status
+      if (adaptedResult.status === 'completed') {
+        return { ...adaptedResult }
       }
 
-      // Check for failure | 检查是否失败
+      if (adaptedResult.status === 'failed') {
+        throw new Error(adaptedResult.error || result.output?.message || result.message || '视频生成失败')
+      }
+
+      // 其他模型：检查原有格式
+      if (result.status === 'completed' || result.status === 'succeeded' || result.data) {
+        const videoUrl = adaptedResult.url || result.data?.url || result.data?.[0]?.url || result.url || result.content?.video_url || result.video_url
+        return { ...adaptedResult, url: videoUrl }
+      }
+
       if (result.status === 'failed' || result.status === 'error') {
         throw new Error(result.error?.message || result.message || '视频生成失败')
       }

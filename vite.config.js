@@ -14,7 +14,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/v1': {
-        target: 'https://api.chatfire.site',
+        target: 'https://api.openai.com',
         changeOrigin: true
       },
       // 阿里云万相API代理

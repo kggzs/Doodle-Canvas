@@ -3,7 +3,7 @@
  */
 
 // API Base URL | API 基础 URL
-export const DEFAULT_API_BASE_URL = 'https://api.chatfire.site/v1'
+export const DEFAULT_API_BASE_URL = 'https://api.openai.com/v1'
 
 // API Endpoints | API 端点
 export const API_ENDPOINTS = {
