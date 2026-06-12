@@ -150,10 +150,16 @@ import { useChat } from '../../hooks'
 import { useModelStore } from '../../stores/pinia'
 import { parseMentions, removeMention as removeMentionUtil } from '../../hooks/useNodeRef'
 
+// VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
+defineOptions({ inheritAttrs: false })
+
 const props = defineProps({
   id: String,
   data: Object
 })
+
+// 声明 VueFlow 传递的事件,避免 non-emits 警告
+defineEmits(['updateNodeInternals'])
 
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()

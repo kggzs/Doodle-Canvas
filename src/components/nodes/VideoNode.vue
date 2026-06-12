@@ -148,10 +148,16 @@ import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '
 import { useVideoGeneration } from '../../hooks/useApi'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 
+// VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
+defineOptions({ inheritAttrs: false })
+
 const props = defineProps({
   id: String,
   data: Object
 })
+
+// 声明 VueFlow 传递的事件,避免 non-emits 警告
+defineEmits(['updateNodeInternals'])
 
 // Vue Flow instance
 const { updateNodeInternals } = useVueFlow()
