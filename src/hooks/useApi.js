@@ -319,17 +319,17 @@ export const useVideoGeneration = () => {
       model: params.model
     })
 
-    // 阿里云万相：异步任务创建响应
+    // 阿里云万相：直接从创建响应中提取 task_id（不走适配器，避免与轮询响应混淆）
     if (isAliyunWan) {
-      // 适配响应
-      const adaptedResponse = adaptResponse('video', task)
-
-      if (adaptedResponse.isAsync && adaptedResponse.taskId) {
-        return { taskId: adaptedResponse.taskId }
+      const taskId = task.output?.task_id
+      if (taskId) {
+        return { taskId }
       }
 
-      if (adaptedResponse.url) {
-        return { taskId: null, url: adaptedResponse.url }
+      // 如果创建时就返回了视频URL（同步模式）
+      const videoUrl = task.output?.video_url
+      if (videoUrl) {
+        return { taskId: null, url: videoUrl }
       }
 
       throw new Error('未获取到任务 ID')
@@ -360,6 +360,9 @@ export const useVideoGeneration = () => {
     const interval = 30000
 
     for (let i = 0; i < maxAttempts; i++) {
+      // 先等待再查询，避免任务刚创建就发起无效查询
+      await new Promise(resolve => setTimeout(resolve, interval))
+
       onProgress(i + 1, Math.min(Math.round((i / maxAttempts) * 100), 99))
 
       // 获取任务查询端点，支持 {taskId} 占位符替换
@@ -393,9 +396,6 @@ export const useVideoGeneration = () => {
       if (result.status === 'failed' || result.status === 'error') {
         throw new Error(result.error?.message || result.message || '视频生成失败')
       }
-
-      // Wait before next poll | 等待下次轮询
-      await new Promise(resolve => setTimeout(resolve, interval))
     }
 
     throw new Error('视频生成超时')
