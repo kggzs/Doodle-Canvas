@@ -58,7 +58,7 @@ import { isDark, toggleTheme } from '../stores/theme'
 defineProps({
   githubUrl: {
     type: String,
-    default: 'https://github.com/chatfire-AI/huobao-canvas'
+    default: 'https://github.com/kggzs/doodle-canvas'
   }
 })
 </script>

@@ -4,7 +4,9 @@
  */
 import workflowCover1 from '@/assets/workflow01.jpeg'
 import workflowCover2 from '@/assets/workflow02.jpeg'
+import workflowCover3 from '@/assets/workflow03.jpeg'
 
+import product01 from '@/assets/product01.jpg'
 import scene01 from '@/assets/scene01.jpeg'
 import shot01 from '@/assets/shot01.jpeg'
 
@@ -218,7 +220,7 @@ export const WORKFLOW_TEMPLATES = [
         type: 'image',
         position: { x: startPosition.x, y: startPosition.y + rowSpacing },
         data: {
-          url: 'https://ffile.chatfire.site/image/covers/product01.jpg',
+          url: product01,
           label: '产品图片'
         }
       })
@@ -1045,7 +1047,7 @@ export const WORKFLOW_TEMPLATES = [
     description: '角色生成 → 剧情文字 → 绘本插画，支持角色一致性',
     icon: 'BookOutline',
     category: 'creative',
-    cover: "https://ffile.chatfire.site/image/covers/workflow03.jpeg",
+    cover: workflowCover3,
     createNodes: (startPosition) => {
       const colSpacing = 420
       const rowSpacing = 280

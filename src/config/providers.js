@@ -7,7 +7,7 @@
 export const PROVIDERS = {
   openai: {
     label: 'OpenAI',
-    defaultBaseUrl: 'https://api.chatfire.cn',
+    defaultBaseUrl: 'https://ai.kggzs.cn',
     // 端点路径
     endpoints: {
       chat: '/v1/chat/completions',

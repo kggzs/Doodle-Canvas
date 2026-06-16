@@ -23,8 +23,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/chatfire-AI/huobao-canvas.git
-cd huobao-canvas
+git clone https://github.com/kggzs/doodle-canvas.git
+cd doodle-canvas
 ```
 
 ### 2. 安装依赖
