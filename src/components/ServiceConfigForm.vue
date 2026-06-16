@@ -46,11 +46,14 @@
           <n-input
             :value="form.baseUrl"
             :placeholder="baseUrlPlaceholder"
-            :disabled="isAliyun"
+            :disabled="isAliyun || isDoubao"
             @update:value="onFieldChange('baseUrl', $event)"
           />
           <template #feedback v-if="isAliyun">
             <span class="text-xs text-[var(--text-secondary)]">阿里云万相使用本地代理，无需手动配置</span>
+          </template>
+          <template #feedback v-else-if="isDoubao">
+            <span class="text-xs text-[var(--text-secondary)]">豆包使用固定地址，无需手动配置</span>
           </template>
         </n-form-item>
         <n-form-item label="API Key">
@@ -155,9 +158,11 @@ const effectiveConfig = computed(() => modelStore.getServiceConfig(props.service
 
 // ---- 表单状态 ----
 const isAliyun = computed(() => props.form.provider === 'aliyun')
+const isDoubao = computed(() => props.form.provider === 'doubao')
 
 const baseUrlPlaceholder = computed(() => {
   if (isAliyun.value) return 'https://dashscope.aliyuncs.com/api/v1'
+  if (isDoubao.value) return 'https://ark.cn-beijing.volces.com'
   const g = effectiveConfig.value
   return g.baseUrl || '使用全局默认'
 })
@@ -198,6 +203,8 @@ watch(() => props.form.provider, (newProvider) => {
   if (props.form.baseUrl) return
   if (newProvider === 'aliyun') {
     emit('updateForm', { ...props.form, baseUrl: getDefaultBaseUrl('aliyun') })
+  } else if (newProvider === 'doubao') {
+    emit('updateForm', { ...props.form, baseUrl: getDefaultBaseUrl('doubao') })
   } else {
     const cfg = getProviderConfig(newProvider)
     if (cfg.defaultBaseUrl) {

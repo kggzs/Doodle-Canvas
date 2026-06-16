@@ -266,10 +266,30 @@ export const PROVIDERS = {
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com',
     // 端点路径
     endpoints: {
+      chat: '/api/v3/responses',
       image: '/api/v3/images/generations',
+      video: '暂不支持',
+      videoQuery: '暂不支持',
     },
     // 请求参数适配
     requestAdapter: {
+      chat: (params) => {
+        // 豆包使用 OpenAI Responses API 格式 (input 代替 messages)
+        const adapted = {
+          model: params.model,
+          input: (params.messages || []).map(msg => {
+            const content = typeof msg.content === 'string'
+              ? [{ type: 'input_text', text: msg.content }]
+              : msg.content
+            return { role: msg.role, content }
+          }),
+        }
+        if (params.temperature !== undefined) adapted.temperature = params.temperature
+        if (params.max_tokens !== undefined) adapted.max_tokens = params.max_tokens
+        if (params.stream !== undefined) adapted.stream = params.stream
+        if (params.tools) adapted.tools = params.tools
+        return adapted
+      },
       image: (params) => {
         const adapted = {
           model: params.model,
@@ -287,8 +307,21 @@ export const PROVIDERS = {
         return adapted
       },
     },
-    // 响应数据适配（复用 OpenAI 格式）
+    // 响应数据适配
     responseAdapter: {
+      chat: (response) => {
+        // Responses API 响应格式：output[] 中包含 assistant 消息
+        const output = response.output || []
+        for (const msg of output) {
+          if (msg.role === 'assistant' && msg.content) {
+            const texts = msg.content
+              .filter(c => c.type === 'output_text')
+              .map(c => c.text)
+            if (texts.length > 0) return texts.join('')
+          }
+        }
+        return ''
+      },
       image: (response) => {
         const data = response.data || response
         return (Array.isArray(data) ? data : [data]).map(item => ({

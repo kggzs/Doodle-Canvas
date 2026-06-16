@@ -209,7 +209,8 @@ export const CHAT_MODELS = [
     { label: 'GPT-4o', key: 'gpt-4o', provider: ['openai'] },
     { label: 'GPT-5.2', key: 'gpt-5.2', provider: ['openai'] },
     { label: 'DeepSeek Chat', key: 'deepseek-chat', provider: ['openai'] },
-    { label: 'Gemini 3 Pro', key: 'gemini-3-pro', provider: ['openai'] }
+    { label: 'Gemini 3 Pro', key: 'gemini-3-pro', provider: ['openai'] },
+    { label: 'DeepSeek V4 Flash (豆包)', key: 'deepseek-v4-flash-260425', provider: ['doubao'] }
 ]
 
 // Image size options | 图片尺寸选项

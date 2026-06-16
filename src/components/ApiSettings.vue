@@ -19,10 +19,13 @@
             <n-input
               v-model:value="globalForm.baseUrl"
               :placeholder="globalBaseUrlPlaceholder"
-              :disabled="isGlobalAliyun"
+              :disabled="isGlobalAliyun || isGlobalDoubao"
             />
             <template #feedback v-if="isGlobalAliyun">
               <span class="text-xs text-[var(--text-secondary)]">阿里云万相使用本地代理，无需手动配置</span>
+            </template>
+            <template #feedback v-else-if="isGlobalDoubao">
+              <span class="text-xs text-[var(--text-secondary)]">豆包使用固定地址，无需手动配置</span>
             </template>
           </n-form-item>
           <n-form-item label="API Key">
@@ -147,9 +150,11 @@ const globalForm = reactive({
 })
 
 const isGlobalAliyun = computed(() => globalForm.provider === 'aliyun')
+const isGlobalDoubao = computed(() => globalForm.provider === 'doubao')
 
 const globalBaseUrlPlaceholder = computed(() => {
   if (isGlobalAliyun.value) return 'https://dashscope.aliyuncs.com/api/v1'
+  if (isGlobalDoubao.value) return 'https://ark.cn-beijing.volces.com'
   return 'https://api.openai.com/v1'
 })
 
@@ -170,6 +175,8 @@ const syncGlobalForm = () => {
   globalForm.apiKey = modelStore.apiKeysByProvider[modelStore.currentProvider] || ''
   if (modelStore.currentProvider === 'aliyun') {
     globalForm.baseUrl = getDefaultBaseUrl('aliyun')
+  } else if (modelStore.currentProvider === 'doubao') {
+    globalForm.baseUrl = getDefaultBaseUrl('doubao')
   } else {
     const cfg = getProviderConfig(modelStore.currentProvider)
     globalForm.baseUrl = modelStore.baseUrlsByProvider[modelStore.currentProvider] || cfg.defaultBaseUrl || ''
@@ -181,6 +188,8 @@ watch(() => globalForm.provider, () => {
   globalForm.apiKey = modelStore.apiKeysByProvider[p] || ''
   if (p === 'aliyun') {
     globalForm.baseUrl = getDefaultBaseUrl('aliyun')
+  } else if (p === 'doubao') {
+    globalForm.baseUrl = getDefaultBaseUrl('doubao')
   } else {
     const cfg = getProviderConfig(p)
     globalForm.baseUrl = modelStore.baseUrlsByProvider[p] || cfg.defaultBaseUrl || ''
