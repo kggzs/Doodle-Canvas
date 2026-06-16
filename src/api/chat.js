@@ -9,25 +9,56 @@ export const chatCompletions = (data) =>
   request({
     url: `/chat/completions`,
     method: 'post',
-    data
+    data,
+    headers: { 'X-Service-Type': 'chat' }
   })
 
 // 流式对话补全
 export const streamChatCompletions = async function* (data, signal, options = {}) {
-  // 优先使用传入的 apiKey，否则从 localStorage 按渠道获取
+  // 安全解析 JSON localStorage 项
+  const parseStored = (key, fallback) => {
+    try {
+      const v = localStorage.getItem(key)
+      return v ? JSON.parse(v) : fallback
+    } catch {
+      return fallback
+    }
+  }
+
+  // 优先使用传入的 apiKey，否则按 chat 服务配置解析
   let apiKey = options.apiKey || ''
   if (!apiKey) {
-    try {
-      const apiKeysJson = localStorage.getItem('api-keys-by-provider')
-      const apiKeys = apiKeysJson ? JSON.parse(apiKeysJson) : {}
-      const currentProvider = localStorage.getItem('api-provider') || 'chatfire'
-      apiKey = apiKeys[currentProvider] || ''
-    } catch {
+    const serviceApiKeys = parseStored('service-api-keys', {})
+    apiKey = serviceApiKeys.chat || ''
+    if (!apiKey) {
+      const serviceProviders = parseStored('service-providers', {})
+      const provider = serviceProviders.chat || localStorage.getItem('api-provider') || 'openai'
+      const apiKeysByProvider = parseStored('api-keys-by-provider', {})
+      apiKey = apiKeysByProvider[provider] || ''
+    }
+    if (!apiKey) {
       apiKey = localStorage.getItem('apiKey') || ''
     }
   }
-  // 优先使用传入的 baseUrl，否则使用默认的
-  const baseUrl = options.baseUrl || getBaseUrl()
+
+  // 解析本次请求的 provider(用于判定是否走代理)
+  const serviceProviders = parseStored('service-providers', {})
+  const provider = serviceProviders.chat || localStorage.getItem('api-provider') || 'openai'
+
+  // 优先使用传入的 baseUrl，否则按 chat 服务配置解析
+  let baseUrl = options.baseUrl
+  if (!baseUrl) {
+    const serviceBaseUrls = parseStored('service-base-urls', {})
+    baseUrl = serviceBaseUrls.chat || ''
+    if (!baseUrl) {
+      const baseUrlsByProvider = parseStored('base-urls-by-provider', {})
+      baseUrl = baseUrlsByProvider[provider] || ''
+    }
+    if (!baseUrl) {
+      baseUrl = getBaseUrl()
+    }
+  }
+
   // 使用 options.endpoint 或默认的 /chat/completions
   const endpoint = options.endpoint || '/chat/completions'
 

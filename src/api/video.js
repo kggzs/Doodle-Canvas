@@ -15,9 +15,10 @@ import { request } from '@/utils'
  */
 export const createVideoTask = (data, options = {}) => {
   const { endpoint = '/videos', requestType = 'json', provider, model } = options
-  const headers = requestType === 'formdata'
-    ? { 'Content-Type': 'multipart/form-data' }
-    : { 'Content-Type': 'application/json' }
+  const headers = {
+    'X-Service-Type': 'video',
+    'Content-Type': requestType === 'formdata' ? 'multipart/form-data' : 'application/json'
+  }
 
   // 阿里云万相视频API需要异步头
   if (provider === 'aliyun') {
@@ -46,7 +47,8 @@ export const getVideoTaskStatus = (taskId, options = {}) => {
     : `${endpoint}/${taskId}`
   return request({
     url,
-    method: 'get'
+    method: 'get',
+    headers: { 'X-Service-Type': 'video' }
   })
 }
 

@@ -164,8 +164,8 @@ defineEmits(['updateNodeInternals'])
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config state | API 配置状态
-const isApiConfigured = computed(() => !!modelStore.currentApiKey)
+// API config state | API 配置状态(按 chat 服务判定)
+const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
 
 // Local state | 本地状态
 const showHandleMenu = ref(false)

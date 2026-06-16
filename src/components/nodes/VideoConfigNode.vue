@@ -183,8 +183,8 @@ defineEmits(['updateNodeInternals'])
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config state | API 配置状态
-const isConfigured = computed(() => !!modelStore.currentApiKey)
+// API config state | API 配置状态(按 video 服务判定)
+const isConfigured = computed(() => modelStore.isServiceConfigured('video'))
 
 // Video generation hook | 视频生成 hook
 const { loading, error, status, video: generatedVideo, progress, createVideoTaskOnly } = useVideoGeneration()
@@ -278,11 +278,11 @@ const handleModelSelect = (key) => {
   const config = getModelConfig(key)
   const updates = { model: key }
 
-  // 根据模型的 provider 自动切换渠道
+  // 根据模型的 provider 切换 video 服务的渠道(而非全局, 避免污染其它服务)
   if (config?.provider?.length > 0) {
     const targetProvider = config.provider[0]
-    if (modelStore.currentProvider !== targetProvider) {
-      modelStore.setProvider(targetProvider)
+    if (modelStore.getServiceConfig('video').provider !== targetProvider) {
+      modelStore.setServiceProvider('video', targetProvider)
     }
   }
 

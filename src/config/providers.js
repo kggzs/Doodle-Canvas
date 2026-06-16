@@ -261,6 +261,44 @@ export const PROVIDERS = {
     }
   },
 
+  doubao: {
+    label: '豆包 (Doubao-Seedream)',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com',
+    // 端点路径
+    endpoints: {
+      image: '/api/v3/images/generations',
+    },
+    // 请求参数适配
+    requestAdapter: {
+      image: (params) => {
+        const adapted = {
+          model: params.model,
+          prompt: params.prompt,
+          sequential_image_generation: params.sequential_image_generation || 'disabled',
+          response_format: params.response_format || 'url',
+          stream: params.stream !== undefined ? params.stream : false,
+        }
+        if (params.size) adapted.size = params.size
+        if (params.n) adapted.n = params.n
+        if (params.quality) adapted.quality = params.quality
+        if (params.watermark !== undefined) adapted.watermark = params.watermark
+        // 参考图：单张图片或图片数组
+        if (params.image) adapted.image = params.image
+        return adapted
+      },
+    },
+    // 响应数据适配（复用 OpenAI 格式）
+    responseAdapter: {
+      image: (response) => {
+        const data = response.data || response
+        return (Array.isArray(data) ? data : [data]).map(item => ({
+          url: item.url || item.b64_json || '',
+          revisedPrompt: item.revised_prompt || ''
+        }))
+      },
+    }
+  },
+
   // 默认使用 OpenAI 格式
   default: 'openai'
 }

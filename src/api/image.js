@@ -19,6 +19,7 @@ const createAsyncTask = async (data) => {
     method: 'post',
     data,
     headers: {
+      'X-Service-Type': 'image',
       'X-DashScope-Async': 'enable'
     }
   })
@@ -37,7 +38,8 @@ const queryAsyncTask = async (taskId) => {
 
   const response = await request({
     url: endpoint,
-    method: 'get'
+    method: 'get',
+    headers: { 'X-Service-Type': 'image' }
   })
 
   return response
@@ -96,6 +98,7 @@ export const generateImage = async (data, options = {}) => {
       url: syncEndpoint,
       method: 'post',
       data,
+      headers: { 'X-Service-Type': 'image' },
       timeout: 180000 // 同步调用可能耗时较长,设置3分钟超时
     })
 
@@ -131,6 +134,9 @@ export const generateImage = async (data, options = {}) => {
     url: requestUrl,
     method: 'post',
     data,
-    headers: requestType === 'formdata' ? { 'Content-Type': 'multipart/form-data' } : {}
+    headers: {
+      'X-Service-Type': 'image',
+      ...(requestType === 'formdata' ? { 'Content-Type': 'multipart/form-data' } : {})
+    }
   })
 }

@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios'
+import { getDefaultBaseUrl } from '@/config/providers'
 
 // Base URL from environment or default
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.openai.com'
@@ -17,32 +18,48 @@ const instance = axios.create({
 // Request interceptor | 请求拦截器
 instance.interceptors.request.use(
   (config) => {
-    // Get current provider | 获取当前渠道
-    const currentProvider = localStorage.getItem('api-provider') || 'openai'
-
-    // Get API keys from new storage | 从新存储结构获取 API Keys
-    let apiKey = ''
-    try {
-      const apiKeysJson = localStorage.getItem('api-keys-by-provider')
-      const apiKeys = apiKeysJson ? JSON.parse(apiKeysJson) : {}
-      apiKey = apiKeys[currentProvider] || ''
-    } catch (e) {
-      apiKey = ''
+    // 安全解析 JSON localStorage 项
+    const parseStored = (key, fallback) => {
+      try {
+        const v = localStorage.getItem(key)
+        return v ? JSON.parse(v) : fallback
+      } catch {
+        return fallback
+      }
     }
 
-    // Get Base URL from storage | 从存储获取 Base URL
-    let baseUrl = ''
-    try {
-      const baseUrlsJson = localStorage.getItem('base-urls-by-provider')
-      const baseUrls = baseUrlsJson ? JSON.parse(baseUrlsJson) : {}
-      baseUrl = baseUrls[currentProvider] || ''
-    } catch (e) {
-      baseUrl = ''
-    }
+    // Get current provider | 获取当前渠道(全局默认)
+    const globalProvider = localStorage.getItem('api-provider') || 'openai'
+
+    // Get service type from custom header | 从自定义头获取服务类型
+    // 'chat' | 'image' | 'video' | ''(未知, 回退全局)
+    const serviceType = config.headers?.['X-Service-Type'] || ''
+
+    // 提取后移除自定义头,防止上游服务器拒绝未知请求头
+    delete config.headers['X-Service-Type']
+
+    // 解析本次请求的 provider: 服务独立 provider 优先, 否则全局
+    const serviceProviders = parseStored('service-providers', {})
+    const provider = (serviceType && serviceProviders[serviceType]) || globalProvider
+
+    // Get API keys | 获取 API Keys
+    const apiKeysByProvider = parseStored('api-keys-by-provider', {})
+    const serviceApiKeys = parseStored('service-api-keys', {})
+    // 优先级: 服务独立 key > 全局 provider key
+    const apiKey = (serviceType && serviceApiKeys[serviceType]) || apiKeysByProvider[provider] || ''
+
+    // Get Base URL | 获取 Base URL
+    const baseUrlsByProvider = parseStored('base-urls-by-provider', {})
+    const serviceBaseUrls = parseStored('service-base-urls', {})
+    // 优先级: 服务独立 baseUrl > 全局 provider baseUrl > default baseUrl(兜底)
+    const baseUrl = (serviceType && serviceBaseUrls[serviceType])
+      || baseUrlsByProvider[provider]
+      || getDefaultBaseUrl(provider)
+      || ''
 
     // Set base URL for this request | 为此请求设置 Base URL
     // 阿里云万相:强制走Vite代理,忽略保存的baseUrl
-    if (currentProvider === 'aliyun') {
+    if (provider === 'aliyun') {
       config.baseURL = '/'
     } else if (baseUrl) {
       // 非阿里云渠道:走 /proxy 动态代理,避免浏览器直连第三方域名导致 CORS 问题
@@ -80,7 +97,7 @@ instance.interceptors.request.use(
 
     // 调试日志(开发环境)
     if (import.meta.env.DEV) {
-      console.log(`[Request] provider=${currentProvider}, url=${config.url}, baseURL=${config.baseURL}, hasApiKey=${!!apiKey}`)
+      console.log(`[Request] service=${serviceType || '-'}, provider=${provider}, url=${config.url}, baseURL=${config.baseURL}, hasApiKey=${!!apiKey}`)
     }
 
     return config

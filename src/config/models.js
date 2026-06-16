@@ -61,6 +61,23 @@ export const WAN_PRO_SIZE_OPTIONS = [
 // Image generation models | 图片生成模型
 export const IMAGE_MODELS = [
     {
+        label: '豆包 Seedream 5.0 (推荐)',
+        key: 'doubao-seedream-5-0-260128',
+        provider: ['doubao'],
+        sizes: SEEDREAM_SIZE_OPTIONS.map(s => s.key),
+        qualities: SEEDREAM_QUALITY_OPTIONS,
+        // 根据画质返回对应的尺寸选项
+        getSizesByQuality: (quality) => {
+            return quality === '4k' ? SEEDREAM_4K_SIZE_OPTIONS : SEEDREAM_SIZE_OPTIONS
+        },
+        defaultParams: {
+            size: '2048x2048',
+            quality: 'standard',
+            n: 1,
+            watermark: true
+        }
+    },
+    {
         label: '万相 2.7 Pro (推荐)',
         key: 'wan2.7-image-pro',
         provider: ['aliyun'],

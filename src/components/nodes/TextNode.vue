@@ -129,9 +129,9 @@ defineEmits(['updateNodeInternals'])
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config state | API 配置状态
+// API config state | API 配置状态(按 chat 服务判定, 用于润色)
 const modelStore = useModelStore()
-const isApiConfigured = computed(() => !!modelStore.currentApiKey)
+const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
 
 // Chat model options for polish | 润色用的聊天模型选择
 const polishChatModelOptions = computed(() => modelStore.allChatModelOptions)

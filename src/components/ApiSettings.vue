@@ -1,165 +1,95 @@
 <template>
   <!-- API Settings Modal | API 设置弹窗 -->
-  <n-modal v-model:show="showModal" preset="card" title="API 设置" style="width: 560px;">
+  <n-modal v-model:show="showModal" preset="card" title="API 设置" style="width: 640px;">
     <n-tabs type="line" animated>
-      <!-- API 配置标签 -->
-      <n-tab-pane name="api" tab="API 配置">
-        <n-form ref="formRef" :model="formData" label-placement="left" label-width="80">
-          <n-form-item label="渠道" path="provider">
+      <!-- 标签1: 全局默认（排第一） -->
+      <n-tab-pane name="global" tab="全局默认">
+        <n-alert type="info" class="mb-4" :show-icon="true">
+          全局默认配置作为所有服务的兜底。单独服务未配置时自动回退此处。
+        </n-alert>
+        <n-form label-placement="left" label-width="80">
+          <n-form-item label="渠道">
             <n-select
-              v-model:value="formData.provider"
+              v-model:value="globalForm.provider"
               :options="providerOptions"
               placeholder="选择 API 渠道"
             />
           </n-form-item>
-          <n-form-item label="Base URL" path="baseUrl">
+          <n-form-item label="Base URL">
             <n-input
-              v-model:value="formData.baseUrl"
-              :placeholder="baseUrlPlaceholder"
-              :disabled="isAliyunProvider"
+              v-model:value="globalForm.baseUrl"
+              :placeholder="globalBaseUrlPlaceholder"
+              :disabled="isGlobalAliyun"
             />
-            <template #feedback v-if="isAliyunProvider">
+            <template #feedback v-if="isGlobalAliyun">
               <span class="text-xs text-[var(--text-secondary)]">阿里云万相使用本地代理，无需手动配置</span>
             </template>
           </n-form-item>
-          <n-form-item label="API Key" path="apiKey">
+          <n-form-item label="API Key">
             <n-input
-              v-model:value="formData.apiKey"
+              v-model:value="globalForm.apiKey"
               type="password"
               show-password-on="click"
               placeholder="请输入 API Key"
             />
           </n-form-item>
-
-          <n-divider title-placement="left" class="!my-3">
-            <span class="text-xs text-[var(--text-secondary)]">端点路径</span>
-          </n-divider>
-          
-          <div class="endpoint-list">
-            <div class="endpoint-item">
-              <span class="endpoint-label">问答</span>
-              <n-tag size="small" type="info" class="endpoint-tag">{{ currentEndpoints.chat }}</n-tag>
-            </div>
-            <div class="endpoint-item">
-              <span class="endpoint-label">生图</span>
-              <n-tag size="small" type="success" class="endpoint-tag">{{ currentEndpoints.image }}</n-tag>
-            </div>
-            <div class="endpoint-item">
-              <span class="endpoint-label">视频生成</span>
-              <n-tag size="small" type="warning" class="endpoint-tag">{{ currentEndpoints.video }}</n-tag>
-            </div>
-            <div class="endpoint-item">
-              <span class="endpoint-label">视频查询</span>
-              <n-tag size="small" type="warning" class="endpoint-tag">{{ currentEndpoints.videoQuery }}</n-tag>
-            </div>
-          </div>
-
-          <n-alert v-if="!isConfigured" type="warning" title="未配置" class="mb-4">
-            <p>请配置 API Key 以使用 AI 功能</p>
-          </n-alert>
-
-          <n-alert v-else type="success" title="已配置" class="mb-4">
-            API 已就绪，可以使用 AI 功能
-          </n-alert>
         </n-form>
-      </n-tab-pane>
-
-      <!-- 模型配置标签 -->
-      <n-tab-pane name="models" tab="模型配置">
-        <div class="model-config-section">
-          <!-- 问答模型 -->
-          <div class="model-group">
-            <div class="model-group-header">
-              <span class="model-group-title">问答模型</span>
-              <n-tag size="tiny" type="info">{{ allChatModels.length }} 个</n-tag>
-            </div>
-            <div class="model-input-row">
-              <n-input
-                v-model:value="newChatModel"
-                placeholder="输入模型名称，如 gpt-4o"
-                size="small"
-                @keyup.enter="handleAddChatModel"
-              />
-              <n-button size="small" type="primary" @click="handleAddChatModel" :disabled="!newChatModel">
-                添加
-              </n-button>
-            </div>
-            <div class="model-tags">
-              <n-tag
-                v-for="model in allChatModels"
-                :key="model.key"
-                size="small"
-                :closable="model.isCustom"
-                :type="model.isCustom ? 'info' : 'default'"
-                @close="handleRemoveChatModel(model.key)"
-              >
-                {{ model.label }}
-              </n-tag>
-            </div>
+        <!-- 端点预览 -->
+        <div class="endpoint-list">
+          <div class="text-xs text-[var(--text-secondary)] mb-2">端点路径预览</div>
+          <div class="endpoint-item">
+            <span class="endpoint-label">问答</span>
+            <n-tag size="small" type="info" class="endpoint-tag">{{ globalEndpoints.chat }}</n-tag>
           </div>
-
-          <!-- 图片模型 -->
-          <div class="model-group">
-            <div class="model-group-header">
-              <span class="model-group-title">图片模型</span>
-              <n-tag size="tiny" type="success">{{ allImageModels.length }} 个</n-tag>
-            </div>
-            <div class="model-input-row">
-              <n-input
-                v-model:value="newImageModel"
-                placeholder="输入模型名称，如 dall-e-3"
-                size="small"
-                @keyup.enter="handleAddImageModel"
-              />
-              <n-button size="small" type="primary" @click="handleAddImageModel" :disabled="!newImageModel">
-                添加
-              </n-button>
-            </div>
-            <div class="model-tags">
-              <n-tag
-                v-for="model in allImageModels"
-                :key="model.key"
-                size="small"
-                :closable="model.isCustom"
-                :type="model.isCustom ? 'success' : 'default'"
-                @close="handleRemoveImageModel(model.key)"
-              >
-                {{ model.label }}
-              </n-tag>
-            </div>
+          <div class="endpoint-item">
+            <span class="endpoint-label">生图</span>
+            <n-tag size="small" type="success" class="endpoint-tag">{{ globalEndpoints.image }}</n-tag>
           </div>
-
-          <!-- 视频模型 -->
-          <div class="model-group">
-            <div class="model-group-header">
-              <span class="model-group-title">视频模型</span>
-              <n-tag size="tiny" type="warning">{{ allVideoModels.length }} 个</n-tag>
-            </div>
-            <div class="model-input-row">
-              <n-input
-                v-model:value="newVideoModel"
-                placeholder="输入模型名称，如 sora-2"
-                size="small"
-                @keyup.enter="handleAddVideoModel"
-              />
-              <n-button size="small" type="primary" @click="handleAddVideoModel" :disabled="!newVideoModel">
-                添加
-              </n-button>
-            </div>
-            <div class="model-tags">
-              <n-tag
-                v-for="model in allVideoModels"
-                :key="model.key"
-                size="small"
-                :closable="model.isCustom"
-                :type="model.isCustom ? 'warning' : 'default'"
-                @close="handleRemoveVideoModel(model.key)"
-              >
-                {{ model.label }}
-              </n-tag>
-            </div>
+          <div class="endpoint-item">
+            <span class="endpoint-label">视频生成</span>
+            <n-tag size="small" type="warning" class="endpoint-tag">{{ globalEndpoints.video }}</n-tag>
+          </div>
+          <div class="endpoint-item">
+            <span class="endpoint-label">视频查询</span>
+            <n-tag size="small" type="warning" class="endpoint-tag">{{ globalEndpoints.videoQuery }}</n-tag>
           </div>
         </div>
+      </n-tab-pane>
+
+      <!-- 标签2: 问答模型 -->
+      <n-tab-pane name="chat" tab="问答模型">
+        <ServiceConfigForm
+          service-key="chat"
+          service-label="问答服务"
+          tag-type="info"
+          :provider-options="providerOptions"
+          :form="serviceForms.chat"
+          @update-form="serviceForms.chat = $event"
+        />
+      </n-tab-pane>
+
+      <!-- 标签3: 图片模型 -->
+      <n-tab-pane name="image" tab="图片模型">
+        <ServiceConfigForm
+          service-key="image"
+          service-label="图片服务"
+          tag-type="success"
+          :provider-options="providerOptions"
+          :form="serviceForms.image"
+          @update-form="serviceForms.image = $event"
+        />
+      </n-tab-pane>
+
+      <!-- 标签4: 视频模型 -->
+      <n-tab-pane name="video" tab="视频模型">
+        <ServiceConfigForm
+          service-key="video"
+          service-label="视频服务"
+          tag-type="warning"
+          :provider-options="providerOptions"
+          :form="serviceForms.video"
+          @update-form="serviceForms.video = $event"
+        />
       </n-tab-pane>
     </n-tabs>
 
@@ -180,39 +110,52 @@
 <script setup>
 /**
  * API Settings Component | API 设置组件
- * Modal for configuring API key, base URL, and custom models
+ * 四标签页: 全局默认 / 问答模型 / 图片模型 / 视频模型
+ * 每个服务标签内含「使用全局配置」开关(默认开) + 独立配置表单 + 模型管理
+ * 关闭「使用全局配置」后可单独设置渠道/Base URL/API Key; 开启则自动回退全局
  */
-import { ref, reactive, watch, computed } from 'vue'
-import { NModal, NForm, NFormItem, NInput, NButton, NAlert, NDivider, NTag, NTabs, NTabPane, NSelect } from 'naive-ui'
+import { ref, reactive, watch, computed, defineAsyncComponent } from 'vue'
+import { NModal, NForm, NFormItem, NInput, NButton, NAlert, NTag, NTabs, NTabPane, NSelect } from 'naive-ui'
 import { useModelStore } from '../stores/pinia'
-import { getProviderConfig } from '../config/providers'
+import { getProviderConfig, getDefaultBaseUrl } from '../config/providers'
 
-// Props | 属性
+// 异步子组件: 服务配置 + 模型管理表单
+const ServiceConfigForm = defineAsyncComponent(() => import('./ServiceConfigForm.vue'))
+
+// Props
 const props = defineProps({
-  show: {
-    type: Boolean,
-    default: false
-  }
+  show: { type: Boolean, default: false }
 })
 
-// Emits | 事件
+// Emits
 const emit = defineEmits(['update:show', 'saved'])
 
-// API Config 状态
-const isConfigured = computed(() => !!modelStore.currentApiKey)
-
-// Model Store (Pinia) | 模型配置 Store
+// Model Store
 const modelStore = useModelStore()
 
-// Provider options for select | 渠道下拉选项
+// 渠道下拉选项
 const providerOptions = modelStore.providerList.map(p => ({
   label: p.label,
   value: p.key
 }))
 
-// 当前渠道的端点路径
-const currentEndpoints = computed(() => {
-  const config = getProviderConfig(formData.provider)
+// ---- 全局默认表单 ----
+const globalForm = reactive({
+  provider: modelStore.currentProvider,
+  apiKey: '',
+  baseUrl: ''
+})
+
+const isGlobalAliyun = computed(() => globalForm.provider === 'aliyun')
+
+const globalBaseUrlPlaceholder = computed(() => {
+  if (isGlobalAliyun.value) return 'https://dashscope.aliyuncs.com/api/v1'
+  return 'https://api.openai.com/v1'
+})
+
+// 全局端点路径
+const globalEndpoints = computed(() => {
+  const config = getProviderConfig(globalForm.provider)
   return config.endpoints || {
     chat: '/chat/completions',
     image: '/v1/images/generations',
@@ -221,129 +164,83 @@ const currentEndpoints = computed(() => {
   }
 })
 
-// 是否为阿里云渠道
-const isAliyunProvider = computed(() => formData.provider === 'aliyun')
-
-// Base URL 占位符
-const baseUrlPlaceholder = computed(() => {
-  if (isAliyunProvider.value) return 'https://dashscope.aliyuncs.com/api/v1'
-  return 'https://api.openai.com/v1'
-})
-
-// 全局模型列表（不区分渠道）
-const allChatModels = computed(() => modelStore.allChatModels)
-const allImageModels = computed(() => modelStore.allImageModels)
-const allVideoModels = computed(() => modelStore.allVideoModels)
-
-// Modal visibility | 弹窗可见性
-const showModal = ref(props.show)
-
-// Form data | 表单数据
-const formData = reactive({
-  provider: modelStore.currentProvider,
-  apiKey: '',
-  baseUrl: ''
-})
-
-// New model inputs | 新模型输入
-const newChatModel = ref('')
-const newImageModel = ref('')
-const newVideoModel = ref('')
-
-// 初始化或切换渠道时，更新 API 配置
-const updateFormApiConfig = () => {
-  const provider = formData.provider
-  const config = getProviderConfig(provider)
-  formData.apiKey = modelStore.apiKeysByProvider[provider] || ''
-  
-  // 阿里云万相:自动填入URL,使用代理转发
-  if (provider === 'aliyun') {
-    formData.baseUrl = 'https://dashscope.aliyuncs.com/api/v1'
+// 切换全局渠道时, 自动更新 apiKey/baseUrl
+const syncGlobalForm = () => {
+  globalForm.provider = modelStore.currentProvider
+  globalForm.apiKey = modelStore.apiKeysByProvider[modelStore.currentProvider] || ''
+  if (modelStore.currentProvider === 'aliyun') {
+    globalForm.baseUrl = getDefaultBaseUrl('aliyun')
   } else {
-    formData.baseUrl = modelStore.baseUrlsByProvider[provider] || config.defaultBaseUrl || ''
+    const cfg = getProviderConfig(modelStore.currentProvider)
+    globalForm.baseUrl = modelStore.baseUrlsByProvider[modelStore.currentProvider] || cfg.defaultBaseUrl || ''
   }
 }
 
-// Watch prop changes | 监听属性变化
-watch(() => props.show, (val) => {
-  showModal.value = val
-  if (val) {
-    formData.provider = modelStore.currentProvider
-    updateFormApiConfig()
+watch(() => globalForm.provider, () => {
+  const p = globalForm.provider
+  globalForm.apiKey = modelStore.apiKeysByProvider[p] || ''
+  if (p === 'aliyun') {
+    globalForm.baseUrl = getDefaultBaseUrl('aliyun')
+  } else {
+    const cfg = getProviderConfig(p)
+    globalForm.baseUrl = modelStore.baseUrlsByProvider[p] || cfg.defaultBaseUrl || ''
   }
 })
 
-// 监听渠道变化，更新表单中的 API 配置
-watch(() => formData.provider, () => {
-  updateFormApiConfig()
+// ---- 按服务表单 ----
+const serviceForms = reactive({
+  chat: { provider: '', baseUrl: '', apiKey: '' },
+  image: { provider: '', baseUrl: '', apiKey: '' },
+  video: { provider: '', baseUrl: '', apiKey: '' }
 })
 
-// Watch modal changes | 监听弹窗变化
+const syncServiceForms = () => {
+  for (const svc of modelStore.SERVICE_TYPES) {
+    serviceForms[svc].provider = modelStore.serviceProviders[svc] || ''
+    serviceForms[svc].baseUrl = modelStore.serviceBaseUrls[svc] || ''
+    serviceForms[svc].apiKey = modelStore.serviceApiKeys[svc] || ''
+  }
+}
+
+// ---- Modal ----
+const showModal = ref(props.show)
+
+watch(() => props.show, (val) => {
+  showModal.value = val
+  if (val) {
+    syncGlobalForm()
+    syncServiceForms()
+  }
+})
+
 watch(showModal, (val) => {
   emit('update:show', val)
 })
 
-// Handle add models | 处理添加模型
-const handleAddChatModel = () => {
-  if (newChatModel.value.trim()) {
-    modelStore.addCustomChatModel(newChatModel.value.trim())
-    newChatModel.value = ''
-  }
-}
-
-const handleAddImageModel = () => {
-  if (newImageModel.value.trim()) {
-    modelStore.addCustomImageModel(newImageModel.value.trim())
-    newImageModel.value = ''
-  }
-}
-
-const handleAddVideoModel = () => {
-  if (newVideoModel.value.trim()) {
-    modelStore.addCustomVideoModel(newVideoModel.value.trim())
-    newVideoModel.value = ''
-  }
-}
-
-// Handle remove models | 处理删除模型
-const handleRemoveChatModel = (modelKey) => {
-  modelStore.removeCustomChatModel(modelKey)
-}
-
-const handleRemoveImageModel = (modelKey) => {
-  modelStore.removeCustomImageModel(modelKey)
-}
-
-const handleRemoveVideoModel = (modelKey) => {
-  modelStore.removeCustomVideoModel(modelKey)
-}
-
-// Handle save | 处理保存
+// ---- 保存 ----
 const handleSave = () => {
-  if (formData.provider) {
-    modelStore.setProvider(formData.provider)
+  // 1. 保存全局默认
+  if (globalForm.provider) modelStore.setProvider(globalForm.provider)
+  if (globalForm.apiKey) modelStore.setApiKeyByProvider(globalForm.provider, globalForm.apiKey)
+  if (globalForm.baseUrl) modelStore.setBaseUrlByProvider(globalForm.provider, globalForm.baseUrl)
+
+  // 2. 保存各服务独立配置
+  for (const svc of modelStore.SERVICE_TYPES) {
+    modelStore.setServiceProvider(svc, serviceForms[svc].provider)
+    modelStore.setServiceBaseUrl(svc, serviceForms[svc].baseUrl)
+    modelStore.setServiceApiKey(svc, serviceForms[svc].apiKey)
   }
-  if (formData.apiKey) {
-    modelStore.setApiKeyByProvider(formData.provider, formData.apiKey)
-  }
-  
-  // 保存 baseUrl(阿里云保存实际URL,请求时走代理)
-  if (formData.baseUrl) {
-    modelStore.setBaseUrlByProvider(formData.provider, formData.baseUrl)
-  }
-  
+
   showModal.value = false
   emit('saved')
 }
 
-// Handle clear cache | 处理清理缓存(保留生成的图片)
+// ---- 清理缓存 ----
 const handleClearCache = () => {
   modelStore.clearConfigCache()
-  // 重置表单
-  formData.provider = modelStore.currentProvider
-  formData.apiKey = ''
-  formData.baseUrl = ''
-  window.$message?.success('缓存已清理，生成的图片不受影响')
+  syncGlobalForm()
+  syncServiceForms()
+  window.$message?.success('缓存已清理')
 }
 </script>
 
@@ -352,7 +249,7 @@ const handleClearCache = () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-top: 16px;
   padding: 12px;
   background: var(--bg-secondary, #f5f5f5);
   border-radius: 6px;
@@ -373,47 +270,5 @@ const handleClearCache = () => {
 .endpoint-tag {
   font-family: monospace;
   font-size: 12px;
-}
-
-.model-config-section {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.model-group {
-  padding: 12px;
-  background: var(--bg-secondary, #f5f5f5);
-  border-radius: 8px;
-}
-
-.model-group-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.model-group-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #333);
-}
-
-.model-input-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.model-input-row .n-input {
-  flex: 1;
-}
-
-.model-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
 }
 </style>

@@ -90,18 +90,19 @@ export const useChat = (options = {}) => {
         { role: 'user', content: userContent }
       ]
 
-      // 适配请求参数（chatOptions.model 可覆盖默认模型）
-      const adaptedParams = adaptRequest('chat', {
-        model: chatOptions.model || options.model || 'gpt-4o-mini',
-        messages: msgList
-      })
+      // 解析 chat 服务的最终 provider, 用其 requestAdapter 转换参数(chatOptions.model 可覆盖默认模型)
+      const chatCfg = modelStore.getServiceConfig('chat')
+      const chatAdapter = chatCfg.providerConfig?.requestAdapter?.chat
+      const adaptedParams = chatAdapter
+        ? chatAdapter({ model: chatOptions.model || options.model || 'gpt-4o-mini', messages: msgList })
+        : adaptRequest('chat', { model: chatOptions.model || options.model || 'gpt-4o-mini', messages: msgList })
 
       if (stream) {
         status.value = 'streaming'
         abortController = new AbortController()
         let fullResponse = ''
 
-        // 获取聊天端点
+        // 获取聊天端点(基于 chat 服务 provider)
         const chatUrl = modelStore.getChatEndpoint()
         // chatUrl 可能是完整 URL 或纯路径（阿里云走代理时只返回路径）
         let streamBaseUrl, streamEndpoint
@@ -114,8 +115,8 @@ export const useChat = (options = {}) => {
           streamEndpoint = chatUrl
         }
 
-        // 获取当前渠道的 API Key
-        const currentApiKey = modelStore.currentApiKey
+        // 获取 chat 服务的 API Key
+        const currentApiKey = chatCfg.apiKey
 
         for await (const chunk of streamChatCompletions(
           adaptedParams,
@@ -200,20 +201,31 @@ export const useImageGeneration = () => {
         if (params.quality) requestData.quality = params.quality
         if (params.style) requestData.style = params.style
       } else {
-        // 万相模型：透传 thinking_mode 和 watermark
+        // 万相模型：透传 thinking_mode
         if (modelConfig?.defaultParams?.thinking_mode !== undefined) {
           requestData.thinking_mode = modelConfig.defaultParams.thinking_mode
         }
-        if (modelConfig?.defaultParams?.watermark !== undefined) {
-          requestData.watermark = modelConfig.defaultParams.watermark
+      }
+
+      // 透传模型默认参数中的通用字段（适用于所有模型，如 watermark）
+      if (modelConfig?.defaultParams) {
+        const genericFields = ['watermark', 'prompt_extend']
+        for (const key of genericFields) {
+          if (modelConfig.defaultParams[key] !== undefined && requestData[key] === undefined) {
+            requestData[key] = modelConfig.defaultParams[key]
+          }
         }
       }
 
-      // 适配请求参数
-      const adaptedParams = adaptRequest('image', requestData)
+      // 解析 image 服务的最终 provider, 用其 requestAdapter 转换参数
+      const imgCfg = modelStore.getServiceConfig('image')
+      const imgRequestAdapter = imgCfg.providerConfig?.requestAdapter?.image
+      const adaptedParams = imgRequestAdapter
+        ? imgRequestAdapter(requestData)
+        : adaptRequest('image', requestData)
 
-      // 获取当前渠道和模型信息
-      const currentProvider = modelStore.currentProvider
+      // 当前 image 服务的 provider 和模型名称
+      const currentProvider = imgCfg.provider
       const modelName = params.model
 
       // 调试日志:确认只调用一次
@@ -225,12 +237,15 @@ export const useImageGeneration = () => {
       const response = await generateImage(adaptedParams, {
         requestType: 'json',
         endpoint: modelStore.getImageEndpoint(),
-        provider: currentProvider,  // Pinia store的ref在JS中会自动解包
+        provider: currentProvider,
         model: modelName
       })
 
-      // 适配响应数据
-      const adaptedData = adaptResponse('image', response)
+      // 用 image 服务 provider 的 responseAdapter 适配响应数据
+      const imgResponseAdapter = imgCfg.providerConfig?.responseAdapter?.image
+      const adaptedData = imgResponseAdapter
+        ? imgResponseAdapter(response)
+        : adaptResponse('image', response)
 
       // 异步缓存生成的图片到 IndexedDB（不阻塞返回）
       if (adaptedData && adaptedData.length > 0) {
@@ -308,14 +323,18 @@ export const useVideoGeneration = () => {
       if (params.dur) requestData.seconds = params.dur
     }
 
-    // 适配请求参数
-    const adaptedParams = adaptRequest('video', requestData)
+    // 解析 video 服务的最终 provider, 用其 requestAdapter 转换参数
+    const vidCfg = modelStore.getServiceConfig('video')
+    const vidRequestAdapter = vidCfg.providerConfig?.requestAdapter?.video
+    const adaptedParams = vidRequestAdapter
+      ? vidRequestAdapter(requestData)
+      : adaptRequest('video', requestData)
 
     // Call API to create task | 调用 API 创建任务
     const task = await createVideoTask(adaptedParams, {
       requestType: 'json',
       endpoint: modelStore.getVideoEndpoint(),
-      provider: modelStore.currentProvider,
+      provider: vidCfg.provider,
       model: params.model
     })
 
@@ -372,8 +391,11 @@ export const useVideoGeneration = () => {
         endpoint: taskEndpoint
       })
 
-      // 适配轮询响应
-      const adaptedResult = adaptResponse('video', result)
+      // 适配轮询响应(用 video 服务 provider 的 responseAdapter)
+      const vidResponseAdapter = modelStore.getServiceConfig('video').providerConfig?.responseAdapter?.video
+      const adaptedResult = vidResponseAdapter
+        ? vidResponseAdapter(result)
+        : adaptResponse('video', result)
 
       // 阿里云万相：检查 task_status
       if (adaptedResult.status === 'completed') {

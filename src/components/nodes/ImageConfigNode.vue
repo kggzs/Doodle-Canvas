@@ -186,8 +186,8 @@ defineEmits(['updateNodeInternals'])
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config state | API 配置状态
-const isConfigured = computed(() => !!modelStore.currentApiKey)
+// API config state | API 配置状态(按 image 服务判定)
+const isConfigured = computed(() => modelStore.isServiceConfigured('image'))
 
 // Image generation hook | 图片生成 hook
 const { loading, error, images: generatedImages, generate } = useImageGeneration()
@@ -482,11 +482,11 @@ const handleModelSelect = (key) => {
   localModel.value = key
   const config = getModelConfig(key)
 
-  // 根据模型的 provider 自动切换渠道
+  // 根据模型的 provider 切换 image 服务的渠道(而非全局, 避免污染其它服务)
   if (config?.provider?.length > 0) {
     const targetProvider = config.provider[0]
-    if (modelStore.currentProvider !== targetProvider) {
-      modelStore.setProvider(targetProvider)
+    if (modelStore.getServiceConfig('image').provider !== targetProvider) {
+      modelStore.setServiceProvider('image', targetProvider)
     }
   }
 

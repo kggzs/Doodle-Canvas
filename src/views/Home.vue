@@ -233,7 +233,7 @@ const modelStore = useModelStore()
 
 // API Settings state | API 设置状态
 const showApiSettings = ref(false)
-const isApiConfigured = computed(() => !!modelStore.currentApiKey)
+const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
 
 // Refresh API config state | 刷新 API 配置状态
 const refreshApiConfig = () => {

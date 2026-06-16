@@ -299,7 +299,8 @@ import AppHeader from '../components/AppHeader.vue'
 
 // API Config state | API 配置状态
 const modelStore = useModelStore()
-const isApiConfigured = computed(() => !!modelStore.currentApiKey)
+// 润色/问答入口按 chat 服务判定是否已配置
+const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
 
 // Chat model options for polish | 润色用的聊天模型选择
 const polishChatModelOptions = computed(() => modelStore.allChatModelOptions)

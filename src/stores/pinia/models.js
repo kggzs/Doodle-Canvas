@@ -28,8 +28,16 @@ const STORAGE_KEYS = {
   CUSTOM_IMAGE_MODELS_BY_PROVIDER: 'custom-image-models-by-provider',
   CUSTOM_VIDEO_MODELS_BY_PROVIDER: 'custom-video-models-by-provider',
   API_KEYS_BY_PROVIDER: 'api-keys-by-provider',
-  BASE_URLS_BY_PROVIDER: 'base-urls-by-provider'
+  BASE_URLS_BY_PROVIDER: 'base-urls-by-provider',
+  // 按服务(chat/image/video)独立配置: 每个服务可单独指定 provider/apiKey/baseUrl
+  // 为空字符串表示「使用全局默认」, 兼容「一个地址通用」与「三个地址区分」两种场景
+  SERVICE_PROVIDERS: 'service-providers',
+  SERVICE_API_KEYS: 'service-api-keys',
+  SERVICE_BASE_URLS: 'service-base-urls'
 }
+
+// 服务类型 | 三类 AI 能力, 对应三套独立配置
+const SERVICE_TYPES = ['chat', 'image', 'video']
 
 /**
  * Get stored value from localStorage
@@ -169,6 +177,13 @@ export const useModelStore = defineStore('model', () => {
   const apiKeysByProvider = ref(getStoredJson(STORAGE_KEYS.API_KEYS_BY_PROVIDER, {}))
   const baseUrlsByProvider = ref(getStoredJson(STORAGE_KEYS.BASE_URLS_BY_PROVIDER, {}))
 
+  // ============ 按服务(chat/image/video)独立配置 | Service-scoped Config ============
+  // 每个服务可单独指定 provider/apiKey/baseUrl, 空字符串表示「回退全局默认」
+  // 这样既能「三服务各配一个 API 地址」, 也能「只配全局一套地址」
+  const serviceProviders = ref(getStoredJson(STORAGE_KEYS.SERVICE_PROVIDERS, { chat: '', image: '', video: '' }))
+  const serviceApiKeys = ref(getStoredJson(STORAGE_KEYS.SERVICE_API_KEYS, { chat: '', image: '', video: '' }))
+  const serviceBaseUrls = ref(getStoredJson(STORAGE_KEYS.SERVICE_BASE_URLS, { chat: '', image: '', video: '' }))
+
   // 当前渠道的 API Key 和 Base URL
   const currentApiKey = computed(() => apiKeysByProvider.value[currentProvider.value] || '')
   const currentBaseUrl = computed(() => baseUrlsByProvider.value[currentProvider.value] || getDefaultBaseUrl(currentProvider.value))
@@ -187,6 +202,85 @@ export const useModelStore = defineStore('model', () => {
   const clearApiConfigByProvider = (provider) => {
     delete apiKeysByProvider.value[provider]
     delete baseUrlsByProvider.value[provider]
+  }
+
+  // ============ 统一解析: 某服务的最终生效配置 | Service Config Resolver ============
+
+  /**
+   * 解析某服务(chat/image/video)最终生效的 provider/apiKey/baseUrl
+   * 解析顺序: 服务独立配置优先 → 空则回退全局默认
+   * @param {string} service - 'chat' | 'image' | 'video'
+   * @returns {{ provider: string, apiKey: string, baseUrl: string, providerConfig: object }}
+   */
+  const getServiceConfig = (service) => {
+    const provider = serviceProviders.value[service] || currentProvider.value
+    const apiKey = serviceApiKeys.value[service]
+      || apiKeysByProvider.value[provider]
+      || ''
+    const baseUrl = serviceBaseUrls.value[service]
+      || baseUrlsByProvider.value[provider]
+      || getDefaultBaseUrl(provider)
+    return {
+      provider,
+      apiKey,
+      baseUrl,
+      providerConfig: getProviderConfig(provider)
+    }
+  }
+
+  /**
+   * 判断某服务是否已配置 API Key(独立 key 或全局 key 任一存在)
+   * @param {string} service - 'chat' | 'image' | 'video'
+   * @returns {boolean}
+   */
+  const isServiceConfigured = (service) => !!getServiceConfig(service).apiKey
+
+  /**
+   * 判断某服务是否启用了独立配置(provider/apiKey/baseUrl 任一非空)
+   * 用于 ApiSettings 区分「覆盖」与「使用全局默认」
+   */
+  const isServiceOverridden = (service) => !!(
+    serviceProviders.value[service]
+    || serviceApiKeys.value[service]
+    || serviceBaseUrls.value[service]
+  )
+
+  // ============ 按服务配置 setter | Service-scoped Setters ============
+
+  const setServiceProvider = (service, provider) => {
+    if (!SERVICE_TYPES.includes(service)) return
+    serviceProviders.value[service] = provider || ''
+  }
+
+  const setServiceApiKey = (service, apiKey) => {
+    if (!SERVICE_TYPES.includes(service)) return
+    serviceApiKeys.value[service] = apiKey || ''
+  }
+
+  const setServiceBaseUrl = (service, baseUrl) => {
+    if (!SERVICE_TYPES.includes(service)) return
+    serviceBaseUrls.value[service] = baseUrl || ''
+  }
+
+  // 清除某服务的独立配置(回退到全局默认)
+  const clearServiceConfig = (service) => {
+    if (!SERVICE_TYPES.includes(service)) return
+    serviceProviders.value[service] = ''
+    serviceApiKeys.value[service] = ''
+    serviceBaseUrls.value[service] = ''
+  }
+
+  // ============ 配置迁移: 旧全局渠道 → 服务配置(一次性, 向后兼容) ============
+  /**
+   * 首次使用服务化配置时, 若三个服务均为空但存在旧全局渠道,
+   * 把旧全局渠道复制到三个服务, 保留「一个地址通用」的旧行为
+   */
+  const migrateToServiceConfig = () => {
+    const hasOverride = SERVICE_TYPES.some(s => isServiceOverridden(s))
+    if (hasOverride) return
+    const g = currentProvider.value
+    if (!g) return
+    serviceProviders.value = { chat: g, image: g, video: g }
   }
 
   // ============ Computed: All Models (built-in + custom + by provider) ============
@@ -397,47 +491,52 @@ export const useModelStore = defineStore('model', () => {
   const getVideoModel = (key) => allVideoModels.value.find(m => m.key === key)
 
   // ============ Methods: Get API Endpoints ============
+  // 端点按「服务生效 provider」解析, 而非全局 provider
+  // 这样问答/图片/视频可分别走不同渠道的端点
 
   // 获取图片端点
   const getImageEndpoint = () => {
-    const endpoint = providerConfig.value.endpoints?.image || '/images/generations'
+    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('image')
+    const endpoint = cfg.endpoints?.image || '/images/generations'
     // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (currentProvider.value === 'aliyun') {
+    if (provider === 'aliyun') {
       return endpoint
     }
-    return `${currentBaseUrl.value}${endpoint}`
+    return `${baseUrl}${endpoint}`
   }
 
   // 获取视频生成端点
   const getVideoEndpoint = () => {
-    const endpoint = providerConfig.value.endpoints?.video || '/videos'
+    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('video')
+    const endpoint = cfg.endpoints?.video || '/videos'
     // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (currentProvider.value === 'aliyun') {
+    if (provider === 'aliyun') {
       return endpoint
     }
-    return `${currentBaseUrl.value}${endpoint}`
+    return `${baseUrl}${endpoint}`
   }
 
   // 获取视频任务查询端点
   const getVideoTaskEndpoint = () => {
-    const config = providerConfig.value
+    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('video')
     // 优先使用 videoQuery 端点，支持 {taskId} 占位符替换
-    let endpoint = config.endpoints?.videoQuery || config.endpoints?.video || '/videos'
+    let endpoint = cfg.endpoints?.videoQuery || cfg.endpoints?.video || '/videos'
     // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (currentProvider.value === 'aliyun') {
+    if (provider === 'aliyun') {
       return endpoint
     }
-    return `${currentBaseUrl.value}${endpoint}`
+    return `${baseUrl}${endpoint}`
   }
 
   // 获取聊天端点（支持参考图片）
   const getChatEndpoint = () => {
-    const endpoint = providerConfig.value?.endpoints?.chat || '/chat/completions'
+    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('chat')
+    const endpoint = cfg.endpoints?.chat || '/chat/completions'
     // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (currentProvider.value === 'aliyun') {
+    if (provider === 'aliyun') {
       return endpoint
     }
-    return `${currentBaseUrl.value}${endpoint}`
+    return `${baseUrl}${endpoint}`
   }
 
   // ============ Methods: Get Models By Provider (for ApiSettings) ============
@@ -572,6 +671,9 @@ export const useModelStore = defineStore('model', () => {
       STORAGE_KEYS.CUSTOM_VIDEO_MODELS_BY_PROVIDER,
       STORAGE_KEYS.API_KEYS_BY_PROVIDER,
       STORAGE_KEYS.BASE_URLS_BY_PROVIDER,
+      STORAGE_KEYS.SERVICE_PROVIDERS,
+      STORAGE_KEYS.SERVICE_API_KEYS,
+      STORAGE_KEYS.SERVICE_BASE_URLS,
       // 其他可能存在的旧缓存键
       'apiKey',
       'api-keys-by-provider',
@@ -592,6 +694,9 @@ export const useModelStore = defineStore('model', () => {
     customVideoModelsByProvider.value = {}
     apiKeysByProvider.value = {}
     baseUrlsByProvider.value = {}
+    serviceProviders.value = { chat: '', image: '', video: '' }
+    serviceApiKeys.value = { chat: '', image: '', video: '' }
+    serviceBaseUrls.value = { chat: '', image: '', video: '' }
     selectedChatModel.value = DEFAULT_CHAT_MODEL
     selectedImageModel.value = DEFAULT_IMAGE_MODEL
     selectedVideoModel.value = DEFAULT_VIDEO_MODEL
@@ -619,6 +724,14 @@ export const useModelStore = defineStore('model', () => {
   // 监听并持久化 API 配置
   watch(apiKeysByProvider, (val) => setStoredJson(STORAGE_KEYS.API_KEYS_BY_PROVIDER, val), { deep: true })
   watch(baseUrlsByProvider, (val) => setStoredJson(STORAGE_KEYS.BASE_URLS_BY_PROVIDER, val), { deep: true })
+
+  // 监听并持久化按服务的独立配置
+  watch(serviceProviders, (val) => setStoredJson(STORAGE_KEYS.SERVICE_PROVIDERS, val), { deep: true })
+  watch(serviceApiKeys, (val) => setStoredJson(STORAGE_KEYS.SERVICE_API_KEYS, val), { deep: true })
+  watch(serviceBaseUrls, (val) => setStoredJson(STORAGE_KEYS.SERVICE_BASE_URLS, val), { deep: true })
+
+  // 启动时执行一次性配置迁移: 旧全局渠道 → 服务配置(向后兼容)
+  migrateToServiceConfig()
 
   return {
     // Provider
@@ -709,6 +822,20 @@ export const useModelStore = defineStore('model', () => {
     baseUrlsByProvider,
     setApiKeyByProvider,
     setBaseUrlByProvider,
-    clearApiConfigByProvider
+    clearApiConfigByProvider,
+
+    // Service-scoped config (chat/image/video 独立配置)
+    SERVICE_TYPES,
+    serviceProviders,
+    serviceApiKeys,
+    serviceBaseUrls,
+    getServiceConfig,
+    isServiceConfigured,
+    isServiceOverridden,
+    setServiceProvider,
+    setServiceApiKey,
+    setServiceBaseUrl,
+    clearServiceConfig,
+    migrateToServiceConfig
   }
 })
