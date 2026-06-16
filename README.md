@@ -1,4 +1,4 @@
-# AI Canvas
+# AI Doodle-Canvas - 可视化 AI 创作画布
 
 一个基于 Vue Flow 的可视化 AI 创作画布，支持文生图、视频生成、分镜设计、绘本创作等多种 AI 工作流的节点式编排。
 
