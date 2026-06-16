@@ -90,9 +90,9 @@ export const useChat = (options = {}) => {
         { role: 'user', content: userContent }
       ]
 
-      // 适配请求参数
+      // 适配请求参数（chatOptions.model 可覆盖默认模型）
       const adaptedParams = adaptRequest('chat', {
-        model: options.model || 'gpt-4o-mini',
+        model: chatOptions.model || options.model || 'gpt-4o-mini',
         messages: msgList
       })
 

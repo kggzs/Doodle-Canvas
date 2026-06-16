@@ -169,14 +169,25 @@
           />
           <div class="flex items-center justify-between mt-2">
             <div class="flex items-center gap-2">
-              <button 
+              <button
                 @click="handlePolish"
-                :disabled="isProcessing || !chatInput.trim()"
+                :disabled="isProcessing || !chatInput.trim() || !polishChatModelOptions.length"
                 class="px-3 py-1.5 text-xs rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="AI 润色提示词"
               >
                 ✨ AI 润色
               </button>
+              <n-dropdown
+                v-if="polishChatModelOptions.length"
+                :options="polishChatModelOptions"
+                trigger="click"
+                @select="setPolishChatModel"
+              >
+                <button class="flex items-center gap-1 text-xs text-[var(--text-primary)] hover:text-[var(--accent-color)]">
+                  {{ displayPolishModelName }}
+                  <n-icon :size="12"><ChevronDownOutline /></n-icon>
+                </button>
+              </n-dropdown>
             </div>
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
@@ -289,6 +300,16 @@ import AppHeader from '../components/AppHeader.vue'
 // API Config state | API 配置状态
 const modelStore = useModelStore()
 const isApiConfigured = computed(() => !!modelStore.currentApiKey)
+
+// Chat model options for polish | 润色用的聊天模型选择
+const polishChatModelOptions = computed(() => modelStore.allChatModelOptions)
+const polishChatModel = computed(() => modelStore.selectedChatModel)
+const setPolishChatModel = (key) => { modelStore.selectedChatModel = key }
+// Display selected polish model name | 显示当前润色模型名称
+const displayPolishModelName = computed(() => {
+  const model = polishChatModelOptions.value.find(m => m.key === polishChatModel.value)
+  return model?.label || polishChatModel.value || '选择模型'
+})
 
 // Initialize models on page load | 页面加载时初始化模型
 onMounted(() => {
@@ -713,7 +734,7 @@ const handlePolish = async () => {
 
   try {
     // Call chat API to polish the prompt | 调用 AI 润色提示词
-    const result = await sendChat(input, true)
+    const result = await sendChat(input, true, { model: polishChatModel.value })
     
     if (result) {
       chatInput.value = result

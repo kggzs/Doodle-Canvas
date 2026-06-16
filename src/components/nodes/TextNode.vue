@@ -58,16 +58,29 @@
             :data-placeholder="placeholder"
           ></div>
         </div>
-        <!-- Polish button | 润色按钮 -->
-        <button
-          @click="handlePolish"
-          :disabled="isPolishing || !plainText.trim()"
-          class="mt-2 px-3 py-1.5 text-xs rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--accent-color)] hover:text-white border border-[var(--border-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-        >
-          <n-spin v-if="isPolishing" :size="12" />
-          <span v-else>✨</span>
-          AI 润色
-        </button>
+        <!-- Polish button & model selector | 润色按钮与模型选择 -->
+        <div class="mt-2 flex items-center gap-1.5">
+          <button
+            @click="handlePolish"
+            :disabled="isPolishing || !plainText.trim() || !polishChatModelOptions.length"
+            class="px-3 py-1.5 text-xs rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--accent-color)] hover:text-white border border-[var(--border-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          >
+            <n-spin v-if="isPolishing" :size="12" />
+            <span v-else>✨</span>
+            AI 润色
+          </button>
+          <n-dropdown
+            v-if="polishChatModelOptions.length"
+            :options="polishChatModelOptions"
+            trigger="click"
+            @select="setPolishChatModel"
+          >
+            <button class="flex items-center gap-1 text-xs text-[var(--text-primary)] hover:text-[var(--accent-color)]">
+              {{ displayPolishModelName }}
+              <n-icon :size="12"><ChevronDownOutline /></n-icon>
+            </button>
+          </n-dropdown>
+        </div>
       </div>
 
       <!-- Handles | 连接点 -->
@@ -93,8 +106,8 @@
  */
 import { ref, watch, nextTick, computed, onMounted } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
-import { NIcon, NSpin } from 'naive-ui'
-import { TrashOutline, ExpandOutline, CopyOutline, ImageOutline, VideocamOutline, ChatbubbleOutline, CreateOutline } from '@vicons/ionicons5'
+import { NIcon, NSpin, NDropdown } from 'naive-ui'
+import { TrashOutline, ExpandOutline, CopyOutline, ImageOutline, VideocamOutline, ChatbubbleOutline, CreateOutline, ChevronDownOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import MentionsPicker from '../MentionsPicker.vue'
@@ -119,6 +132,16 @@ const { updateNodeInternals } = useVueFlow()
 // API config state | API 配置状态
 const modelStore = useModelStore()
 const isApiConfigured = computed(() => !!modelStore.currentApiKey)
+
+// Chat model options for polish | 润色用的聊天模型选择
+const polishChatModelOptions = computed(() => modelStore.allChatModelOptions)
+const polishChatModel = computed(() => modelStore.selectedChatModel)
+const setPolishChatModel = (key) => { modelStore.selectedChatModel = key }
+// Display selected polish model name | 显示当前润色模型名称
+const displayPolishModelName = computed(() => {
+  const model = polishChatModelOptions.value.find(m => m.key === polishChatModel.value)
+  return model?.label || polishChatModel.value || '选择模型'
+})
 
 // Chat hook for polish | 润色用的 Chat hook
 const { send: sendChat } = useChat({
@@ -650,7 +673,7 @@ const handlePolish = async () => {
 
   try {
     // Call chat API to polish the prompt | 调用 AI 润色提示词
-    const result = await sendChat(input, true)
+    const result = await sendChat(input, true, { model: polishChatModel.value })
     
     if (result) {
       content.value = result
