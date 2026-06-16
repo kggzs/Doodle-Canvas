@@ -148,21 +148,6 @@ src/
 - `waitForConfigComplete` - 等待配置节点完成
 - `waitForOutputReady` - 等待输出节点就绪
 
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 提交 Pull Request
-
-## 联系我
-
-扫码添加微信交流：
-
-<img src="./doc/wx-group.jpg" width="200" alt="微信二维码" />
 
 ## 📄 License
 
