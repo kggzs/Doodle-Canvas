@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Debug & local notes | 调试日志与本地笔记，不应入仓
+报错.txt
+报错*.txt
+error*.txt
+debug*.txt
+debug*.log
+*_local.*
+local_*.md

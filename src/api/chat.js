@@ -42,8 +42,17 @@ export const streamChatCompletions = async function* (data, signal, options = {}
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error?.error?.message || error?.message || 'Stream request failed')
+    // 先读文本再尝试解析，避免上游返回非 JSON（HTML 错误页、502 等）时抛 SyntaxError 丢失状态码
+    const raw = await response.text()
+    let message = `Stream request failed (${response.status})`
+    try {
+      const error = JSON.parse(raw)
+      message = error?.error?.message || error?.message || message
+    } catch {
+      // 非 JSON 响应，若为文本错误信息则展示，否则保留默认
+      if (raw) message = raw.slice(0, 200)
+    }
+    throw new Error(message)
   }
 
   const reader = response.body.getReader()

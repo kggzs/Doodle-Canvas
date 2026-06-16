@@ -366,8 +366,8 @@ export const initProjectsStore = () => {
   }
 }
 
-// Export for debugging | 导出用于调试
-if (typeof window !== 'undefined') {
+// Export for debugging | 导出用于调试（仅开发环境，避免生产暴露内部状态）
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.__aiCanvasProjects = {
     projects,
     loadProjects,

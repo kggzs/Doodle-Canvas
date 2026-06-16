@@ -278,7 +278,7 @@ import { nodes, edges, addNode, addNodes, addEdge, addEdges, updateNode, initSam
 import { loadAllModels } from '../stores/models'
 import { useChat, useWorkflowOrchestrator } from '../hooks'
 import { useModelStore } from '../stores/pinia'
-import { projects, initProjectsStore, updateProject, renameProject, currentProject } from '../stores/projects'
+import { projects, initProjectsStore, updateProject, renameProject, duplicateProject, deleteProject, currentProject } from '../stores/projects'
 
 // API Settings component | API 设置组件
 import ApiSettings from '../components/ApiSettings.vue'
@@ -648,8 +648,8 @@ const handleProjectAction = (key) => {
       showRenameModal.value = true
       break
     case 'duplicate':
-      // TODO: Implement duplicate
-      window.$message?.info('复制功能开发中')
+      // 复制当前项目并跳转到副本
+      duplicateCurrentProject()
       break
     case 'delete':
       showDeleteModal.value = true
@@ -670,10 +670,24 @@ const confirmRename = () => {
 // Confirm delete | 确认删除
 const confirmDelete = () => {
   const projectId = route.params.id
-  // deleteProject(projectId) // TODO: import deleteProject
+  deleteProject(projectId)
   showDeleteModal.value = false
   window.$message?.success('项目已删除')
   router.push('/')
+}
+
+// Duplicate current project | 复制当前项目
+const duplicateCurrentProject = () => {
+  const projectId = route.params.id
+  // 保存当前画布最新状态后再复制，确保副本包含未保存改动
+  saveProject()
+  const newId = duplicateProject(projectId)
+  if (newId) {
+    window.$message?.success('项目已复制')
+    router.push(`/canvas/${newId}`)
+  } else {
+    window.$message?.error('复制失败')
+  }
 }
 
 // Handle Enter key | 处理回车键

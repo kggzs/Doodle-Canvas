@@ -410,6 +410,14 @@ const plainText = computed(() => {
   return content.value
 })
 
+// 转义 HTML 属性值中的特殊字符，防止注入/属性逃逸
+const escapeHtmlAttr = (str) => String(str)
+  .replace(/&/g, '&amp;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+
 // 将 @[nodeId] 转换为带图片的 HTML
 const editorHtml = computed(() => {
   let html = content.value
@@ -421,7 +429,11 @@ const editorHtml = computed(() => {
     const node = nodes.value.find(n => n.id === nodeId)
     if (node?.type === 'image' && node.data?.url) {
       const displayName = node.data?.publicProps?.name || node.data?.label || '图片'
-      return `<span class="mention-inline" data-node-id="${nodeId}"><img src="${node.data.url}" alt="${displayName}" />${displayName}</span>`
+      // 对所有动态插值做属性级转义，避免 url/名称中包含引号或 <> 造成属性逃逸（XSS）
+      const safeNodeId = escapeHtmlAttr(nodeId)
+      const safeUrl = escapeHtmlAttr(node.data.url)
+      const safeName = escapeHtmlAttr(displayName)
+      return `<span class="mention-inline" data-node-id="${safeNodeId}"><img src="${safeUrl}" alt="${safeName}" />${safeName}</span>`
     }
     return match
   })

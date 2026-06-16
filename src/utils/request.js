@@ -11,7 +11,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.openai.com'
 // Create axios instance | 创建 axios 实例
 const instance = axios.create({
   baseURL: "/",
-  timeout: 30000000
+  timeout: 300000 // 5 分钟
 })
 
 // Request interceptor | 请求拦截器
@@ -45,7 +45,29 @@ instance.interceptors.request.use(
     if (currentProvider === 'aliyun') {
       config.baseURL = '/'
     } else if (baseUrl) {
-      config.baseURL = baseUrl
+      // 非阿里云渠道:走 /proxy 动态代理,避免浏览器直连第三方域名导致 CORS 问题
+      const cleanBaseUrl = baseUrl.replace(/\/$/, '')
+      config.baseURL = '/'
+
+      // url 可能是相对路径（/v1/images/generations）或完整 URL（https://xxx/v1/images/generations）
+      // 统一提取路径和 query 部分
+      let urlPath, urlSearch
+      const originalUrl = config.url || ''
+
+      try {
+        // 尝试解析为完整 URL
+        const parsed = new URL(originalUrl)
+        urlPath = parsed.pathname
+        urlSearch = parsed.search.replace(/^\?/, '')
+      } catch {
+        // 不是完整 URL，按相对路径处理
+        const [path, search] = originalUrl.split('?')
+        urlPath = path
+        urlSearch = search || ''
+      }
+
+      const searchSuffix = urlSearch ? `&${urlSearch}` : ''
+      config.url = `/proxy${urlPath}?_target=${encodeURIComponent(cleanBaseUrl)}${searchSuffix}`
     }
 
     // Skip auth for certain endpoints | 跳过某些端点的认证

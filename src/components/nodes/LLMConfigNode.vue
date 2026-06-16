@@ -469,7 +469,14 @@ const handleKeydown = (e) => {
       if (lastAtIndex !== -1) {
         systemPrompt.value = textBeforeCursor.slice(0, lastAtIndex) + systemPrompt.value.slice(cursorPos)
         nextTick(() => {
-          editor.innerHTML = systemPrompt.value.replace(/\n/g, '<br>')
+          // 安全地重建编辑器内容：用 DOM API 渲染纯文本和换行，
+          // 避免把用户输入的系统提示词当作 HTML 执行（XSS）
+          editor.replaceChildren()
+          const lines = systemPrompt.value.split('\n')
+          lines.forEach((line, idx) => {
+            if (idx > 0) editor.appendChild(document.createElement('br'))
+            editor.appendChild(document.createTextNode(line))
+          })
           // Set cursor position | 设置光标位置
           const newRange = document.createRange()
           newRange.setStart(editor.firstChild || editor, lastAtIndex)

@@ -3,8 +3,8 @@
  * Root App component | 根组件
  * Provides naive-ui config and router view
  */
-import { computed } from 'vue'
-import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme } from 'naive-ui'
+import { computed, h, defineComponent } from 'vue'
+import { NConfigProvider, NMessageProvider, NDialogProvider, NLoadingBarProvider, darkTheme, useMessage, useDialog } from 'naive-ui'
 import { isDark } from './stores/theme'
 
 // Naive UI theme based on dark mode | 基于深色模式的 Naive UI 主题
@@ -40,15 +40,32 @@ const themeOverrides = {
     heightMedium: '36px'
   }
 }
+
+/**
+ * Global API bridge | 全局 API 桥接组件
+ * 在 Naive UI provider 内部调用 useMessage/useDialog，
+ * 挂载到 window 上，供非组件代码（stores/api/utils 等）使用。
+ */
+const GlobalApiBridge = defineComponent({
+  name: 'GlobalApiBridge',
+  setup() {
+    window.$message = useMessage()
+    window.$dialog = useDialog()
+    return () => null
+  }
+})
 </script>
 
 <template>
   <n-config-provider :theme="theme" :theme-overrides="themeOverrides">
-    <n-message-provider>
-      <n-dialog-provider>
-        <router-view />
-      </n-dialog-provider>
-    </n-message-provider>
+    <n-loading-bar-provider>
+      <n-message-provider>
+        <n-dialog-provider>
+          <global-api-bridge />
+          <router-view />
+        </n-dialog-provider>
+      </n-message-provider>
+    </n-loading-bar-provider>
   </n-config-provider>
 </template>
 

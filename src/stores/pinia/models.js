@@ -43,6 +43,17 @@ const getStored = (key, defaultValue = '') => {
 }
 
 /**
+ * Remove stored value from localStorage
+ */
+const removeStored = (key) => {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Set stored value to localStorage
  */
 const setStored = (key, value) => {

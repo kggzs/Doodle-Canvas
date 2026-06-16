@@ -36,12 +36,16 @@ export const createVideoTask = (data, options = {}) => {
  * 查询视频任务状态
  * @param {string} taskId - 任务ID
  * @param {Object} options - 选项
- * @param {string} options.endpoint - 端点路径
+ * @param {string} options.endpoint - 端点路径（可含 {taskId} 占位符）
  */
 export const getVideoTaskStatus = (taskId, options = {}) => {
   const { endpoint = '/videos' } = options
+  // 若 endpoint 含占位符，替换为实际 taskId；否则将 taskId 作为路径段拼接
+  let url = endpoint.includes('{taskId}')
+    ? endpoint.replace('{taskId}', taskId)
+    : `${endpoint}/${taskId}`
   return request({
-    url: endpoint,
+    url,
     method: 'get'
   })
 }

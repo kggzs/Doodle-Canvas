@@ -365,11 +365,8 @@ export const useVideoGeneration = () => {
 
       onProgress(i + 1, Math.min(Math.round((i / maxAttempts) * 100), 99))
 
-      // 获取任务查询端点，支持 {taskId} 占位符替换
-      let taskEndpoint = modelStore.getVideoTaskEndpoint()
-      if (taskEndpoint.includes('{taskId}')) {
-        taskEndpoint = taskEndpoint.replace('{taskId}', pollTaskId)
-      }
+      // 获取任务查询端点（含 {taskId} 占位符），由 getVideoTaskStatus 内部替换
+      const taskEndpoint = modelStore.getVideoTaskEndpoint()
 
       const result = await getVideoTaskStatus(pollTaskId, {
         endpoint: taskEndpoint
