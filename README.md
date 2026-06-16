@@ -6,7 +6,7 @@
 ![Vite](https://img.shields.io/badge/Vite-5.2-646CFF?logo=vite)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-项目地址：[doodle-canvas](https://github.com/kggzs/doodle-canvas)
+项目地址：[Doodle-Canvas](https://github.com/kggzs/Doodle-Canvas)
 
 ## 📸 截图
 
@@ -100,8 +100,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/kggzs/doodle-canvas.git
-cd doodle-canvas
+git clone https://github.com/kggzs/Doodle-Canvas.git
+cd Doodle-Canvas
 
 # 安装依赖
 pnpm install

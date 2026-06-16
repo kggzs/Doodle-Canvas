@@ -58,7 +58,7 @@ import { isDark, toggleTheme } from '../stores/theme'
 defineProps({
   githubUrl: {
     type: String,
-    default: 'https://github.com/kggzs/doodle-canvas'
+    default: 'https://github.com/kggzs/Doodle-Canvas'
   }
 })
 </script>

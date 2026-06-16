@@ -23,8 +23,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/kggzs/doodle-canvas.git
-cd doodle-canvas
+git clone https://github.com/kggzs/Doodle-Canvas.git
+cd Doodle-Canvas
 ```
 
 ### 2. 安装依赖
