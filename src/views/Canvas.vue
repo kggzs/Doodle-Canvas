@@ -115,14 +115,6 @@
 
       <!-- Bottom controls | 底部控制 -->
       <div class="absolute bottom-4 left-4 flex items-center gap-2 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] p-1">
-        <!-- <button 
-          @click="showGrid = !showGrid" 
-          :class="showGrid ? 'bg-[var(--accent-color)] text-white' : 'hover:bg-[var(--bg-tertiary)]'"
-          class="p-2 rounded transition-colors"
-          title="切换网格"
-        >
-          <n-icon :size="16"><GridOutline /></n-icon>
-        </button> -->
         <button 
           @click="fitView({ padding: 0.2 })" 
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded transition-colors"
@@ -623,15 +615,7 @@ const onConnect = (params) => {
   }
 }
 const onNodeClick = (event) => {
-  // nodes.value.forEach(node => {
-  //   updateNode(node.id, { selected: false })
-  // })
-  
-  // // Select clicked node | 选中的节点
-  // const clickedNode = nodes.value.find(n => n.id === event.node.id)
-  // if (clickedNode) {
-  //   updateNode(event.node.id, { selected: true })
-  // }
+  // Node click handling (如果需要选中逻辑，在此处添加)
 }
 
 // Handle viewport change | 处理视口变化
@@ -655,11 +639,6 @@ const onEdgesChange = (changes) => {
 // Handle pane click | 处理画布点击
 const onPaneClick = () => {
   showNodeMenu.value = false
-  // Clear all selections | 清除所有选中
-  // nodes.value = nodes.value.map(node => ({
-  //   ...node,
-  //   selected: false
-  // }))
 }
 
 // Handle project action | 处理项目操作

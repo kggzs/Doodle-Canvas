@@ -11,8 +11,6 @@ import {
   streamChatCompletions
 } from '@/api'
 import { getModelByName } from '@/config/models'
-import { useApiConfig } from './useApiConfig'
-import { useProvider } from './useProvider'
 import { useModelStore } from '@/stores/pinia'
 import { cacheImage } from '@/utils/imageCache'
 
@@ -55,8 +53,8 @@ export const useApiState = () => {
  */
 export const useChat = (options = {}) => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
-  const { adaptRequest, adaptResponse } = useProvider()
   const modelStore = useModelStore()
+  const { adaptRequest, adaptResponse } = modelStore
 
   const messages = ref([])
   const currentResponse = ref('')
@@ -164,8 +162,8 @@ export const useChat = (options = {}) => {
  */
 export const useImageGeneration = () => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
-  const { adaptRequest, adaptResponse } = useProvider()
   const modelStore = useModelStore()
+  const { adaptRequest, adaptResponse } = modelStore
 
   const images = ref([])
   const currentImage = ref(null)
@@ -276,8 +274,8 @@ export const useImageGeneration = () => {
 
 export const useVideoGeneration = () => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
-  const { adaptRequest, adaptResponse } = useProvider()
   const modelStore = useModelStore()
+  const { adaptRequest, adaptResponse } = modelStore
 
   const video = ref(null)
   const taskId = ref(null)
@@ -468,10 +466,9 @@ export const useVideoGeneration = () => {
  * Combined API composable | 综合 API 组合式函数
  */
 export const useApi = () => {
-  const config = useApiConfig()
   const chat = useChat()
   const image = useImageGeneration()
   const videoGen = useVideoGeneration()
 
-  return { config, chat, image, video: videoGen }
+  return { chat, image, video: videoGen }
 }

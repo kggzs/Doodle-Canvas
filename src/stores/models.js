@@ -22,16 +22,16 @@ import {
   DEFAULT_VIDEO_RATIO,
   DEFAULT_VIDEO_DURATION
 } from '@/config/models'
-import { useModelConfig } from '@/hooks/useModelConfig'
+import { useModelStore } from '@/stores/pinia'
 
 // Loading state (always false for built-in models) | 加载状态
 const loading = ref(false)
 const error = ref(null)
 
-// Get model config hook | 获取模型配置 hook
+// Get model config hook | 获取模型配置 store
 const getModelConfigHook = () => {
   try {
-    return useModelConfig()
+    return useModelStore()
   } catch {
     return null
   }
@@ -43,7 +43,8 @@ const getModelConfigHook = () => {
 export const loadAllModels = async () => {
   const modelConfig = getModelConfigHook()
   if (modelConfig) {
-    return [...modelConfig.allImageModels.value, ...modelConfig.allVideoModels.value, ...modelConfig.allChatModels.value]
+    // Pinia store exposes computed properties directly (no .value)
+    return [...modelConfig.allImageModels, ...modelConfig.allVideoModels, ...modelConfig.allChatModels]
   }
   return [...IMAGE_MODELS, ...VIDEO_MODELS, ...CHAT_MODELS]
 }
@@ -136,33 +137,33 @@ export const getModelResolutionOptions = (modelKey) => {
 // Dropdown options (built-in + custom) | 下拉选项（内置 + 自定义）- 根据渠道过滤
 export const imageModelOptions = computed(() => {
   const modelConfig = getModelConfigHook()
-  return modelConfig ? modelConfig.availableImageModels.value : IMAGE_MODELS
+  return modelConfig ? modelConfig.availableImageModels : IMAGE_MODELS
 })
 
 export const videoModelOptions = computed(() => {
   const modelConfig = getModelConfigHook()
-  return modelConfig ? modelConfig.availableVideoModels.value : VIDEO_MODELS
+  return modelConfig ? modelConfig.availableVideoModels : VIDEO_MODELS
 })
 
 export const chatModelOptions = computed(() => {
   const modelConfig = getModelConfigHook()
-  return modelConfig ? modelConfig.availableChatModels.value : CHAT_MODELS
+  return modelConfig ? modelConfig.availableChatModels : CHAT_MODELS
 })
 
 // All model options (not filtered by provider) | 所有模型选项（不按渠道过滤）
 export const allImageModelOptions = computed(() => {
   const modelConfig = getModelConfigHook()
-  return modelConfig ? modelConfig.allAvailableImageModels.value : IMAGE_MODELS
+  return modelConfig ? modelConfig.allImageModels : IMAGE_MODELS
 })
 
 export const allVideoModelOptions = computed(() => {
   const modelConfig = getModelConfigHook()
-  return modelConfig ? modelConfig.allAvailableVideoModels.value : VIDEO_MODELS
+  return modelConfig ? modelConfig.allVideoModels : VIDEO_MODELS
 })
 
 export const allChatModelOptions = computed(() => {
   const modelConfig = getModelConfigHook()
-  return modelConfig ? modelConfig.allAvailableChatModels.value : CHAT_MODELS
+  return modelConfig ? modelConfig.allChatModels : CHAT_MODELS
 })
 
 // Simple select options (for n-select) | 简单选择选项

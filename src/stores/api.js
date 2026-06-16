@@ -1,12 +1,28 @@
 /**
  * API Store | API 状态存储
- * Pure global state - logic moved to hooks/useApiConfig.js
- * 纯全局状态 - 逻辑已移至 hooks/useApiConfig.js
+ * 
+ * 请使用 useModelStore (stores/pinia) 替代此文件。
+ * 参考: const modelStore = useModelStore()
+ *       modelStore.getServiceConfig('chat')
+ *       modelStore.isServiceConfigured('image')
  */
 
-// Re-export from hook for backward compatibility | 为向后兼容重新导出
-export { useApiConfig } from '../hooks/useApiConfig'
+import { useModelStore } from '@/stores/pinia'
 
-// For components that need direct access to config state | 用于需要直接访问配置状态的组件
-// Use the hook instead: const { isConfigured, apiKey } = useApiConfig()
-// 请使用 hook: const { isConfigured, apiKey } = useApiConfig()
+// 保持向后兼容的 API
+export const useApiConfig = () => {
+  const store = useModelStore()
+  const chatCfg = store.getServiceConfig('chat')
+  return {
+    apiKey: chatCfg.apiKey,
+    baseUrl: chatCfg.baseUrl,
+    isConfigured: !!chatCfg.apiKey,
+    setApiKey: (key) => store.setServiceApiKey('chat', key),
+    setBaseUrl: (url) => store.setServiceBaseUrl('chat', url),
+    configure: (config) => {
+      if (config.apiKey) store.setServiceApiKey('chat', config.apiKey)
+      if (config.baseUrl) store.setServiceBaseUrl('chat', config.baseUrl)
+    },
+    clear: () => store.clearServiceConfig('chat')
+  }
+}

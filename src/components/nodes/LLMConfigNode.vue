@@ -45,17 +45,6 @@
               @keydown="handleKeydown" @paste="handlePaste" @blur="handleBlur" @wheel.stop @mousedown.stop
               :data-placeholder="placeholder"></div>
           </div>
-          <!-- @ 提及预览 -->
-          <!-- <div class="mentions-preview mt-1 flex flex-wrap gap-1" v-if="mentionsPreview.length > 0">
-            <div
-              v-for="(mention, index) in mentionsPreview"
-              :key="index"
-              class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs rounded"
-            >
-              <span>@{{ mention.name }}</span>
-              <button @click="removeMention(mention.nodeId)" class="hover:text-purple-800">×</button>
-            </div>
-          </div> -->
         </div>
 
         <!-- Model selection | 模型选择 -->
@@ -365,7 +354,9 @@ const debouncedConvertMentions = () => {
 // Handle paste - 参考 TextNode，纯文本粘贴
 const handlePaste = (e) => {
   e.preventDefault()
-  const text = e.clipboardData?.getData('text/plain') || ''
+  let text = e.clipboardData?.getData('text/plain') || ''
+  // Defense-in-depth: strip any remaining HTML tags
+  text = text.replace(/<[^>]*>/g, '')
   document.execCommand('insertText', false, text)
 }
 

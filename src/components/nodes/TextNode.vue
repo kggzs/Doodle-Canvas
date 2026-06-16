@@ -419,7 +419,9 @@ const focusEditableEnd = () => {
 const handlePaste = (e) => {
   // 纯文本粘贴（防止粘入富文本）
   e.preventDefault()
-  const text = e.clipboardData?.getData('text/plain') || ''
+  let text = e.clipboardData?.getData('text/plain') || ''
+  // Defense-in-depth: strip any remaining HTML tags
+  text = text.replace(/<[^>]*>/g, '')
   document.execCommand('insertText', false, text)
 }
 

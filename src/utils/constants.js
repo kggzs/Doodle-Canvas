@@ -47,13 +47,36 @@ export const DEFAULT_CHAT_CONFIG = {
 }
 
 // Local Storage Keys | 本地存储键
+// (完整定义，同步 stores/pinia/models.js)
 export const STORAGE_KEYS = {
+  // Legacy single-key config (useApiConfig.js)
   API_KEY: 'apiKey',
   BASE_URL: 'apiBaseUrl',
-  CUSTOM_CHAT_MODELS: 'customChatModels',
-  CUSTOM_IMAGE_MODELS: 'customImageModels',
-  CUSTOM_VIDEO_MODELS: 'customVideoModels',
-  SELECTED_CHAT_MODEL: 'selectedChatModel',
-  SELECTED_IMAGE_MODEL: 'selectedImageModel',
-  SELECTED_VIDEO_MODEL: 'selectedVideoModel'
+
+  // Provider config
+  PROVIDER: 'api-provider',
+
+  // Custom models (global, no provider)
+  CUSTOM_CHAT_MODELS: 'custom-chat-models',
+  CUSTOM_IMAGE_MODELS: 'custom-image-models',
+  CUSTOM_VIDEO_MODELS: 'custom-video-models',
+
+  // Custom models by provider
+  CUSTOM_CHAT_MODELS_BY_PROVIDER: 'custom-chat-models-by-provider',
+  CUSTOM_IMAGE_MODELS_BY_PROVIDER: 'custom-image-models-by-provider',
+  CUSTOM_VIDEO_MODELS_BY_PROVIDER: 'custom-video-models-by-provider',
+
+  // Selected model per type
+  SELECTED_CHAT_MODEL: 'selected-chat-model',
+  SELECTED_IMAGE_MODEL: 'selected-image-model',
+  SELECTED_VIDEO_MODEL: 'selected-video-model',
+
+  // API config by provider
+  API_KEYS_BY_PROVIDER: 'api-keys-by-provider',
+  BASE_URLS_BY_PROVIDER: 'base-urls-by-provider',
+
+  // Service-scoped config (chat/image/video independent)
+  SERVICE_PROVIDERS: 'service-providers',
+  SERVICE_API_KEYS: 'service-api-keys',
+  SERVICE_BASE_URLS: 'service-base-urls'
 }

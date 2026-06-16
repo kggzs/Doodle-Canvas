@@ -62,11 +62,11 @@ export const pollVideoTask = async (taskId, maxAttempts = 120, interval = 5000) 
   for (let i = 0; i < maxAttempts; i++) {
     const result = await getVideoTaskStatus(taskId)
 
-    if (result.status === 'completed' || result.data) {
+    if (result.status === 'completed' || result.status === 'succeeded' || result.data) {
       return result
     }
 
-    if (result.status === 'failed') {
+    if (result.status === 'failed' || result.status === 'error') {
       throw new Error(result.error?.message || '视频生成失败')
     }
 

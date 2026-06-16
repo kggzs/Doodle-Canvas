@@ -41,6 +41,15 @@ let isBatchOperation = false
 let batchStartState = null
 
 /**
+ * Deep clone safe for history | 安全的深拷贝（用于历史记录）
+ * Uses JSON roundtrip (structuredClone cannot handle Vue Proxy objects).
+ * 使用 JSON 方案（structuredClone 无法处理 Vue 的 Proxy 代理对象）。
+ */
+const deepClone = (obj) => {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+/**
  * Save current state to history | 保存当前状态到历史
  * @param {boolean} force - Force save even if batch operation | 强制保存，即使在批量操作中
  */
@@ -51,8 +60,8 @@ const saveToHistory = (force = false) => {
   if (isBatchOperation && !force) return
 
   const state = {
-    nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value))
+    nodes: deepClone(nodes.value),
+    edges: deepClone(edges.value)
   }
 
   // Remove future history if we're not at the end | 如果不在末尾，删除未来历史
@@ -78,8 +87,8 @@ const saveToHistory = (force = false) => {
 export const startBatchOperation = () => {
   isBatchOperation = true
   batchStartState = {
-    nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value))
+    nodes: deepClone(nodes.value),
+    edges: deepClone(edges.value)
   }
 }
 
@@ -325,12 +334,15 @@ export const duplicateNode = (id) => {
 
 // Add edge | 添加边
 export const addEdge = (params) => {
+  // 使用 source + target + handles 保证 ID 唯一性
+  const sourceHandle = params.sourceHandle || ''
+  const targetHandle = params.targetHandle || ''
   const newEdge = {
-    id: `edge_${params.source}_${params.target}`,
+    id: `edge_${params.source}_${params.target}_${sourceHandle}_${targetHandle}`,
     ...params
   }
   edges.value = [...edges.value, newEdge]
-  saveToHistory() // Save after adding edge | 添加连线后保存
+  saveToHistory()
 }
 
 /**
@@ -351,8 +363,10 @@ export const addEdges = (edgeSpecs, autoBatch = true) => {
   const ids = []
 
   edgeSpecs.forEach(params => {
+    const sourceHandle = params.sourceHandle || ''
+    const targetHandle = params.targetHandle || ''
     const newEdge = {
-      id: `edge_${params.source}_${params.target}`,
+      id: `edge_${params.source}_${params.target}_${sourceHandle}_${targetHandle}`,
       ...params
     }
     edges.value = [...edges.value, newEdge]
@@ -448,8 +462,8 @@ export const loadProject = (projectId) => {
   
   // Initialize history with current state | 用当前状态初始化历史
   history.value = [{
-    nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value))
+    nodes: deepClone(nodes.value),
+    edges: deepClone(edges.value)
   }]
   historyIndex.value = 0
   
@@ -528,8 +542,8 @@ export const redo = () => {
  */
 const restoreState = (state) => {
   isRestoring = true
-  nodes.value = JSON.parse(JSON.stringify(state.nodes))
-  edges.value = JSON.parse(JSON.stringify(state.edges))
+  nodes.value = deepClone(state.nodes)
+  edges.value = deepClone(state.edges)
   setTimeout(() => {
     isRestoring = false
   }, 100)

@@ -100,6 +100,56 @@ const fetchImageViaCanvas = (url) => {
   })
 }
 
+// 缓存上限设置
+const MAX_CACHE_SIZE = 500 * 1024 * 1024 // 500MB
+const CLEAN_RATIO = 0.2 // 超限时清理最旧的 20%
+
+/**
+ * 检查缓存总大小，超出上限时清理最旧条目
+ * @returns {Promise<boolean>}
+ */
+const ensureCacheSize = async (db) => {
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const store = tx.objectStore(STORE_NAME)
+    const request = store.getAll()
+
+    request.onsuccess = () => {
+      const items = request.result || []
+      let totalSize = 0
+      for (const item of items) {
+        totalSize += item.base64?.length || 0
+      }
+
+      if (totalSize <= MAX_CACHE_SIZE) {
+        resolve(true)
+        return
+      }
+
+      // 超出上限，按 createdAt 排序后删除最旧的部分
+      items.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+      const deleteCount = Math.max(1, Math.floor(items.length * CLEAN_RATIO))
+
+      const writeTx = db.transaction(STORE_NAME, 'readwrite')
+      const writeStore = writeTx.objectStore(STORE_NAME)
+      for (let i = 0; i < deleteCount; i++) {
+        writeStore.delete(items[i].url)
+      }
+
+      writeTx.oncomplete = () => {
+        db.close()
+        resolve(true)
+      }
+      writeTx.onerror = () => {
+        db.close()
+        resolve(false)
+      }
+    }
+
+    request.onerror = () => resolve(false)
+  })
+}
+
 /**
  * 缓存图片到 IndexedDB
  * @param {string} url - 图片原始 URL
@@ -119,6 +169,10 @@ export const cacheImage = async (url, base64) => {
 
   try {
     const db = await openDB()
+
+    // 写入前检查缓存大小，超出限制时自动清理旧条目
+    await ensureCacheSize(db)
+
     const tx = db.transaction(STORE_NAME, 'readwrite')
     const store = tx.objectStore(STORE_NAME)
 
