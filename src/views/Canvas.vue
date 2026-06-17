@@ -26,14 +26,6 @@
         >
           <n-icon :size="20"><DownloadOutline /></n-icon>
         </button>
-        <button 
-          @click="showApiSettings = true"
-          class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
-          :class="{ 'text-[var(--accent-color)]': isApiConfigured }"
-          title="API 设置"
-        >
-          <n-icon :size="20"><SettingsOutline /></n-icon>
-        </button>
       </template>
     </AppHeader>
 
@@ -216,9 +208,6 @@
       </div>
     </div>
 
-    <!-- API Settings Modal | API 设置弹窗 -->
-    <ApiSettings v-model:show="showApiSettings" />
-
     <!-- Rename Modal | 重命名弹窗 -->
     <n-modal v-model:show="showRenameModal" preset="dialog" title="重命名项目">
       <n-input v-model:value="renameValue" placeholder="请输入项目名称" />
@@ -259,7 +248,6 @@ import { NIcon, NSwitch, NDropdown, NMessageProvider, NSpin, NModal, NInput, NBu
 import { 
   ChevronBackOutline,
   ChevronDownOutline,
-  SettingsOutline,
   AddOutline,
   ImageOutline,
   SendOutline,
@@ -283,16 +271,11 @@ import { useChat, useWorkflowOrchestrator } from '../hooks'
 import { useModelStore } from '../stores/pinia'
 import { projects, initProjectsStore, updateProject, renameProject, duplicateProject, deleteProject, currentProject } from '../stores/projects'
 
-// API Settings component | API 设置组件
-import ApiSettings from '../components/ApiSettings.vue'
 import DownloadModal from '../components/DownloadModal.vue'
 import WorkflowPanel from '../components/WorkflowPanel.vue'
 import AppHeader from '../components/AppHeader.vue'
 
-// API Config state | API 配置状态
 const modelStore = useModelStore()
-// 润色/问答入口按 chat 服务判定是否已配置
-const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
 
 // Chat model options for polish | 润色用的聊天模型选择
 const polishChatModelOptions = computed(() => modelStore.allChatModelOptions)
@@ -391,7 +374,6 @@ const chatInput = ref('')
 const autoExecute = ref(false)
 const isMobile = ref(false)
 const showGrid = ref(true)
-const showApiSettings = ref(false)
 const isProcessing = ref(false)
 
 // Flow key for forcing re-render on project switch | 项目切换时强制重新渲染的 key
@@ -702,13 +684,6 @@ const handlePolish = async () => {
   const input = chatInput.value.trim()
   if (!input) return
   
-  // Check API configuration | 检查 API 配置
-  if (!isApiConfigured.value) {
-    window.$message?.warning('请先配置 API Key')
-    showApiSettings.value = true
-    return
-  }
-
   isProcessing.value = true
   const originalInput = chatInput.value
 
@@ -732,13 +707,6 @@ const handlePolish = async () => {
 const sendMessage = async () => {
   const input = chatInput.value.trim()
   if (!input) return
-
-  // Check API configuration | 检查 API 配置
-  if (!isApiConfigured.value) {
-    window.$message?.warning('请先配置 API Key')
-    showApiSettings.value = true
-    return
-  }
 
   isProcessing.value = true
   const content = chatInput.value

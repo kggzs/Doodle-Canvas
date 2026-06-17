@@ -129,7 +129,7 @@ defineEmits(['updateNodeInternals'])
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config state | API 配置状态(按 chat 服务判定, 用于润色)
+// Backend model state | 后端模型状态（用于润色）
 const modelStore = useModelStore()
 const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
 
@@ -666,7 +666,7 @@ const handlePolish = async () => {
   
   // Check API configuration | 检查 API 配置
   if (!isApiConfigured.value) {
-    window.$message?.warning('请先配置 API Key')
+    window.$message?.warning('请先在管理端配置可用的问答模型和渠道')
     return
   }
 

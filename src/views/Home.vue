@@ -3,16 +3,6 @@
   <div class="min-h-screen h-screen overflow-y-auto bg-[var(--bg-primary)]">
     <!-- Header | 顶部导航 -->
     <AppHeader>
-      <template #right>
-        <button 
-          @click="showApiSettings = true"
-          class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
-          :class="{ 'text-[var(--accent-color)]': isApiConfigured }"
-          title="API 设置"
-        >
-          <n-icon :size="20"><SettingsOutline /></n-icon>
-        </button>
-      </template>
     </AppHeader>
 
     <!-- Main content | 主要内容 -->
@@ -180,9 +170,6 @@
       </button>
     </aside>
 
-    <!-- API Settings Modal | API 设置弹窗 -->
-    <ApiSettings v-model:show="showApiSettings" @saved="refreshApiConfig" />
-
     <!-- Rename modal | 重命名弹窗 -->
     <n-modal v-model:show="showRenameModal" preset="dialog" title="重命名项目">
       <n-input v-model:value="renameValue" placeholder="请输入项目名称" />
@@ -199,7 +186,7 @@
  * Home view component | 首页视图组件
  * Entry point with project list and creation input
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { NIcon, NDropdown, NModal, NInput, NButton, useDialog } from 'naive-ui'
 import { 
@@ -212,7 +199,6 @@ import {
   EllipsisHorizontalOutline,
   CreateOutline,
   CopyOutline,
-  SettingsOutline,
   TrashOutline
 } from '@vicons/ionicons5'
 import { 
@@ -223,22 +209,10 @@ import {
   duplicateProject, 
   renameProject 
 } from '../stores/projects'
-import { useModelStore } from '../stores/pinia'
-import ApiSettings from '../components/ApiSettings.vue'
 import AppHeader from '../components/AppHeader.vue'
 
 const router = useRouter()
 const dialog = useDialog()
-const modelStore = useModelStore()
-
-// API Settings state | API 设置状态
-const showApiSettings = ref(false)
-const isApiConfigured = computed(() => modelStore.isServiceConfigured('chat'))
-
-// Refresh API config state | 刷新 API 配置状态
-const refreshApiConfig = () => {
-  // 通过 computed 自动更新，不需要手动刷新
-}
 
 // Video refs for hover play | 视频引用用于悬停播放
 const videoRefs = new Map()
@@ -352,46 +326,25 @@ const confirmRename = () => {
   renameValue.value = ''
 }
 
-// Check API key before navigation | 跳转前检查 API Key
-const checkApiKeyAndNavigate = (callback) => {
-  
-  if (!isApiConfigured.value) {
-    dialog.warning({
-      title: '未配置 API Key',
-      content: '请先在设置中配置 API Key 才能使用画布功能。',
-      positiveText: '知道了'
-    })
-    return false
-  }
-  callback()
-  return true
-}
-
 // Create new project | 创建新项目
 const createNewProject = () => {
-  checkApiKeyAndNavigate(() => {
-    const id = createProject('未命名项目')
-    router.push(`/canvas/${id}`)
-  })
+  const id = createProject('未命名项目')
+  router.push(`/canvas/${id}`)
 }
 
 // Create project with input text | 使用输入文本创建项目
 const handleCreateWithInput = () => {
-  checkApiKeyAndNavigate(() => {
-    const name = inputText.value.trim() || '未命名项目'
-    const id = createProject(name)
-    // Store the input text to be used as initial prompt
-    sessionStorage.setItem('ai-canvas-initial-prompt', inputText.value.trim())
-    inputText.value = ''
-    router.push(`/canvas/${id}`)
-  })
+  const name = inputText.value.trim() || '未命名项目'
+  const id = createProject(name)
+  // Store the input text to be used as initial prompt
+  sessionStorage.setItem('ai-canvas-initial-prompt', inputText.value.trim())
+  inputText.value = ''
+  router.push(`/canvas/${id}`)
 }
 
 // Open existing project | 打开已有项目
 const openProject = (project) => {
-  checkApiKeyAndNavigate(() => {
-    router.push(`/canvas/${project.id}`)
-  })
+  router.push(`/canvas/${project.id}`)
 }
 
 // Check if URL is a video | 检查 URL 是否为视频

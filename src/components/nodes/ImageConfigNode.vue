@@ -186,7 +186,7 @@ defineEmits(['updateNodeInternals'])
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config state | API 配置状态(按 image 服务判定)
+// Backend model state | 后端模型状态（由管理端渠道/模型配置决定）
 const isConfigured = computed(() => modelStore.isServiceConfigured('image'))
 
 // Image generation hook | 图片生成 hook
@@ -482,14 +482,6 @@ const handleModelSelect = (key) => {
   localModel.value = key
   const config = getModelConfig(key)
 
-  // 根据模型的 provider 切换 image 服务的渠道(而非全局, 避免污染其它服务)
-  if (config?.provider?.length > 0) {
-    const targetProvider = config.provider[0]
-    if (modelStore.getServiceConfig('image').provider !== targetProvider) {
-      modelStore.setServiceProvider('image', targetProvider)
-    }
-  }
-
   // 同步 Quality 到模型默认值
   if (config?.defaultParams?.quality) {
     localQuality.value = config.defaultParams.quality
@@ -600,7 +592,7 @@ const handleGenerate = async (mode = 'auto') => {
   }
 
   if (!isConfigured.value) {
-    window.$message?.warning('请先配置 API Key')
+    window.$message?.warning('请先在管理端配置可用的图片模型和渠道')
     return
   }
 

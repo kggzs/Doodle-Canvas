@@ -109,6 +109,8 @@ npm run start
 - 前端页面：http://localhost:3000/huobao-canvas
 - 登录页面：http://localhost:3000/huobao-canvas/login
 - 管理后台：http://localhost:3000/huobao-canvas/admin/users
+- 渠道地址池：http://localhost:3000/huobao-canvas/admin/channels
+- 模型配置：http://localhost:3000/huobao-canvas/admin/models
 - 后端健康检查：http://localhost:3000/api/health
 
 首次部署可创建管理员账号：
@@ -185,13 +187,20 @@ npm install -g pnpm
 
 ## API 配置
 
-旧版为纯前端配置。后端化后，推荐在管理接口中维护模型渠道与 API Key；前端本地配置仍可作为兼容入口继续使用。
+旧版为纯前端配置。后端化后，API Key / Base URL 应统一在管理后台维护：
+
+1. 进入 `/huobao-canvas/admin/channels` 创建渠道地址，填写 Provider、Base URL、API Key。
+2. 进入 `/huobao-canvas/admin/models` 创建 image / video / chat 模型。
+3. 在模型详情的“渠道绑定”中，把模型绑定到一个或多个渠道，并设置轮换权重与策略。
+
+普通用户页面不再显示 API Key 设置入口。
 
 支持的 AI 服务商：
 - **OpenAI**（及兼容接口）
 - **阿里云万相**（DashScope）
+- **豆包**（Volcengine Ark / Seedream）
 
-在页面右上角的设置按钮中进入 API 配置面板。
+生成请求会统一走后端 `/api/generate/*` 与 `/api/chat/*`，前端不会保存或发送第三方 API Key。
 
 ---
 

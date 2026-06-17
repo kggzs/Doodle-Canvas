@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
+import backend from '@/utils/backend'
 import {
   CHAT_MODELS,
   IMAGE_MODELS,
@@ -13,7 +14,6 @@ import {
   DEFAULT_IMAGE_MODEL,
   DEFAULT_VIDEO_MODEL
 } from '@/config/models'
-import { PROVIDERS, getProviderList, getDefaultProvider, getProviderConfig, getDefaultBaseUrl } from '@/config/providers'
 
 // 存储键名
 const STORAGE_KEYS = {
@@ -26,18 +26,8 @@ const STORAGE_KEYS = {
   SELECTED_VIDEO_MODEL: 'selected-video-model',
   CUSTOM_CHAT_MODELS_BY_PROVIDER: 'custom-chat-models-by-provider',
   CUSTOM_IMAGE_MODELS_BY_PROVIDER: 'custom-image-models-by-provider',
-  CUSTOM_VIDEO_MODELS_BY_PROVIDER: 'custom-video-models-by-provider',
-  API_KEYS_BY_PROVIDER: 'api-keys-by-provider',
-  BASE_URLS_BY_PROVIDER: 'base-urls-by-provider',
-  // 按服务(chat/image/video)独立配置: 每个服务可单独指定 provider/apiKey/baseUrl
-  // 为空字符串表示「使用全局默认」, 兼容「一个地址通用」与「三个地址区分」两种场景
-  SERVICE_PROVIDERS: 'service-providers',
-  SERVICE_API_KEYS: 'service-api-keys',
-  SERVICE_BASE_URLS: 'service-base-urls'
+  CUSTOM_VIDEO_MODELS_BY_PROVIDER: 'custom-video-models-by-provider'
 }
-
-// 服务类型 | 三类 AI 能力, 对应三套独立配置
-const SERVICE_TYPES = ['chat', 'image', 'video']
 
 /**
  * Get stored value from localStorage
@@ -47,17 +37,6 @@ const getStored = (key, defaultValue = '') => {
     return localStorage.getItem(key) || defaultValue
   } catch {
     return defaultValue
-  }
-}
-
-/**
- * Remove stored value from localStorage
- */
-const removeStored = (key) => {
-  try {
-    localStorage.removeItem(key)
-  } catch {
-    // ignore
   }
 }
 
@@ -99,62 +78,27 @@ const setStoredJson = (key, value) => {
   }
 }
 
-/**
- * 检查模型是否支持指定渠道
- */
-const isModelSupported = (model, provider) => {
-  if (!model.provider) {
-    return true
-  }
-  return model.provider.includes(provider)
+const mapServerModel = (model, type) => ({
+  label: model.displayName || model.display_name || model.modelKey || model.model_key,
+  key: model.modelKey || model.model_key,
+  provider: model.providers || [],
+  defaultParams: model.defaultParams || model.default_params || {},
+  description: model.description || '',
+  isServer: true,
+  modelType: model.modelType || model.model_type || type
+})
+
+const mergeModelsByKey = (primary, fallback) => {
+  const used = new Set(primary.map(item => item.key))
+  return [
+    ...primary,
+    ...fallback.filter(item => !used.has(item.key))
+  ]
 }
 
 export const useModelStore = defineStore('model', () => {
-  // ============ Provider 状态 | Provider State ============
-
-  // 当前选中的渠道
-  const currentProvider = ref(getStored(STORAGE_KEYS.PROVIDER) || getDefaultProvider())
-
-  // 渠道列表
-  const providerList = computed(() => getProviderList())
-
-  // 当前渠道配置
-  const providerConfig = computed(() => getProviderConfig(currentProvider.value))
-
-  // 当前渠道标签
-  const providerLabel = computed(() => providerConfig.value.label || currentProvider.value)
-
-  // 设置当前渠道
-  const setProvider = (provider) => {
-    if (PROVIDERS[provider]) {
-      currentProvider.value = provider
-      setStored(STORAGE_KEYS.PROVIDER, provider)
-    }
-  }
-
-  // 清除渠道配置
-  const clearProvider = () => {
-    currentProvider.value = getDefaultProvider()
-    removeStored(STORAGE_KEYS.PROVIDER)
-  }
-
-  // 适配请求参数
-  const adaptRequest = (type, params) => {
-    const config = providerConfig.value
-    if (config.requestAdapter && config.requestAdapter[type]) {
-      return config.requestAdapter[type](params)
-    }
-    return params
-  }
-
-  // 适配响应数据
-  const adaptResponse = (type, response) => {
-    const config = providerConfig.value
-    if (config.responseAdapter && config.responseAdapter[type]) {
-      return config.responseAdapter[type](response)
-    }
-    return response
-  }
+  // 旧版按 provider 存储自定义模型，保留当前 provider 仅用于读取历史自定义模型。
+  const currentProvider = ref(getStored(STORAGE_KEYS.PROVIDER, 'openai'))
 
   // ============ Custom Models 状态 | Custom Models State ============
 
@@ -168,195 +112,101 @@ export const useModelStore = defineStore('model', () => {
   const customImageModelsByProvider = ref(getStoredJson(STORAGE_KEYS.CUSTOM_IMAGE_MODELS_BY_PROVIDER, {}))
   const customVideoModelsByProvider = ref(getStoredJson(STORAGE_KEYS.CUSTOM_VIDEO_MODELS_BY_PROVIDER, {}))
 
+  // 后端公开模型列表（由管理端模型配置 + 渠道绑定决定）
+  const serverModels = ref({ image: [], video: [], chat: [] })
+  const serverModelsLoaded = ref(false)
+  const serverModelsLoading = ref(false)
+  const serverModelsError = ref(null)
+
   // 选中的模型
   const selectedChatModel = ref(getStored(STORAGE_KEYS.SELECTED_CHAT_MODEL, DEFAULT_CHAT_MODEL))
   const selectedImageModel = ref(getStored(STORAGE_KEYS.SELECTED_IMAGE_MODEL, DEFAULT_IMAGE_MODEL))
   const selectedVideoModel = ref(getStored(STORAGE_KEYS.SELECTED_VIDEO_MODEL, DEFAULT_VIDEO_MODEL))
 
-  // 按渠道存储的 API 配置
-  const apiKeysByProvider = ref(getStoredJson(STORAGE_KEYS.API_KEYS_BY_PROVIDER, {}))
-  const baseUrlsByProvider = ref(getStoredJson(STORAGE_KEYS.BASE_URLS_BY_PROVIDER, {}))
-
-  // ============ 按服务(chat/image/video)独立配置 | Service-scoped Config ============
-  // 每个服务可单独指定 provider/apiKey/baseUrl, 空字符串表示「回退全局默认」
-  // 这样既能「三服务各配一个 API 地址」, 也能「只配全局一套地址」
-  const serviceProviders = ref(getStoredJson(STORAGE_KEYS.SERVICE_PROVIDERS, { chat: '', image: '', video: '' }))
-  const serviceApiKeys = ref(getStoredJson(STORAGE_KEYS.SERVICE_API_KEYS, { chat: '', image: '', video: '' }))
-  const serviceBaseUrls = ref(getStoredJson(STORAGE_KEYS.SERVICE_BASE_URLS, { chat: '', image: '', video: '' }))
-
-  // 当前渠道的 API Key 和 Base URL
-  const currentApiKey = computed(() => apiKeysByProvider.value[currentProvider.value] || '')
-  const currentBaseUrl = computed(() => baseUrlsByProvider.value[currentProvider.value] || getDefaultBaseUrl(currentProvider.value))
-
-  // 设置指定渠道的 API Key
-  const setApiKeyByProvider = (provider, apiKey) => {
-    apiKeysByProvider.value[provider] = apiKey
-  }
-
-  // 设置指定渠道的 Base URL
-  const setBaseUrlByProvider = (provider, baseUrl) => {
-    baseUrlsByProvider.value[provider] = baseUrl
-  }
-
-  // 清除指定渠道的 API 配置
-  const clearApiConfigByProvider = (provider) => {
-    delete apiKeysByProvider.value[provider]
-    delete baseUrlsByProvider.value[provider]
-  }
-
-  // ============ 统一解析: 某服务的最终生效配置 | Service Config Resolver ============
-
   /**
-   * 解析某服务(chat/image/video)最终生效的 provider/apiKey/baseUrl
-   * 解析顺序: 服务独立配置优先 → 空则回退全局默认
-   * @param {string} service - 'chat' | 'image' | 'video'
-   * @returns {{ provider: string, apiKey: string, baseUrl: string, providerConfig: object }}
-   */
-  const getServiceConfig = (service) => {
-    const provider = serviceProviders.value[service] || currentProvider.value
-    const apiKey = serviceApiKeys.value[service]
-      || apiKeysByProvider.value[provider]
-      || ''
-    const baseUrl = serviceBaseUrls.value[service]
-      || baseUrlsByProvider.value[provider]
-      || getDefaultBaseUrl(provider)
-    return {
-      provider,
-      apiKey,
-      baseUrl,
-      providerConfig: getProviderConfig(provider)
-    }
-  }
-
-  /**
-   * 判断某服务是否已配置 API Key(独立 key 或全局 key 任一存在)
+   * 判断某服务是否有可用后端模型。
    * @param {string} service - 'chat' | 'image' | 'video'
    * @returns {boolean}
    */
-  const isServiceConfigured = (service) => !!getServiceConfig(service).apiKey
-
-  /**
-   * 判断某服务是否启用了独立配置(provider/apiKey/baseUrl 任一非空)
-   * 用于 ApiSettings 区分「覆盖」与「使用全局默认」
-   */
-  const isServiceOverridden = (service) => !!(
-    serviceProviders.value[service]
-    || serviceApiKeys.value[service]
-    || serviceBaseUrls.value[service]
-  )
-
-  // ============ 按服务配置 setter | Service-scoped Setters ============
-
-  const setServiceProvider = (service, provider) => {
-    if (!SERVICE_TYPES.includes(service)) return
-    serviceProviders.value[service] = provider || ''
-  }
-
-  const setServiceApiKey = (service, apiKey) => {
-    if (!SERVICE_TYPES.includes(service)) return
-    serviceApiKeys.value[service] = apiKey || ''
-  }
-
-  const setServiceBaseUrl = (service, baseUrl) => {
-    if (!SERVICE_TYPES.includes(service)) return
-    serviceBaseUrls.value[service] = baseUrl || ''
-  }
-
-  // 清除某服务的独立配置(回退到全局默认)
-  const clearServiceConfig = (service) => {
-    if (!SERVICE_TYPES.includes(service)) return
-    serviceProviders.value[service] = ''
-    serviceApiKeys.value[service] = ''
-    serviceBaseUrls.value[service] = ''
-  }
-
-  // ============ 配置迁移: 旧全局渠道 → 服务配置(一次性, 向后兼容) ============
-  /**
-   * 首次使用服务化配置时, 若三个服务均为空但存在旧全局渠道,
-   * 把旧全局渠道复制到三个服务, 保留「一个地址通用」的旧行为
-   */
-  const migrateToServiceConfig = () => {
-    const hasOverride = SERVICE_TYPES.some(s => isServiceOverridden(s))
-    if (hasOverride) return
-    const g = currentProvider.value
-    if (!g) return
-    serviceProviders.value = { chat: g, image: g, video: g }
-  }
+  const isServiceConfigured = (service) => (serverModels.value[service] || []).length > 0
 
   // ============ Computed: All Models (built-in + custom + by provider) ============
 
-  const allChatModels = computed(() => [
-    ...CHAT_MODELS.map(m => ({ ...m, isCustom: false })),
-    ...customChatModels.value.map(m => ({
-      label: m.label || m.key,
-      key: m.key,
-      isCustom: true
-    })),
-    // 添加当前渠道的自定义模型
-    ...(customChatModelsByProvider.value[currentProvider.value] || []).map(m => ({
-      label: m.label || m.key,
-      key: m.key,
-      isCustom: true,
-      provider: [currentProvider.value]
-    }))
-  ])
+  const allChatModels = computed(() => {
+    const serverList = serverModels.value.chat || []
+    const localList = [
+      ...CHAT_MODELS.map(m => ({ ...m, isCustom: false })),
+      ...customChatModels.value.map(m => ({
+        label: m.label || m.key,
+        key: m.key,
+        isCustom: true
+      })),
+      ...(customChatModelsByProvider.value[currentProvider.value] || []).map(m => ({
+        label: m.label || m.key,
+        key: m.key,
+        isCustom: true,
+        provider: [currentProvider.value]
+      }))
+    ]
+    return serverList.length ? mergeModelsByKey(serverList, localList) : localList
+  })
 
-  const allImageModels = computed(() => [
-    ...IMAGE_MODELS.map(m => ({ ...m, isCustom: false })),
-    ...customImageModels.value.map(m => ({
-      label: m.label || m.key,
-      key: m.key,
-      isCustom: true,
-      sizes: [],
-      defaultParams: { quality: 'standard', style: 'vivid' }
-    })),
-    // 添加当前渠道的自定义模型
-    ...(customImageModelsByProvider.value[currentProvider.value] || []).map(m => ({
-      label: m.label || m.key,
-      key: m.key,
-      isCustom: true,
-      sizes: [],
-      defaultParams: { quality: 'standard', style: 'vivid' },
-      provider: [currentProvider.value]
-    }))
-  ])
+  const allImageModels = computed(() => {
+    const serverList = serverModels.value.image || []
+    const localList = [
+      ...IMAGE_MODELS.map(m => ({ ...m, isCustom: false })),
+      ...customImageModels.value.map(m => ({
+        label: m.label || m.key,
+        key: m.key,
+        isCustom: true,
+        sizes: [],
+        defaultParams: { quality: 'standard', style: 'vivid' }
+      })),
+      ...(customImageModelsByProvider.value[currentProvider.value] || []).map(m => ({
+        label: m.label || m.key,
+        key: m.key,
+        isCustom: true,
+        sizes: [],
+        defaultParams: { quality: 'standard', style: 'vivid' },
+        provider: [currentProvider.value]
+      }))
+    ]
+    return serverList.length ? mergeModelsByKey(serverList, localList) : localList
+  })
 
-  const allVideoModels = computed(() => [
-    ...VIDEO_MODELS.map(m => ({ ...m, isCustom: false })),
-    ...customVideoModels.value.map(m => ({
-      label: m.label || m.key,
-      key: m.key,
-      isCustom: true,
-      ratios: ['16x9', '9:16', '1:1'],
-      durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-      defaultParams: { ratio: '16:9', duration: 5 }
-    })),
-    // 添加当前渠道的自定义模型
-    ...(customVideoModelsByProvider.value[currentProvider.value] || []).map(m => ({
-      label: m.label || m.key,
-      key: m.key,
-      isCustom: true,
-      ratios: ['16x9', '9:16', '1:1'],
-      durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-      defaultParams: { ratio: '16:9', duration: 5 },
-      provider: [currentProvider.value]
-    }))
-  ])
+  const allVideoModels = computed(() => {
+    const serverList = serverModels.value.video || []
+    const localList = [
+      ...VIDEO_MODELS.map(m => ({ ...m, isCustom: false })),
+      ...customVideoModels.value.map(m => ({
+        label: m.label || m.key,
+        key: m.key,
+        isCustom: true,
+        ratios: ['16x9', '9:16', '1:1'],
+        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
+        defaultParams: { ratio: '16:9', duration: 5 }
+      })),
+      ...(customVideoModelsByProvider.value[currentProvider.value] || []).map(m => ({
+        label: m.label || m.key,
+        key: m.key,
+        isCustom: true,
+        ratios: ['16x9', '9:16', '1:1'],
+        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
+        defaultParams: { ratio: '16:9', duration: 5 },
+        provider: [currentProvider.value]
+      }))
+    ]
+    return serverList.length ? mergeModelsByKey(serverList, localList) : localList
+  })
 
   // ============ Computed: Available Models (filtered by provider) ============
 
   // 按渠道过滤的可用模型
-  const availableChatModels = computed(() =>
-    allChatModels.value.filter(m => isModelSupported(m, currentProvider.value))
-  )
+  const availableChatModels = computed(() => allChatModels.value)
 
-  const availableImageModels = computed(() =>
-    allImageModels.value.filter(m => isModelSupported(m, currentProvider.value))
-  )
+  const availableImageModels = computed(() => allImageModels.value)
 
-  const availableVideoModels = computed(() =>
-    allVideoModels.value.filter(m => isModelSupported(m, currentProvider.value))
-  )
+  const availableVideoModels = computed(() => allVideoModels.value)
 
   // ============ Computed: Model Options for UI (all models, not filtered by provider) ============
 
@@ -391,13 +241,13 @@ export const useModelStore = defineStore('model', () => {
     const allChatKeys = allChatModels.value.map(m => m.key)
 
     if (selectedImageModel.value && !allImageKeys.includes(selectedImageModel.value)) {
-      selectedImageModel.value = DEFAULT_IMAGE_MODEL
+      selectedImageModel.value = allImageKeys[0] || DEFAULT_IMAGE_MODEL
     }
     if (selectedVideoModel.value && !allVideoKeys.includes(selectedVideoModel.value)) {
-      selectedVideoModel.value = DEFAULT_VIDEO_MODEL
+      selectedVideoModel.value = allVideoKeys[0] || DEFAULT_VIDEO_MODEL
     }
     if (selectedChatModel.value && !allChatKeys.includes(selectedChatModel.value)) {
-      selectedChatModel.value = DEFAULT_CHAT_MODEL
+      selectedChatModel.value = allChatKeys[0] || DEFAULT_CHAT_MODEL
     }
   }
 
@@ -490,91 +340,26 @@ export const useModelStore = defineStore('model', () => {
   const getImageModel = (key) => allImageModels.value.find(m => m.key === key)
   const getVideoModel = (key) => allVideoModels.value.find(m => m.key === key)
 
-  // ============ Methods: Get API Endpoints ============
-  // 端点按「服务生效 provider」解析, 而非全局 provider
-  // 这样问答/图片/视频可分别走不同渠道的端点
-
-  // 获取图片端点
-  const getImageEndpoint = () => {
-    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('image')
-    const endpoint = cfg.endpoints?.image || '/images/generations'
-    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (provider === 'aliyun') {
-      return endpoint
+  const loadPublicModels = async () => {
+    if (serverModelsLoading.value) return serverModels.value
+    serverModelsLoading.value = true
+    serverModelsError.value = null
+    try {
+      const data = await backend.get('/models')
+      serverModels.value = {
+        image: (data?.image || []).map(item => mapServerModel(item, 'image')).filter(item => item.key),
+        video: (data?.video || []).map(item => mapServerModel(item, 'video')).filter(item => item.key),
+        chat: (data?.chat || []).map(item => mapServerModel(item, 'chat')).filter(item => item.key)
+      }
+      serverModelsLoaded.value = true
+      validateSelectedModels()
+      return serverModels.value
+    } catch (err) {
+      serverModelsError.value = err
+      return serverModels.value
+    } finally {
+      serverModelsLoading.value = false
     }
-    return `${baseUrl}${endpoint}`
-  }
-
-  // 获取视频生成端点
-  const getVideoEndpoint = () => {
-    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('video')
-    const endpoint = cfg.endpoints?.video || '/videos'
-    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (provider === 'aliyun') {
-      return endpoint
-    }
-    return `${baseUrl}${endpoint}`
-  }
-
-  // 获取视频任务查询端点
-  const getVideoTaskEndpoint = () => {
-    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('video')
-    // 优先使用 videoQuery 端点，支持 {taskId} 占位符替换
-    let endpoint = cfg.endpoints?.videoQuery || cfg.endpoints?.video || '/videos'
-    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (provider === 'aliyun') {
-      return endpoint
-    }
-    return `${baseUrl}${endpoint}`
-  }
-
-  // 获取聊天端点（支持参考图片）
-  const getChatEndpoint = () => {
-    const { provider, baseUrl, providerConfig: cfg } = getServiceConfig('chat')
-    const endpoint = cfg.endpoints?.chat || '/chat/completions'
-    // 阿里云万相：请求拦截器强制 baseURL='/'，这里只返回路径
-    if (provider === 'aliyun') {
-      return endpoint
-    }
-    return `${baseUrl}${endpoint}`
-  }
-
-  // ============ Methods: Get Models By Provider (for ApiSettings) ============
-
-  const getModelsByProvider = (provider) => {
-    const chat = [
-      ...CHAT_MODELS.filter(m => isModelSupported(m, provider)).map(m => ({ ...m, isCustom: false })),
-      ...(customChatModelsByProvider.value[provider] || []).map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        provider: [provider]
-      }))
-    ]
-    const image = [
-      ...IMAGE_MODELS.filter(m => isModelSupported(m, provider)).map(m => ({ ...m, isCustom: false })),
-      ...(customImageModelsByProvider.value[provider] || []).map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        sizes: [],
-        defaultParams: { quality: 'standard', style: 'vivid' },
-        provider: [provider]
-      }))
-    ]
-    const video = [
-      ...VIDEO_MODELS.filter(m => isModelSupported(m, provider)).map(m => ({ ...m, isCustom: false })),
-      ...(customVideoModelsByProvider.value[provider] || []).map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        ratios: ['16x9', '9:16', '1:1'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        defaultParams: { ratio: '16:9', duration: 5 },
-        provider: [provider]
-      }))
-    ]
-    return { chat, image, video }
   }
 
   // ============ Methods: Add/Remove Custom Models By Provider ============
@@ -653,7 +438,7 @@ export const useModelStore = defineStore('model', () => {
 
   /**
    * 清除配置缓存(保留生成的图片和主题)
-   * 清除范围: 渠道选择、API Key、Base URL、自定义模型、选中的模型
+   * 清除范围: 历史前端 API 配置、自定义模型、选中的模型
    * 保留范围: ai-canvas-projects(生成的图片)、theme(主题)
    */
   const clearConfigCache = () => {
@@ -669,15 +454,12 @@ export const useModelStore = defineStore('model', () => {
       STORAGE_KEYS.CUSTOM_CHAT_MODELS_BY_PROVIDER,
       STORAGE_KEYS.CUSTOM_IMAGE_MODELS_BY_PROVIDER,
       STORAGE_KEYS.CUSTOM_VIDEO_MODELS_BY_PROVIDER,
-      STORAGE_KEYS.API_KEYS_BY_PROVIDER,
-      STORAGE_KEYS.BASE_URLS_BY_PROVIDER,
-      STORAGE_KEYS.SERVICE_PROVIDERS,
-      STORAGE_KEYS.SERVICE_API_KEYS,
-      STORAGE_KEYS.SERVICE_BASE_URLS,
-      // 其他可能存在的旧缓存键
       'apiKey',
       'api-keys-by-provider',
-      'base-urls-by-provider'
+      'base-urls-by-provider',
+      'service-providers',
+      'service-api-keys',
+      'service-base-urls'
     ]
 
     keysToClear.forEach(key => {
@@ -685,18 +467,13 @@ export const useModelStore = defineStore('model', () => {
     })
 
     // 重置响应式状态
-    currentProvider.value = getDefaultProvider()
+    currentProvider.value = 'openai'
     customChatModels.value = []
     customImageModels.value = []
     customVideoModels.value = []
     customChatModelsByProvider.value = {}
     customImageModelsByProvider.value = {}
     customVideoModelsByProvider.value = {}
-    apiKeysByProvider.value = {}
-    baseUrlsByProvider.value = {}
-    serviceProviders.value = { chat: '', image: '', video: '' }
-    serviceApiKeys.value = { chat: '', image: '', video: '' }
-    serviceBaseUrls.value = { chat: '', image: '', video: '' }
     selectedChatModel.value = DEFAULT_CHAT_MODEL
     selectedImageModel.value = DEFAULT_IMAGE_MODEL
     selectedVideoModel.value = DEFAULT_VIDEO_MODEL
@@ -721,29 +498,7 @@ export const useModelStore = defineStore('model', () => {
   watch(selectedImageModel, (val) => setStored(STORAGE_KEYS.SELECTED_IMAGE_MODEL, val))
   watch(selectedVideoModel, (val) => setStored(STORAGE_KEYS.SELECTED_VIDEO_MODEL, val))
 
-  // 监听并持久化 API 配置
-  watch(apiKeysByProvider, (val) => setStoredJson(STORAGE_KEYS.API_KEYS_BY_PROVIDER, val), { deep: true })
-  watch(baseUrlsByProvider, (val) => setStoredJson(STORAGE_KEYS.BASE_URLS_BY_PROVIDER, val), { deep: true })
-
-  // 监听并持久化按服务的独立配置
-  watch(serviceProviders, (val) => setStoredJson(STORAGE_KEYS.SERVICE_PROVIDERS, val), { deep: true })
-  watch(serviceApiKeys, (val) => setStoredJson(STORAGE_KEYS.SERVICE_API_KEYS, val), { deep: true })
-  watch(serviceBaseUrls, (val) => setStoredJson(STORAGE_KEYS.SERVICE_BASE_URLS, val), { deep: true })
-
-  // 启动时执行一次性配置迁移: 旧全局渠道 → 服务配置(向后兼容)
-  migrateToServiceConfig()
-
   return {
-    // Provider
-    currentProvider,
-    providerList,
-    providerConfig,
-    providerLabel,
-    setProvider,
-    clearProvider,
-    adaptRequest,
-    adaptResponse,
-
     // All models (built-in + custom)
     allChatModels,
     allImageModels,
@@ -799,15 +554,11 @@ export const useModelStore = defineStore('model', () => {
     getChatModel,
     getImageModel,
     getVideoModel,
-
-    // Get API endpoints
-    getImageEndpoint,
-    getVideoEndpoint,
-    getVideoTaskEndpoint,
-    getChatEndpoint,
-
-    // Get models by provider (for ApiSettings)
-    getModelsByProvider,
+    loadPublicModels,
+    serverModels,
+    serverModelsLoaded,
+    serverModelsLoading,
+    serverModelsError,
 
     // Clear all custom models
     clearCustomModels,
@@ -815,27 +566,7 @@ export const useModelStore = defineStore('model', () => {
     // Clear config cache (preserve generated images)
     clearConfigCache,
 
-    // API Config by provider
-    currentApiKey,
-    currentBaseUrl,
-    apiKeysByProvider,
-    baseUrlsByProvider,
-    setApiKeyByProvider,
-    setBaseUrlByProvider,
-    clearApiConfigByProvider,
-
-    // Service-scoped config (chat/image/video 独立配置)
-    SERVICE_TYPES,
-    serviceProviders,
-    serviceApiKeys,
-    serviceBaseUrls,
-    getServiceConfig,
-    isServiceConfigured,
-    isServiceOverridden,
-    setServiceProvider,
-    setServiceApiKey,
-    setServiceBaseUrl,
-    clearServiceConfig,
-    migrateToServiceConfig
+    // Backend model availability
+    isServiceConfigured
   }
 })

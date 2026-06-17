@@ -11,7 +11,6 @@ import {
   streamChatCompletions
 } from '@/api'
 import { getModelByName } from '@/config/models'
-import { useModelStore } from '@/stores/pinia'
 import { cacheImage } from '@/utils/imageCache'
 
 /**
@@ -53,8 +52,6 @@ export const useApiState = () => {
  */
 export const useChat = (options = {}) => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
-  const modelStore = useModelStore()
-  const { adaptRequest, adaptResponse } = modelStore
 
   const messages = ref([])
   const currentResponse = ref('')
@@ -88,38 +85,19 @@ export const useChat = (options = {}) => {
         { role: 'user', content: userContent }
       ]
 
-      // 解析 chat 服务的最终 provider, 用其 requestAdapter 转换参数(chatOptions.model 可覆盖默认模型)
-      const chatCfg = modelStore.getServiceConfig('chat')
-      const chatAdapter = chatCfg.providerConfig?.requestAdapter?.chat
-      const adaptedParams = chatAdapter
-        ? chatAdapter({ model: chatOptions.model || options.model || 'gpt-4o-mini', messages: msgList })
-        : adaptRequest('chat', { model: chatOptions.model || options.model || 'gpt-4o-mini', messages: msgList })
+      const requestParams = {
+        model: chatOptions.model || options.model || 'gpt-4o-mini',
+        messages: msgList
+      }
 
       if (stream) {
         status.value = 'streaming'
         abortController = new AbortController()
         let fullResponse = ''
 
-        // 获取聊天端点(基于 chat 服务 provider)
-        const chatUrl = modelStore.getChatEndpoint()
-        // chatUrl 可能是完整 URL 或纯路径（阿里云走代理时只返回路径）
-        let streamBaseUrl, streamEndpoint
-        if (chatUrl.startsWith('http')) {
-          streamBaseUrl = new URL(chatUrl).origin
-          streamEndpoint = new URL(chatUrl).pathname
-        } else {
-          // 纯路径：使用当前页面 origin + 路径（走 Vite 代理）
-          streamBaseUrl = window.location.origin
-          streamEndpoint = chatUrl
-        }
-
-        // 获取 chat 服务的 API Key
-        const currentApiKey = chatCfg.apiKey
-
         for await (const chunk of streamChatCompletions(
-          adaptedParams,
-          abortController.signal,
-          { baseUrl: streamBaseUrl, endpoint: streamEndpoint, apiKey: currentApiKey }
+          requestParams,
+          abortController.signal
         )) {
           fullResponse += chunk
           currentResponse.value = fullResponse
@@ -162,8 +140,6 @@ export const useChat = (options = {}) => {
  */
 export const useImageGeneration = () => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
-  const modelStore = useModelStore()
-  const { adaptRequest, adaptResponse } = modelStore
 
   const images = ref([])
   const currentImage = ref(null)
@@ -215,35 +191,14 @@ export const useImageGeneration = () => {
         }
       }
 
-      // 解析 image 服务的最终 provider, 用其 requestAdapter 转换参数
-      const imgCfg = modelStore.getServiceConfig('image')
-      const imgRequestAdapter = imgCfg.providerConfig?.requestAdapter?.image
-      const adaptedParams = imgRequestAdapter
-        ? imgRequestAdapter(requestData)
-        : adaptRequest('image', requestData)
-
-      // 当前 image 服务的 provider 和模型名称
-      const currentProvider = imgCfg.provider
-      const modelName = params.model
-
       // 调试日志:确认只调用一次
       if (import.meta.env.DEV) {
-        console.log(`[useImageGeneration] 开始生成, provider=${currentProvider}, model=${modelName}`)
+        console.log(`[useImageGeneration] 开始生成, model=${params.model}`)
       }
 
       // Call API | 调用 API
-      const response = await generateImage(adaptedParams, {
-        requestType: 'json',
-        endpoint: modelStore.getImageEndpoint(),
-        provider: currentProvider,
-        model: modelName
-      })
-
-      // 用 image 服务 provider 的 responseAdapter 适配响应数据
-      const imgResponseAdapter = imgCfg.providerConfig?.responseAdapter?.image
-      const adaptedData = imgResponseAdapter
-        ? imgResponseAdapter(response)
-        : adaptResponse('image', response)
+      const response = await generateImage(requestData)
+      const adaptedData = response.images || []
 
       // 异步缓存生成的图片到 IndexedDB（不阻塞返回）
       if (adaptedData && adaptedData.length > 0) {
@@ -274,8 +229,6 @@ export const useImageGeneration = () => {
 
 export const useVideoGeneration = () => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
-  const modelStore = useModelStore()
-  const { adaptRequest, adaptResponse } = modelStore
 
   const video = ref(null)
   const taskId = ref(null)
@@ -321,43 +274,13 @@ export const useVideoGeneration = () => {
       if (params.dur) requestData.seconds = params.dur
     }
 
-    // 解析 video 服务的最终 provider, 用其 requestAdapter 转换参数
-    const vidCfg = modelStore.getServiceConfig('video')
-    const vidRequestAdapter = vidCfg.providerConfig?.requestAdapter?.video
-    const adaptedParams = vidRequestAdapter
-      ? vidRequestAdapter(requestData)
-      : adaptRequest('video', requestData)
-
     // Call API to create task | 调用 API 创建任务
-    const task = await createVideoTask(adaptedParams, {
-      requestType: 'json',
-      endpoint: modelStore.getVideoEndpoint(),
-      provider: vidCfg.provider,
-      model: params.model
-    })
+    const task = await createVideoTask(requestData)
 
-    // 阿里云万相：直接从创建响应中提取 task_id（不走适配器，避免与轮询响应混淆）
-    if (isAliyunWan) {
-      const taskId = task.output?.task_id
-      if (taskId) {
-        return { taskId }
-      }
-
-      // 如果创建时就返回了视频URL（同步模式）
-      const videoUrl = task.output?.video_url
-      if (videoUrl) {
-        return { taskId: null, url: videoUrl }
-      }
-
-      throw new Error('未获取到任务 ID')
-    }
-
-    // 其他模型：原有逻辑
-    const isAsync = modelConfig?.async !== false
-    if (!isAsync || task.data?.url || task.url || task.content?.video_url) {
+    if (task.url) {
       return {
         taskId: null,
-        url: task.data?.url || task.url || task.content?.video_url
+        url: task.url
       }
     }
 
@@ -382,36 +305,14 @@ export const useVideoGeneration = () => {
 
       onProgress(i + 1, Math.min(Math.round((i / maxAttempts) * 100), 99))
 
-      // 获取任务查询端点（含 {taskId} 占位符），由 getVideoTaskStatus 内部替换
-      const taskEndpoint = modelStore.getVideoTaskEndpoint()
+      const result = await getVideoTaskStatus(pollTaskId)
 
-      const result = await getVideoTaskStatus(pollTaskId, {
-        endpoint: taskEndpoint
-      })
-
-      // 适配轮询响应(用 video 服务 provider 的 responseAdapter)
-      const vidResponseAdapter = modelStore.getServiceConfig('video').providerConfig?.responseAdapter?.video
-      const adaptedResult = vidResponseAdapter
-        ? vidResponseAdapter(result)
-        : adaptResponse('video', result)
-
-      // 阿里云万相：检查 task_status
-      if (adaptedResult.status === 'completed') {
-        return { ...adaptedResult }
+      if (result.status === 'completed') {
+        return { ...result }
       }
 
-      if (adaptedResult.status === 'failed') {
-        throw new Error(adaptedResult.error || result.output?.message || result.message || '视频生成失败')
-      }
-
-      // 其他模型：检查原有格式
-      if (result.status === 'completed' || result.status === 'succeeded' || result.data) {
-        const videoUrl = adaptedResult.url || result.data?.url || result.data?.[0]?.url || result.url || result.content?.video_url || result.video_url
-        return { ...adaptedResult, url: videoUrl }
-      }
-
-      if (result.status === 'failed' || result.status === 'error') {
-        throw new Error(result.error?.message || result.message || '视频生成失败')
+      if (result.status === 'failed') {
+        throw new Error(result.error || result.message || '视频生成失败')
       }
     }
 

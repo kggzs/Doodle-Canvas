@@ -1,19 +1,5 @@
 <template>
-  <div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-    <AppHeader class="bg-[var(--bg-secondary)]">
-      <template #left>
-        <div class="flex items-center gap-3">
-          <button class="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]" @click="router.push('/')">首页</button>
-          <span class="font-semibold">用户管理</span>
-        </div>
-      </template>
-      <template #right>
-        <span class="hidden text-sm text-[var(--text-secondary)] md:inline">{{ currentUser?.username }}</span>
-        <n-button size="small" quaternary @click="handleLogout">退出</n-button>
-      </template>
-    </AppHeader>
-
-    <main class="mx-auto max-w-7xl px-4 py-6">
+  <AdminShell>
       <section class="mb-4 grid gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:grid-cols-[1fr_150px_150px_150px_auto]">
         <n-input v-model:value="filters.keyword" placeholder="搜索用户名或邮箱" clearable @keydown.enter="loadUsers" />
         <n-select v-model:value="filters.status" :options="statusOptionsWithAll" placeholder="状态" clearable />
@@ -44,7 +30,6 @@
           />
         </div>
       </section>
-    </main>
 
     <n-drawer v-model:show="detailVisible" width="520">
       <n-drawer-content title="用户详情" closable>
@@ -105,12 +90,11 @@
         </div>
       </n-drawer-content>
     </n-drawer>
-  </div>
+  </AdminShell>
 </template>
 
 <script setup>
 import { h, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   NButton,
   NDataTable,
@@ -127,11 +111,9 @@ import {
   NSwitch,
   NTag
 } from 'naive-ui'
-import AppHeader from '@/components/AppHeader.vue'
+import AdminShell from '@/components/AdminShell.vue'
 import { adminUserApi } from '@/api/backend'
-import { currentUser, logout } from '@/stores/auth'
 
-const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const users = ref([])
@@ -364,11 +346,6 @@ async function deleteSelectedUser() {
   } finally {
     saving.value = false
   }
-}
-
-async function handleLogout() {
-  await logout()
-  router.push('/login')
 }
 
 onMounted(loadUsers)

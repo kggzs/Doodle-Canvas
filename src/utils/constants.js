@@ -2,25 +2,17 @@
  * Constants | 常量配置
  */
 
-// API Base URL | API 基础 URL
-export const DEFAULT_API_BASE_URL = 'https://api.openai.com/v1'
-
 // API Endpoints | API 端点
 export const API_ENDPOINTS = {
-  // Model | 模型
-  MODEL_PAGE: '/model/page',
-  MODEL_FULL_NAME: '/model/fullName',
-  MODEL_TYPES: '/model/types',
-  
   // Image | 图片
-  IMAGE_GENERATIONS: '/images/generations',
+  IMAGE_GENERATIONS: '/api/generate/image',
   
   // Video | 视频
-  VIDEO_GENERATIONS: '/videos',
-  VIDEO_TASK: '/videos',
+  VIDEO_GENERATIONS: '/api/generate/video',
+  VIDEO_TASK: '/api/generate/video',
   
   // Chat | 对话
-  CHAT_COMPLETIONS: '/chat/completions'
+  CHAT_COMPLETIONS: '/api/chat/completions'
 }
 
 // Error Codes | 错误码
@@ -47,13 +39,8 @@ export const DEFAULT_CHAT_CONFIG = {
 }
 
 // Local Storage Keys | 本地存储键
-// (完整定义，同步 stores/pinia/models.js)
 export const STORAGE_KEYS = {
-  // Legacy single-key config (useApiConfig.js)
-  API_KEY: 'apiKey',
-  BASE_URL: 'apiBaseUrl',
-
-  // Provider config
+  // Legacy provider key is kept only for reading old custom model buckets.
   PROVIDER: 'api-provider',
 
   // Custom models (global, no provider)
@@ -69,14 +56,5 @@ export const STORAGE_KEYS = {
   // Selected model per type
   SELECTED_CHAT_MODEL: 'selected-chat-model',
   SELECTED_IMAGE_MODEL: 'selected-image-model',
-  SELECTED_VIDEO_MODEL: 'selected-video-model',
-
-  // API config by provider
-  API_KEYS_BY_PROVIDER: 'api-keys-by-provider',
-  BASE_URLS_BY_PROVIDER: 'base-urls-by-provider',
-
-  // Service-scoped config (chat/image/video independent)
-  SERVICE_PROVIDERS: 'service-providers',
-  SERVICE_API_KEYS: 'service-api-keys',
-  SERVICE_BASE_URLS: 'service-base-urls'
+  SELECTED_VIDEO_MODEL: 'selected-video-model'
 }

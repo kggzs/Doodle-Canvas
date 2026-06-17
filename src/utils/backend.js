@@ -1,6 +1,6 @@
 /**
  * Backend API client | 后端业务接口请求客户端
- * 用于调用 /api/auth 与 /api/admin，不参与第三方 AI /proxy 逻辑。
+ * 用于调用同源 /api 业务接口，不接触第三方 AI Key / Base URL。
  */
 import axios from 'axios'
 
