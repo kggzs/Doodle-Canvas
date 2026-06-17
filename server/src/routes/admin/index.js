@@ -20,17 +20,29 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
 import { adminMiddleware } from '../../middleware/admin.js';
 import { success } from '../../utils/response.js';
+import channelRoutes from './channels.js';
+import modelRoutes from './models.js';
+import userRoutes from './users.js';
 
 const router = Router();
 
 // 所有管理路由均需登录 + Admin 角色
 router.use(authMiddleware, adminMiddleware);
 
+// 渠道地址池管理：/api/admin/channels/*
+router.use('/channels', channelRoutes);
+
+// 模型配置管理：/api/admin/models/*
+router.use('/models', modelRoutes);
+
+// 用户管理：/api/admin/users/*
+router.use('/users', userRoutes);
+
 /**
  * 管理后台健康检查占位接口
  */
 router.get('/', (req, res) => {
-  return success(res, { admin: req.user?.userId }, '管理接口待实现');
+  return success(res, { admin: req.user?.id }, '管理接口运行中');
 });
 
 export default router;

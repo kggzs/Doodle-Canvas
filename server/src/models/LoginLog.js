@@ -31,7 +31,7 @@ const LoginLog = sequelize.define(
       comment: '失败时若能识别用户则记录'
     },
     emailOrUsername: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(191),
       allowNull: true,
       defaultValue: null,
       field: 'email_or_username',

@@ -11,6 +11,20 @@ import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
+function parseJson(raw) {
+  if (raw === null || raw === undefined || typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function stringifyJson(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
 /**
  * 定义 User 模型
  * 字段与 server/sql/init.sql 中 users 表保持一致
@@ -31,7 +45,7 @@ const User = sequelize.define(
       comment: '用户名'
     },
     email: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(191),
       allowNull: false,
       unique: true,
       comment: '邮箱（必填，且需认证）'
@@ -120,11 +134,17 @@ const User = sequelize.define(
       comment: '风险等级'
     },
     riskTags: {
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT('long'),
       allowNull: true,
       defaultValue: null,
       field: 'risk_tags',
-      comment: '风险标签数组（如 ["刷量","异地登录"]）'
+      comment: '风险标签 JSON 字符串（如 ["刷量","异地登录"]）',
+      get() {
+        return parseJson(this.getDataValue('riskTags'));
+      },
+      set(value) {
+        this.setDataValue('riskTags', stringifyJson(value));
+      }
     },
     violationCount: {
       type: DataTypes.INTEGER,

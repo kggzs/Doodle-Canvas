@@ -5,6 +5,8 @@
   "type": "module",
   "main": "src/app.js",
   "scripts": {
+    "build:client": "npm --prefix .. run build",
+    "create-admin": "node src/scripts/create-admin.js",
     "start": "node src/app.js",
     "dev": "nodemon src/app.js"
   },

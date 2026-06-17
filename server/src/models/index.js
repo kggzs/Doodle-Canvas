@@ -11,6 +11,9 @@ import User from './User.js';
 import RefreshToken from './RefreshToken.js';
 import EmailVerification from './EmailVerification.js';
 import LoginLog from './LoginLog.js';
+import ModelChannel from './ModelChannel.js';
+import ModelConfig from './ModelConfig.js';
+import ModelChannelBinding from './ModelChannelBinding.js';
 
 // ============================
 // 建立模型关联关系
@@ -49,6 +52,42 @@ LoginLog.belongsTo(User, {
   as: 'user'
 });
 
+// ModelConfig 1:N ModelChannelBinding
+ModelConfig.hasMany(ModelChannelBinding, {
+  foreignKey: 'model_id',
+  as: 'bindings',
+  onDelete: 'CASCADE'
+});
+ModelChannelBinding.belongsTo(ModelConfig, {
+  foreignKey: 'model_id',
+  as: 'model'
+});
+
+// ModelChannel 1:N ModelChannelBinding
+ModelChannel.hasMany(ModelChannelBinding, {
+  foreignKey: 'channel_id',
+  as: 'bindings',
+  onDelete: 'CASCADE'
+});
+ModelChannelBinding.belongsTo(ModelChannel, {
+  foreignKey: 'channel_id',
+  as: 'channel'
+});
+
+// ModelConfig N:M ModelChannel
+ModelConfig.belongsToMany(ModelChannel, {
+  through: ModelChannelBinding,
+  foreignKey: 'model_id',
+  otherKey: 'channel_id',
+  as: 'channels'
+});
+ModelChannel.belongsToMany(ModelConfig, {
+  through: ModelChannelBinding,
+  foreignKey: 'channel_id',
+  otherKey: 'model_id',
+  as: 'models'
+});
+
 /**
  * 数据库对象
  * - sequelize：Sequelize 实例
@@ -61,7 +100,10 @@ export const db = {
   User,
   RefreshToken,
   EmailVerification,
-  LoginLog
+  LoginLog,
+  ModelChannel,
+  ModelConfig,
+  ModelChannelBinding
 };
 
 export default db;

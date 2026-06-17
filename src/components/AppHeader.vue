@@ -23,6 +23,28 @@
       >
         <n-icon :size="20"><LogoGithub /></n-icon>
       </a>
+
+      <button
+        v-if="isAdmin"
+        @click="router.push('/admin/users')"
+        class="hidden px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors md:block"
+      >
+        管理
+      </button>
+
+      <button
+        v-if="!isLoggedIn"
+        @click="router.push('/login')"
+        class="px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
+      >
+        登录
+      </button>
+
+      <n-dropdown v-else :options="userOptions" @select="handleUserAction" placement="bottom-end">
+        <button class="px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors">
+          {{ currentUser?.username || '账号' }}
+        </button>
+      </n-dropdown>
       
       <!-- Theme toggle | 主题切换 -->
       <button 
@@ -46,13 +68,35 @@
  * App Header component | 应用头部组件
  * Reusable header with slots for customization
  */
-import { NIcon } from 'naive-ui'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { NDropdown, NIcon } from 'naive-ui'
 import { 
   SunnyOutline, 
   MoonOutline,
   LogoGithub
 } from '@vicons/ionicons5'
 import { isDark, toggleTheme } from '../stores/theme'
+import { currentUser, isAdmin, isLoggedIn, logout } from '../stores/auth'
+
+const router = useRouter()
+
+const userOptions = computed(() => [
+  ...(isAdmin.value ? [{ label: '用户管理', key: 'admin' }] : []),
+  { label: '退出登录', key: 'logout' }
+])
+
+async function handleUserAction(key) {
+  if (key === 'admin') {
+    router.push('/admin/users')
+    return
+  }
+  if (key === 'logout') {
+    await logout()
+    window.$message?.success('已退出登录')
+    router.push('/login')
+  }
+}
 
 // Props | 属性
 defineProps({

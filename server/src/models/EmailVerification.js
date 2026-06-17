@@ -31,12 +31,12 @@ const EmailVerification = sequelize.define(
       comment: '已注册但未认证的用户（pending_email）'
     },
     email: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(191),
       allowNull: false,
       comment: '待认证邮箱（也用于注册前预校验）'
     },
     code: {
-      type: DataTypes.STRING(10),
+      type: DataTypes.STRING(255),
       allowNull: true,
       defaultValue: null,
       comment: '6 位验证码（bcrypt 存储，code 模式）'

@@ -12,6 +12,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -31,6 +32,18 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const FRONTEND_BASE = process.env.FRONTEND_BASE || '/huobao-canvas';
+const FRONTEND_DIST_DIR = process.env.FRONTEND_DIST_DIR || '../../dist';
+const SERVE_FRONTEND = process.env.SERVE_FRONTEND !== 'false';
+
+function normalizeMountPath(basePath) {
+  if (!basePath || basePath === '/') return '';
+  return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+}
+
+const frontendMountPath = normalizeMountPath(FRONTEND_BASE);
+const frontendDistPath = path.resolve(__dirname, FRONTEND_DIST_DIR);
+const frontendIndexPath = path.join(frontendDistPath, 'index.html');
 
 // 解析 CORS 白名单（逗号分隔）
 const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
@@ -41,7 +54,22 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
 // ============================
 // 安全与基础中间件
 // ============================
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
+      mediaSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
+      connectSrc: ["'self'", 'http:', 'https:'],
+      fontSrc: ["'self'", 'data:']
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
 
 app.use(
   cors({
@@ -84,6 +112,40 @@ app.get('/api/health', (req, res) => {
 
 // 业务路由
 app.use('/api', routes);
+
+// ============================
+// 前端静态资源托管（单服务部署）
+// ============================
+if (SERVE_FRONTEND) {
+  if (fs.existsSync(frontendIndexPath)) {
+    logger.info(`前端静态文件目录：${frontendDistPath}`);
+    logger.info(`前端访问入口：http://localhost:${PORT}${frontendMountPath || '/'}`);
+
+    if (frontendMountPath) {
+      app.get('/', (req, res) => {
+        return res.redirect(`${frontendMountPath}/`);
+      });
+      app.use(frontendMountPath, express.static(frontendDistPath, {
+        index: false,
+        maxAge: NODE_ENV === 'production' ? '7d' : 0
+      }));
+      app.get([frontendMountPath, `${frontendMountPath}/`, `${frontendMountPath}/*`], (req, res) => {
+        return res.sendFile(frontendIndexPath);
+      });
+    } else {
+      app.use(express.static(frontendDistPath, {
+        index: false,
+        maxAge: NODE_ENV === 'production' ? '7d' : 0
+      }));
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) return next();
+        return res.sendFile(frontendIndexPath);
+      });
+    }
+  } else {
+    logger.warn(`未找到前端构建产物：${frontendIndexPath}。运行 npm run build 后，后端将自动托管前端。`);
+  }
+}
 
 // ============================
 // 404 处理

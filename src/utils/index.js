@@ -6,5 +6,6 @@ export * from './constants'
 export * from './schema'
 export * from './imageCache'
 import request, { setBaseUrl, getBaseUrl } from './request'
+import backend from './backend'
 
-export { request, setBaseUrl, getBaseUrl }
+export { request, backend, setBaseUrl, getBaseUrl }

@@ -18,10 +18,14 @@
  */
 import * as AuthService from './auth.js';
 import * as EmailService from './email.js';
+import * as ModelManagementService from './model-management.js';
+import * as AdminUserService from './admin-users.js';
 
-export { AuthService, EmailService };
+export { AuthService, EmailService, ModelManagementService, AdminUserService };
 
 export default {
   AuthService,
-  EmailService
+  EmailService,
+  ModelManagementService,
+  AdminUserService
 };

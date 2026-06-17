@@ -3,15 +3,16 @@
 -- 引擎：MySQL InnoDB
 -- 字符集：utf8mb4 / 排序规则：utf8mb4_unicode_ci
 -- 说明：本脚本包含认证相关 4 张表（users / refresh_tokens / email_verifications / login_logs）
+--       以及阶段二模型调度相关 3 张表（model_channels / models / model_channel_bindings）
 --       其他业务表（用户组、计费、文件、生成记录、审计等）将在后续 Task 中补充
 -- ============================================
 
 -- 数据库创建
-CREATE DATABASE IF NOT EXISTS `doodle_canvas`
+CREATE DATABASE IF NOT EXISTS `canvas`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE `doodle_canvas`;
+USE `canvas`;
 
 -- ============================================
 -- 1. users 用户表
@@ -26,7 +27,7 @@ USE `doodle_canvas`;
 CREATE TABLE IF NOT EXISTS `users` (
     `id`                    CHAR(36)     NOT NULL,
     `username`              VARCHAR(50)  NOT NULL,
-    `email`                 VARCHAR(255) NOT NULL,
+    `email`                 VARCHAR(191) NOT NULL,
     `email_verified_at`     DATETIME     DEFAULT NULL COMMENT '邮箱认证时间（NULL=未认证）',
     `password_hash`         VARCHAR(255) NOT NULL COMMENT 'bcrypt 加密',
     `role`                  ENUM('user','admin') DEFAULT 'user',
@@ -44,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `banned_by`             CHAR(36)     DEFAULT NULL COMMENT '封禁操作人（admin user_id）',
     `unban_at`              DATETIME     DEFAULT NULL COMMENT '解封时间',
     `risk_level`            ENUM('low','medium','high') DEFAULT 'low' COMMENT '风险等级',
-    `risk_tags`             JSON         DEFAULT NULL COMMENT '风险标签数组（如 ["刷量","异地登录"]）',
+    `risk_tags`             LONGTEXT     DEFAULT NULL COMMENT '风险标签 JSON 字符串（如 ["刷量","异地登录"]）',
     `violation_count`       INT          DEFAULT 0 COMMENT '累计违规次数',
     `coins_frozen`          DECIMAL(12,2) DEFAULT 0.00 COMMENT '被冻结的金币（封禁时锁定）',
 
@@ -79,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 CREATE TABLE IF NOT EXISTS `refresh_tokens` (
     `id`              CHAR(36)     NOT NULL,
     `user_id`         CHAR(36)     NOT NULL,
-    `token_hash`      VARCHAR(255) NOT NULL COMMENT '令牌哈希（SHA-256）',
+    `token_hash`      VARCHAR(64)  NOT NULL COMMENT '令牌哈希（SHA-256）',
     `device_info`     TEXT         DEFAULT NULL COMMENT '设备信息（UA 解析后的简要描述）',
     `expires_at`      DATETIME     NOT NULL COMMENT '过期时间',
     `revoked_at`      DATETIME     DEFAULT NULL COMMENT '撤销时间（NULL=未撤销）',
@@ -102,8 +103,8 @@ CREATE TABLE IF NOT EXISTS `refresh_tokens` (
 CREATE TABLE IF NOT EXISTS `email_verifications` (
     `id`                  CHAR(36)     NOT NULL,
     `user_id`             CHAR(36)     DEFAULT NULL COMMENT '已注册但未认证的用户（pending_email）',
-    `email`               VARCHAR(255) NOT NULL COMMENT '待认证邮箱（也用于注册前预校验）',
-    `code`                VARCHAR(10)  DEFAULT NULL COMMENT '6 位验证码（bcrypt 存储，code 模式）',
+    `email`               VARCHAR(191) NOT NULL COMMENT '待认证邮箱（也用于注册前预校验）',
+    `code`                VARCHAR(255) DEFAULT NULL COMMENT '6 位验证码（bcrypt 存储，code 模式）',
     `token_hash`          VARCHAR(255) DEFAULT NULL COMMENT '验证链接 Token 哈希（链接模式）',
     `purpose`             ENUM('register','reset_password','change_email','login') NOT NULL,
     `expires_at`          DATETIME     NOT NULL COMMENT '过期时间（默认 30 分钟）',
@@ -128,7 +129,7 @@ CREATE TABLE IF NOT EXISTS `email_verifications` (
 CREATE TABLE IF NOT EXISTS `login_logs` (
     `id`                  BIGINT       NOT NULL AUTO_INCREMENT,
     `user_id`             CHAR(36)     DEFAULT NULL COMMENT '失败时若能识别用户则记录',
-    `email_or_username`   VARCHAR(255) DEFAULT NULL COMMENT '登录账号输入值（脱敏存储）',
+    `email_or_username`   VARCHAR(191) DEFAULT NULL COMMENT '登录账号输入值（脱敏存储）',
     `login_type`          ENUM('password','email_code','oauth','refresh') DEFAULT 'password',
     `status`              ENUM('success','failed','locked','disabled','banned','pending_email') NOT NULL,
     `fail_reason`         VARCHAR(100) DEFAULT NULL COMMENT 'WRONG_PASSWORD / NOT_FOUND / LOCKED / BANNED...',
@@ -152,3 +153,81 @@ CREATE TABLE IF NOT EXISTS `login_logs` (
     KEY `idx_status_time` (`status`, `created_at`),
     KEY `idx_email` (`email_or_username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志表（全量记录）';
+
+-- ============================================
+-- 5. model_channels 模型渠道表（API 地址池）
+-- ============================================
+-- 每条记录代表一个可复用的 API 地址 + Key 组合。
+-- api_key 使用 AES 加密后的 JSON 字符串存储，不保存明文。
+CREATE TABLE IF NOT EXISTS `model_channels` (
+    `id`              CHAR(36)     NOT NULL,
+    `name`            VARCHAR(100) NOT NULL COMMENT '渠道名称（如 OpenAI-主、阿里云万相-备用）',
+    `provider_type`   ENUM('openai','aliyun','doubao','custom') NOT NULL COMMENT '适配器类型',
+    `api_base_url`    VARCHAR(500) NOT NULL COMMENT 'API 基础地址',
+    `api_key`         TEXT         NOT NULL COMMENT 'API Key（AES 加密 JSON）',
+    `is_active`       TINYINT(1)   DEFAULT 1 COMMENT '是否启用',
+    `priority`        INT          DEFAULT 0 COMMENT '优先级（数值越小越优先）',
+    `weight`          INT          DEFAULT 1 COMMENT '轮换权重',
+    `max_concurrent`  INT          DEFAULT 10 COMMENT '最大并发数',
+    `timeout_ms`      INT          DEFAULT 60000 COMMENT '超时时间（毫秒）',
+    `config`          LONGTEXT     DEFAULT NULL COMMENT '渠道特有配置 JSON 字符串',
+    `total_requests`  BIGINT       DEFAULT 0 COMMENT '累计请求数',
+    `success_count`   BIGINT       DEFAULT 0 COMMENT '成功次数',
+    `fail_count`      BIGINT       DEFAULT 0 COMMENT '失败次数',
+    `last_used_at`    DATETIME     DEFAULT NULL COMMENT '最后使用时间',
+    `last_fail_at`    DATETIME     DEFAULT NULL COMMENT '最后失败时间',
+    `circuit_open`    TINYINT(1)   DEFAULT 0 COMMENT '熔断器状态（0=关闭/1=打开）',
+    `circuit_open_at` DATETIME     DEFAULT NULL COMMENT '熔断打开时间',
+    `created_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_provider` (`provider_type`),
+    KEY `idx_active` (`is_active`, `priority`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模型渠道表';
+
+-- ============================================
+-- 6. models 模型配置表
+-- ============================================
+-- 每条记录代表一个具体模型，按 image / video / chat 三类独立管理。
+CREATE TABLE IF NOT EXISTS `models` (
+    `id`              CHAR(36)     NOT NULL,
+    `model_key`       VARCHAR(100) NOT NULL COMMENT '模型标识（如 wan2.7-image-pro）',
+    `display_name`    VARCHAR(100) NOT NULL COMMENT '展示名称',
+    `model_type`      ENUM('image','video','chat') NOT NULL COMMENT '模型类型',
+    `is_active`       TINYINT(1)   DEFAULT 1 COMMENT '是否对用户可见',
+    `default_params`  LONGTEXT     DEFAULT NULL COMMENT '默认参数 JSON 字符串',
+    `max_params`      LONGTEXT     DEFAULT NULL COMMENT '参数限制 JSON 字符串',
+    `sort_order`      INT          DEFAULT 0 COMMENT '排序（越小越靠前）',
+    `description`     TEXT         DEFAULT NULL COMMENT '模型描述/标签',
+    `created_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_model_key` (`model_key`),
+    KEY `idx_type_active` (`model_type`, `is_active`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模型配置表';
+
+-- ============================================
+-- 7. model_channel_bindings 模型-渠道绑定表
+-- ============================================
+-- 多地址轮换核心表：一个模型可绑定多个渠道地址，每个绑定独立配置轮换策略。
+CREATE TABLE IF NOT EXISTS `model_channel_bindings` (
+    `id`                CHAR(36) NOT NULL,
+    `model_id`          CHAR(36) NOT NULL COMMENT '关联模型',
+    `channel_id`        CHAR(36) NOT NULL COMMENT '关联渠道地址',
+    `rotation_weight`   INT      DEFAULT 1 COMMENT '轮换权重（1-10）',
+    `rotation_strategy` ENUM('round_robin','weighted_random','priority','failover')
+                        DEFAULT 'round_robin' COMMENT '轮换策略',
+    `is_active`         TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+    `last_used_index`   INT      DEFAULT 0 COMMENT '上次轮换索引（Redis 状态的持久化备份）',
+    `created_at`        DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_model_channel` (`model_id`, `channel_id`),
+    KEY `idx_model_active` (`model_id`, `is_active`),
+    CONSTRAINT `fk_model_channel_bindings_model` FOREIGN KEY (`model_id`)
+        REFERENCES `models` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_model_channel_bindings_channel` FOREIGN KEY (`channel_id`)
+        REFERENCES `model_channels` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模型-渠道绑定表';

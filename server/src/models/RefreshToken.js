@@ -29,7 +29,7 @@ const RefreshToken = sequelize.define(
       comment: '所属用户 ID'
     },
     tokenHash: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(64),
       allowNull: false,
       unique: true,
       field: 'token_hash',

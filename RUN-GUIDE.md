@@ -41,6 +41,14 @@ pnpm install
 npm install --include=dev --no-audit
 ```
 
+后端依赖需要在 `server/` 目录单独安装：
+
+```bash
+cd server
+npm install --include=dev --no-audit
+cd ..
+```
+
 > **注意：** 如果你的 npm 版本 >= 9 且设置了 `include=prod`（部分新版本默认行为），需要显式添加 `--include=dev` 参数来安装 devDependencies（如 vite、tailwindcss 等），否则项目无法启动。
 
 ### 3. 启动开发服务器
@@ -78,7 +86,46 @@ VITE v5.4.21  ready in xxx ms
 |------|------|
 | `pnpm dev` / `npm run dev` | 启动 Vite 开发服务器（热更新） |
 | `pnpm build` / `npm run build` | 生产环境构建，输出到 `dist/` 目录 |
+| `npm run start` | 启动后端服务，并托管已构建的前端页面 |
+| `npm run server:dev` | 启动后端开发服务 |
 | `pnpm preview` / `npm run preview` | 预览构建后的产物 |
+
+---
+
+## 单服务部署
+
+当前项目支持“只跑一个 Node 服务”：
+
+```bash
+# 1. 构建前端 dist/
+npm run build
+
+# 2. 启动后端，Express 会同时提供 /api 与 /huobao-canvas
+npm run start
+```
+
+访问地址：
+
+- 前端页面：http://localhost:3000/huobao-canvas
+- 登录页面：http://localhost:3000/huobao-canvas/login
+- 管理后台：http://localhost:3000/huobao-canvas/admin/users
+- 后端健康检查：http://localhost:3000/api/health
+
+首次部署可创建管理员账号：
+
+```bash
+npm run create-admin -- --email admin@example.com --username admin --password Admin123456
+```
+
+后端静态托管由 `server/.env` 控制：
+
+```env
+SERVE_FRONTEND=true
+FRONTEND_BASE=/huobao-canvas
+FRONTEND_DIST_DIR=../../dist
+```
+
+只要 `dist/index.html` 存在，后端启动后会自动托管前端构建产物。
 
 ---
 
@@ -138,7 +185,7 @@ npm install -g pnpm
 
 ## API 配置
 
-本项目为纯前端应用，API Key 和 Base URL **无需在环境变量中配置**，而是在应用 UI 界面中设置后自动存储到浏览器 localStorage 中。
+旧版为纯前端配置。后端化后，推荐在管理接口中维护模型渠道与 API Key；前端本地配置仍可作为兼容入口继续使用。
 
 支持的 AI 服务商：
 - **OpenAI**（及兼容接口）

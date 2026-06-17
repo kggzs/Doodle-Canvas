@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "start": "npm --prefix server start",
+    "create-admin": "npm --prefix server run create-admin --",
+    "server:dev": "npm --prefix server run dev",
     "preview": "vite preview"
   },
   "dependencies": {
