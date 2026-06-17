@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+*.env
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -22,6 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
 
 # Debug & local notes | 调试日志与本地笔记，不应入仓
 报错.txt
