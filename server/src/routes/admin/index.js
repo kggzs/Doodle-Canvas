@@ -25,6 +25,9 @@ import modelRoutes from './models.js';
 import userRoutes from './users.js';
 import userGroupRoutes from './user-groups.js';
 import coinRoutes from './coins.js';
+import billingRoutes from './billing.js';
+import recordRoutes from './records.js';
+import fileRoutes from './files.js';
 
 const router = Router();
 
@@ -45,6 +48,15 @@ router.use('/user-groups', userGroupRoutes);
 
 // 金币管理：/api/admin/coins/*
 router.use('/coins', coinRoutes);
+
+// 计费规则管理：/api/admin/billing/*
+router.use('/billing', billingRoutes);
+
+// 生成记录管理：/api/admin/records/*
+router.use('/records', recordRoutes);
+
+// 文件管理：/api/admin/files/*
+router.use('/files', fileRoutes);
 
 /**
  * 管理后台健康检查占位接口

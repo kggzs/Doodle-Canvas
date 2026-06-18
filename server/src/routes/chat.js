@@ -25,8 +25,10 @@ function validateRequest(req, res) {
 function mapCodeToHttpStatus(code) {
   if (code >= 40001 && code <= 40099) return 400;
   if (code >= 40101 && code <= 40199) return 401;
+  if (code >= 40201 && code <= 40299) return 402;
   if (code >= 40301 && code <= 40399) return 403;
   if (code >= 40401 && code <= 40499) return 404;
+  if (code >= 40901 && code <= 40999) return 409;
   if (code >= 42201 && code <= 42299) return 422;
   if (code >= 50201 && code <= 50299) return 502;
   if (code >= 50301 && code <= 50399) return 503;
@@ -35,7 +37,7 @@ function mapCodeToHttpStatus(code) {
 }
 
 function handleServiceError(res, err) {
-  if (err instanceof GenerationError) {
+  if (err instanceof GenerationError || Number.isInteger(err.code)) {
     return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), Object.keys(err.extra).length ? err.extra : null);
   }
   logger.error(`对话代理异常：${err.message}`, { stack: err.stack });
@@ -57,7 +59,7 @@ router.post('/completions', chatValidators, async (req, res) => {
   if (validErr) return validErr;
 
   try {
-    const result = await GenerationService.chatCompletions(req.body, req.userId);
+    const result = await GenerationService.chatCompletions(req.body, req.userId, req.auditContext);
     return success(res, result, '对话完成');
   } catch (err) {
     return handleServiceError(res, err);
@@ -69,7 +71,7 @@ router.post('/completions/stream', chatValidators, async (req, res) => {
   if (validErr) return validErr;
 
   try {
-    const result = await GenerationService.streamChatCompletions(req.body, req.userId);
+    const result = await GenerationService.streamChatCompletions(req.body, req.userId, req.auditContext);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');

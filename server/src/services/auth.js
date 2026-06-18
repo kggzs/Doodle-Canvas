@@ -36,7 +36,10 @@ import User from '../models/User.js';
 import RefreshToken from '../models/RefreshToken.js';
 import EmailVerification from '../models/EmailVerification.js';
 import LoginLog from '../models/LoginLog.js';
+import UserGroup from '../models/UserGroup.js';
+import UserGroupMember from '../models/UserGroupMember.js';
 import * as EmailService from './email.js';
+import * as CoinService from './coins.js';
 
 // ============================
 // 常量配置
@@ -355,13 +358,52 @@ export async function verifyEmail({ email, code, auditContext }) {
   // 7. 标记验证码记录为已消耗
   await EmailVerification.markConsumed(verification.id);
 
-  // TODO: Task 14 实现 user_balances 模型后，初始化用户余额（余额=DEFAULT_NEW_USER_BALANCE）
-  // TODO: Task 15 实现 CoinService 后，赠送注册金币（REGISTER_GIFT_COINS，写 coin_transactions）
-  // 当前仅记录日志，预留接口
-  logger.info(`用户邮箱验证成功，待初始化余额（${DEFAULT_NEW_USER_BALANCE}）与赠送金币（${REGISTER_GIFT_COINS}）`, {
-    userId: user.id,
-    email
-  });
+  const defaultGroup = await UserGroup.findOne({ where: { isDefault: true, isActive: true } });
+  if (defaultGroup) {
+    await UserGroupMember.findOrCreate({
+      where: { userId: user.id, groupId: defaultGroup.id },
+      defaults: {
+        userId: user.id,
+        groupId: defaultGroup.id,
+        grantReason: '邮箱验证后加入默认用户组'
+      }
+    });
+    if (!user.userGroupId) {
+      await user.update({ userGroupId: defaultGroup.id });
+    }
+  }
+
+  await CoinService.getOrCreateBalance(user.id);
+  if (DEFAULT_NEW_USER_BALANCE > 0) {
+    await CoinService.transact({
+      userId: user.id,
+      type: 'register_gift',
+      amount: DEFAULT_NEW_USER_BALANCE,
+      operatorType: 'system',
+      refType: 'user',
+      refId: user.id,
+      reasonCode: 'registration.new_user_balance',
+      description: '新用户初始金币',
+      requestId: auditContext?.requestId || null,
+      clientIp: auditContext?.ip || null,
+      userAgent: auditContext?.userAgent || null
+    });
+  }
+  if (REGISTER_GIFT_COINS > 0) {
+    await CoinService.transact({
+      userId: user.id,
+      type: 'register_gift',
+      amount: REGISTER_GIFT_COINS,
+      operatorType: 'system',
+      refType: 'user',
+      refId: user.id,
+      reasonCode: 'registration.gift_coins',
+      description: '注册邮箱验证赠送金币',
+      requestId: auditContext?.requestId || null,
+      clientIp: auditContext?.ip || null,
+      userAgent: auditContext?.userAgent || null
+    });
+  }
 
   // 8. 生成 JWT（Access + Refresh）
   const accessToken = signAccessToken(user);
@@ -846,11 +888,25 @@ export async function getProfile({ userId }) {
   }
 
   const userProfile = user.toJSON();
-  // TODO: Task 14/19 实现后，补充用户组与余额信息
-  // const balance = await UserBalance.findOne({ where: { userId } });
-  // const userGroups = await UserGroupMember.findAll({ where: { userId } });
-  userProfile.balance = null; // 预留：后续从 user_balances 表查询
-  userProfile.userGroups = []; // 预留：后续从 user_group_members 表查询
+  const [balance, userGroups] = await Promise.all([
+    CoinService.getBalance(userId),
+    UserGroupMember.findAll({
+      where: {
+        userId,
+        [Op.or]: [
+          { expiresAt: null },
+          { expiresAt: { [Op.gt]: new Date() } }
+        ]
+      },
+      include: [{ model: UserGroup, as: 'group' }],
+      order: [
+        [{ model: UserGroup, as: 'group' }, 'priority', 'DESC'],
+        ['joinedAt', 'DESC']
+      ]
+    })
+  ]);
+  userProfile.balance = balance;
+  userProfile.userGroups = userGroups.map((item) => item.group).filter(Boolean);
 
   return userProfile;
 }

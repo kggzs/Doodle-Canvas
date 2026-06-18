@@ -140,10 +140,12 @@ export async function getUserDetail(id) {
     balance: balance || {
       userId: id,
       balance: '0.00',
-      totalRecharge: '0.00',
-      totalGift: '0.00',
+      coinsFrozen: '0.00',
+      totalRecharged: '0.00',
+      totalGifted: '0.00',
       totalConsumed: '0.00',
       totalRefunded: '0.00',
+      totalExpired: '0.00',
       version: 0
     },
     groups,
@@ -285,6 +287,8 @@ export async function rechargeUser(id, data = {}, operatorId = null, requestId =
     direction: 'in',
     amount: data.amount,
     operatorId,
+    operatorType: 'admin',
+    refType: 'admin_op',
     reason: data.reason || '管理员充值',
     metadata: {
       paymentChannel: data.paymentChannel || null,
@@ -303,6 +307,8 @@ export async function giftUser(id, data = {}, operatorId = null, requestId = nul
     direction: 'in',
     amount: data.amount,
     operatorId,
+    operatorType: 'admin',
+    refType: 'gift_rule',
     reason: data.reason || '管理员赠送',
     metadata: { scene: data.scene || null },
     requestId

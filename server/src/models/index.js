@@ -18,6 +18,12 @@ import UserGroup from './UserGroup.js';
 import UserGroupMember from './UserGroupMember.js';
 import UserBalance from './UserBalance.js';
 import CoinTransaction from './CoinTransaction.js';
+import BillingRule from './BillingRule.js';
+import File from './File.js';
+import GenerationRecord from './GenerationRecord.js';
+import Project from './Project.js';
+import SystemSetting from './SystemSetting.js';
+import MigrateImport from './MigrateImport.js';
 
 // ============================
 // 建立模型关联关系
@@ -110,6 +116,39 @@ CoinTransaction.belongsTo(User, {
   as: 'user'
 });
 
+// User 1:N GenerationRecord
+User.hasMany(GenerationRecord, {
+  foreignKey: 'user_id',
+  as: 'generationRecords',
+  onDelete: 'CASCADE'
+});
+GenerationRecord.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+// User 1:N File
+User.hasMany(File, {
+  foreignKey: 'user_id',
+  as: 'files',
+  onDelete: 'CASCADE'
+});
+File.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+// User 1:N Project
+User.hasMany(Project, {
+  foreignKey: 'user_id',
+  as: 'projects',
+  onDelete: 'CASCADE'
+});
+Project.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
 // ModelConfig 1:N ModelChannelBinding
 ModelConfig.hasMany(ModelChannelBinding, {
   foreignKey: 'model_id',
@@ -146,6 +185,83 @@ ModelChannel.belongsToMany(ModelConfig, {
   as: 'models'
 });
 
+// ModelConfig 1:1 BillingRule
+ModelConfig.hasOne(BillingRule, {
+  foreignKey: 'model_id',
+  as: 'billingRule',
+  onDelete: 'CASCADE'
+});
+BillingRule.belongsTo(ModelConfig, {
+  foreignKey: 'model_id',
+  as: 'model'
+});
+
+// ModelConfig 1:N GenerationRecord
+ModelConfig.hasMany(GenerationRecord, {
+  foreignKey: 'model_id',
+  as: 'generationRecords'
+});
+GenerationRecord.belongsTo(ModelConfig, {
+  foreignKey: 'model_id',
+  as: 'model'
+});
+
+// ModelChannel 1:N GenerationRecord
+ModelChannel.hasMany(GenerationRecord, {
+  foreignKey: 'channel_id',
+  as: 'generationRecords'
+});
+GenerationRecord.belongsTo(ModelChannel, {
+  foreignKey: 'channel_id',
+  as: 'channel'
+});
+
+// GenerationRecord 1:N File
+GenerationRecord.hasMany(File, {
+  foreignKey: 'generation_id',
+  as: 'files'
+});
+File.belongsTo(GenerationRecord, {
+  foreignKey: 'generation_id',
+  as: 'generation'
+});
+
+// Project 1:N GenerationRecord
+Project.hasMany(GenerationRecord, {
+  foreignKey: 'project_id',
+  as: 'generationRecords'
+});
+GenerationRecord.belongsTo(Project, {
+  foreignKey: 'project_id',
+  as: 'project'
+});
+
+// Project thumbnail
+Project.belongsTo(File, {
+  foreignKey: 'thumbnail_file_id',
+  as: 'thumbnail'
+});
+
+// User 1:N MigrateImport / Project 1:N MigrateImport
+User.hasMany(MigrateImport, {
+  foreignKey: 'user_id',
+  as: 'migrateImports',
+  onDelete: 'CASCADE'
+});
+MigrateImport.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+Project.hasMany(MigrateImport, {
+  foreignKey: 'project_id',
+  as: 'migrateImports',
+  onDelete: 'CASCADE'
+});
+MigrateImport.belongsTo(Project, {
+  foreignKey: 'project_id',
+  as: 'project'
+});
+
 /**
  * 数据库对象
  * - sequelize：Sequelize 实例
@@ -163,6 +279,12 @@ export const db = {
   UserGroupMember,
   UserBalance,
   CoinTransaction,
+  BillingRule,
+  File,
+  GenerationRecord,
+  Project,
+  SystemSetting,
+  MigrateImport,
   ModelChannel,
   ModelConfig,
   ModelChannelBinding

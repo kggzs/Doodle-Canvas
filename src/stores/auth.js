@@ -5,18 +5,34 @@ import { computed, ref } from 'vue'
 import backend, { authStorage } from '@/utils/backend'
 
 export const currentUser = ref(authStorage.getUser())
-export const isLoggedIn = computed(() => !!authStorage.getAccessToken() && !!currentUser.value)
+export const accessToken = ref(authStorage.getAccessToken())
+export const refreshToken = ref(authStorage.getRefreshToken())
+export const isLoggedIn = computed(() => !!accessToken.value && !!currentUser.value)
 export const isAdmin = computed(() => currentUser.value?.role === 'admin')
 
-export function setAuthSession({ accessToken, refreshToken, user }) {
-  authStorage.setAccessToken(accessToken)
-  authStorage.setRefreshToken(refreshToken)
+window.addEventListener('doodle-auth-cleared', () => {
+  accessToken.value = ''
+  refreshToken.value = ''
+  currentUser.value = null
+})
+
+export function setAuthSession(session = {}) {
+  const nextAccessToken = session.accessToken || session.access_token || ''
+  const nextRefreshToken = session.refreshToken || session.refresh_token || ''
+  const user = session.user || null
+
+  authStorage.setAccessToken(nextAccessToken)
+  authStorage.setRefreshToken(nextRefreshToken)
   authStorage.setUser(user)
-  currentUser.value = user || null
+  accessToken.value = nextAccessToken
+  refreshToken.value = nextRefreshToken
+  currentUser.value = user
 }
 
 export function clearAuthSession() {
   authStorage.clear()
+  accessToken.value = ''
+  refreshToken.value = ''
   currentUser.value = null
 }
 
@@ -44,9 +60,9 @@ export async function fetchProfile() {
 }
 
 export async function logout() {
-  const refreshToken = authStorage.getRefreshToken()
+  const currentRefreshToken = refreshToken.value || authStorage.getRefreshToken()
   try {
-    await backend.post('/auth/logout', { refreshToken })
+    await backend.post('/auth/logout', { refreshToken: currentRefreshToken })
   } catch {
     // 本地退出优先，不阻塞用户操作
   }

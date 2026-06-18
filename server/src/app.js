@@ -22,6 +22,7 @@ import { requestIdMiddleware } from './middleware/requestId.js';
 import { auditContextMiddleware } from './middleware/audit-context.js';
 import { globalRateLimitMiddleware } from './middleware/rateLimit.js';
 import routes from './routes/index.js';
+import { getStorageRoot } from './services/storage.js';
 import { testConnection as testMysql } from './config/database.js';
 import { testConnection as testRedis } from './config/redis.js';
 
@@ -97,6 +98,12 @@ app.use(auditContextMiddleware);
 
 // 全局速率限制
 app.use(globalRateLimitMiddleware);
+
+// 本地存储静态分发（生产环境仍建议由 Nginx 映射 /storage/）
+app.use('/storage', express.static(getStorageRoot(), {
+  index: false,
+  maxAge: NODE_ENV === 'production' ? '7d' : 0
+}));
 
 // ============================
 // 路由挂载

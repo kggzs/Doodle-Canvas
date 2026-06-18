@@ -26,6 +26,7 @@ export const authStorage = {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
+    window.dispatchEvent(new Event('doodle-auth-cleared'))
   }
 }
 

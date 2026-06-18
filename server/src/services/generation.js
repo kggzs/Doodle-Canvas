@@ -7,15 +7,16 @@
  */
 import axios from 'axios';
 import { Op } from 'sequelize';
-import { v4 as uuidv4 } from 'uuid';
 
 import db from '../models/index.js';
 import { redis } from '../config/redis.js';
 import { safeJsonParse, sleep } from '../utils/helpers.js';
 import { logger } from '../utils/logger.js';
 import { decryptApiKey } from './model-management.js';
+import * as BillingService from './billing.js';
+import * as StorageService from './storage.js';
 
-const { ModelConfig, ModelChannel, ModelChannelBinding } = db;
+const { GenerationRecord, ModelConfig, ModelChannel, ModelChannelBinding } = db;
 
 const DEFAULT_ENDPOINTS = {
   openai: {
@@ -568,73 +569,308 @@ async function readVideoTask(taskId) {
   }
 }
 
+function extractPromptText(payload = {}, type = 'image') {
+  if (payload.prompt) return String(payload.prompt);
+  if (type === 'chat' && Array.isArray(payload.messages)) {
+    return payload.messages
+      .filter((item) => item?.role === 'user')
+      .map((item) => (typeof item.content === 'string' ? item.content : JSON.stringify(item.content)))
+      .join('\n')
+      .slice(0, 5000);
+  }
+  return null;
+}
+
+async function createGenerationRecord({ userId, model, channel, type, payload, auditContext = {} }) {
+  return GenerationRecord.create({
+    userId,
+    modelId: model.id,
+    channelId: channel?.id || null,
+    type,
+    status: 'processing',
+    inputParams: payload,
+    promptText: extractPromptText(payload, type),
+    clientIp: auditContext.ip || null,
+    userAgent: auditContext.userAgent || null,
+    uaBrowser: auditContext.uaBrowser || null,
+    uaOs: auditContext.uaOs || null,
+    uaDevice: auditContext.uaDevice || null,
+    deviceFingerprint: auditContext.deviceFingerprint || null,
+    projectId: payload.project_id || payload.projectId || null
+  });
+}
+
+async function markRecordCompleted(record, result, { costInfo = null, durationMs = null, files = [] } = {}) {
+  await record.update({
+    status: 'completed',
+    result,
+    costAmount: costInfo?.finalCost || record.costAmount || 0,
+    costBreakdown: costInfo?.costBreakdown || record.costBreakdown || null,
+    coinTxId: costInfo?.transaction?.id || record.coinTxId || null,
+    userGroupSnapshot: costInfo?.costBreakdown?.group || record.userGroupSnapshot || null,
+    durationMs,
+    completedAt: new Date()
+  });
+
+  return {
+    ...result,
+    record_id: record.id,
+    cost: {
+      amount: Number(costInfo?.finalCost || 0),
+      coin_tx_id: costInfo?.transaction?.id || null,
+      breakdown: costInfo?.costBreakdown || null
+    },
+    files
+  };
+}
+
+async function markRecordFailed(record, err, { costInfo = null, refundTx = null, durationMs = null } = {}) {
+  await record.update({
+    status: 'failed',
+    errorMessage: err.message || '生成失败',
+    costAmount: costInfo?.finalCost || record.costAmount || 0,
+    costBreakdown: costInfo?.costBreakdown || record.costBreakdown || null,
+    coinTxId: costInfo?.transaction?.id || record.coinTxId || null,
+    refundTxId: refundTx?.id || record.refundTxId || null,
+    userGroupSnapshot: costInfo?.costBreakdown?.group || record.userGroupSnapshot || null,
+    durationMs,
+    completedAt: new Date()
+  });
+}
+
+async function charge(record, { userId, model, payload, type, auditContext }) {
+  const costInfo = await BillingService.chargeForGeneration({
+    userId,
+    generationId: record.id,
+    modelId: model.id,
+    modelType: type,
+    payload,
+    auditContext
+  });
+
+  await record.update({
+    costAmount: costInfo.finalCost,
+    costBreakdown: costInfo.costBreakdown,
+    coinTxId: costInfo.transaction?.id || null,
+    userGroupSnapshot: costInfo.costBreakdown?.group || null
+  });
+
+  return costInfo;
+}
+
+async function refundOnFailure(record, costInfo, { userId, auditContext }) {
+  if (!costInfo?.transaction || Number(costInfo.finalCost || 0) <= 0) return null;
+  return BillingService.refundGeneration({
+    userId,
+    generationId: record.id,
+    amount: costInfo.finalCost,
+    relatedTxId: costInfo.transaction.id,
+    auditContext
+  });
+}
+
+async function persistGeneratedFiles(items = [], { userId, generationId, type }) {
+  const files = [];
+  const normalized = [];
+
+  for (const item of items) {
+    if (!item?.url) continue;
+    try {
+      const file = await StorageService.persistRemoteFile({
+        url: item.url,
+        userId,
+        generationId,
+        type
+      });
+      files.push(file);
+      normalized.push({
+        ...item,
+        originalUrl: item.url,
+        url: file.fileUrl,
+        file_id: file.id
+      });
+    } catch (err) {
+      logger.warn(`生成结果转存失败，保留原始 URL：${err.message}`, {
+        generation_id: generationId,
+        url: item.url
+      });
+      normalized.push(item);
+    }
+  }
+
+  return { items: normalized, files };
+}
+
 // ============================
 // 公开业务方法
 // ============================
 
-export async function generateImage(payload, userId) {
+export async function generateImage(payload, userId, auditContext = {}) {
+  const startedAt = Date.now();
   const { model, channel } = await resolveModelAndChannel(payload.model, 'image');
   const params = mergeModelParams(model, payload);
   const providerType = normalizeProvider(channel.providerType);
-
-  const response = await callUpstream({
+  const record = await createGenerationRecord({
+    userId,
+    model,
     channel,
-    endpointKey: 'image',
-    data: adaptImagePayload(providerType, params),
-    headers: providerType === 'aliyun' && params.async ? { 'X-DashScope-Async': 'enable' } : {}
+    type: 'image',
+    payload: params,
+    auditContext
   });
+  let costInfo = null;
 
-  const adapted = adaptImageResponse(providerType, response.data);
-  const images = adapted.images?.length
-    ? adapted.images
-    : adapted.asyncTaskId
-      ? await waitForImageTask(channel, adapted.asyncTaskId)
-      : [];
+  try {
+    costInfo = await charge(record, { userId, model, payload: params, type: 'image', auditContext });
 
-  if (!images.length) {
-    throw new GenerationError(50201, '上游未返回图片结果');
+    const response = await callUpstream({
+      channel,
+      endpointKey: 'image',
+      data: adaptImagePayload(providerType, params),
+      headers: providerType === 'aliyun' && params.async ? { 'X-DashScope-Async': 'enable' } : {}
+    });
+
+    const adapted = adaptImageResponse(providerType, response.data);
+    const images = adapted.images?.length
+      ? adapted.images
+      : adapted.asyncTaskId
+        ? await waitForImageTask(channel, adapted.asyncTaskId)
+        : [];
+
+    if (!images.length) {
+      throw new GenerationError(50201, '上游未返回图片结果');
+    }
+
+    const persisted = await persistGeneratedFiles(images, {
+      userId,
+      generationId: record.id,
+      type: 'generated_image'
+    });
+
+    return markRecordCompleted(record, {
+      id: record.id,
+      status: 'completed',
+      model: model.modelKey,
+      user_id: userId,
+      channel_used: channel.name,
+      images: persisted.items
+    }, {
+      costInfo,
+      durationMs: Date.now() - startedAt,
+      files: persisted.files
+    });
+  } catch (err) {
+    const refundTx = await refundOnFailure(record, costInfo, { userId, auditContext });
+    await markRecordFailed(record, err, {
+      costInfo,
+      refundTx,
+      durationMs: Date.now() - startedAt
+    });
+    throw err;
   }
-
-  return {
-    id: uuidv4(),
-    status: 'completed',
-    model: model.modelKey,
-    user_id: userId,
-    channel_used: channel.name,
-    images
-  };
 }
 
-export async function createVideoTask(payload, userId) {
+export async function createVideoTask(payload, userId, auditContext = {}) {
+  const startedAt = Date.now();
   const { model, channel } = await resolveModelAndChannel(payload.model, 'video');
   const params = mergeModelParams(model, payload);
   const providerType = normalizeProvider(channel.providerType);
-
-  const response = await callUpstream({
+  const record = await createGenerationRecord({
+    userId,
+    model,
     channel,
-    endpointKey: 'video',
-    data: adaptVideoPayload(providerType, params),
-    headers: providerType === 'aliyun' ? { 'X-DashScope-Async': 'enable' } : {}
+    type: 'video',
+    payload: params,
+    auditContext
   });
+  let costInfo = null;
 
-  const result = adaptVideoCreateResponse(providerType, response.data);
-  if (result.taskId) {
-    await storeVideoTask(result.taskId, {
-      userId,
-      modelId: model.id,
-      modelKey: model.modelKey,
-      channelId: channel.id,
-      providerType
+  try {
+    costInfo = await charge(record, { userId, model, payload: params, type: 'video', auditContext });
+    const response = await callUpstream({
+      channel,
+      endpointKey: 'video',
+      data: adaptVideoPayload(providerType, params),
+      headers: providerType === 'aliyun' ? { 'X-DashScope-Async': 'enable' } : {}
     });
-  }
 
-  return {
-    id: uuidv4(),
-    model: model.modelKey,
-    user_id: userId,
-    channel_used: channel.name,
-    ...result
-  };
+    const result = adaptVideoCreateResponse(providerType, response.data);
+    if (result.taskId) {
+      await storeVideoTask(result.taskId, {
+        userId,
+        generationId: record.id,
+        modelId: model.id,
+        modelKey: model.modelKey,
+        channelId: channel.id,
+        providerType,
+        costInfo: {
+          finalCost: costInfo.finalCost,
+          transactionId: costInfo.transaction?.id || null,
+          costBreakdown: costInfo.costBreakdown
+        }
+      });
+
+      await record.update({
+        result,
+        costAmount: costInfo.finalCost,
+        costBreakdown: costInfo.costBreakdown,
+        coinTxId: costInfo.transaction?.id || null,
+        userGroupSnapshot: costInfo.costBreakdown?.group || null,
+        durationMs: Date.now() - startedAt
+      });
+
+      return {
+        id: record.id,
+        record_id: record.id,
+        model: model.modelKey,
+        user_id: userId,
+        channel_used: channel.name,
+        cost: {
+          amount: Number(costInfo.finalCost || 0),
+          coin_tx_id: costInfo.transaction?.id || null,
+          breakdown: costInfo.costBreakdown
+        },
+        ...result
+      };
+    }
+
+    let completedResult = {
+      id: record.id,
+      model: model.modelKey,
+      user_id: userId,
+      channel_used: channel.name,
+      ...result
+    };
+    let files = [];
+    if (result.url) {
+      const persisted = await persistGeneratedFiles([{ url: result.url }], {
+        userId,
+        generationId: record.id,
+        type: 'generated_video'
+      });
+      files = persisted.files;
+      completedResult = {
+        ...completedResult,
+        url: persisted.items[0]?.url || result.url,
+        originalUrl: persisted.items[0]?.originalUrl || undefined,
+        file_id: persisted.items[0]?.file_id || undefined
+      };
+    }
+
+    return markRecordCompleted(record, completedResult, {
+      costInfo,
+      durationMs: Date.now() - startedAt,
+      files
+    });
+  } catch (err) {
+    const refundTx = await refundOnFailure(record, costInfo, { userId, auditContext });
+    await markRecordFailed(record, err, {
+      costInfo,
+      refundTx,
+      durationMs: Date.now() - startedAt
+    });
+    throw err;
+  }
 }
 
 export async function queryVideoTask(taskId, userId) {
@@ -660,54 +896,171 @@ export async function queryVideoTask(taskId, userId) {
 
   const result = adaptVideoStatusResponse(metadata.providerType || channel.providerType, response.data);
   if (result.status === 'failed') {
+    const record = metadata.generationId ? await GenerationRecord.findByPk(metadata.generationId) : null;
+    if (record && record.status !== 'failed') {
+      const refundTx = metadata.costInfo?.transactionId
+        ? await BillingService.refundGeneration({
+            userId,
+            generationId: record.id,
+            amount: metadata.costInfo.finalCost || 0,
+            relatedTxId: metadata.costInfo.transactionId
+          })
+        : null;
+      await markRecordFailed(record, new Error(result.error || '视频生成失败'), {
+        costInfo: {
+          finalCost: metadata.costInfo?.finalCost || 0,
+          costBreakdown: metadata.costInfo?.costBreakdown || null,
+          transaction: metadata.costInfo?.transactionId ? { id: metadata.costInfo.transactionId } : null
+        },
+        refundTx
+      });
+    }
     throw new GenerationError(50201, result.error || '视频生成失败');
+  }
+
+  let finalResult = result;
+  let files = [];
+  if (result.status === 'completed' && metadata.generationId) {
+    const record = await GenerationRecord.findByPk(metadata.generationId);
+    if (record && record.status !== 'completed') {
+      if (result.url) {
+        const persisted = await persistGeneratedFiles([{ url: result.url }], {
+          userId,
+          generationId: record.id,
+          type: 'generated_video'
+        });
+        files = persisted.files;
+        finalResult = {
+          ...result,
+          url: persisted.items[0]?.url || result.url,
+          originalUrl: persisted.items[0]?.originalUrl || undefined,
+          file_id: persisted.items[0]?.file_id || undefined
+        };
+      }
+      await markRecordCompleted(record, finalResult, {
+        costInfo: {
+          finalCost: metadata.costInfo?.finalCost || 0,
+          costBreakdown: metadata.costInfo?.costBreakdown || null,
+          transaction: metadata.costInfo?.transactionId ? { id: metadata.costInfo.transactionId } : null
+        },
+        files
+      });
+    }
   }
 
   return {
     taskId,
+    record_id: metadata.generationId || null,
     model: metadata.modelKey,
     channel_used: channel.name,
-    ...result
+    ...finalResult
   };
 }
 
-export async function chatCompletions(payload, userId) {
+export async function chatCompletions(payload, userId, auditContext = {}) {
+  const startedAt = Date.now();
   const { model, channel } = await resolveModelAndChannel(payload.model, 'chat');
   const params = mergeModelParams(model, payload);
   const providerType = normalizeProvider(channel.providerType);
-
-  const response = await callUpstream({
+  const record = await createGenerationRecord({
+    userId,
+    model,
     channel,
-    endpointKey: 'chat',
-    data: adaptChatPayload(providerType, { ...params, stream: false })
+    type: 'chat',
+    payload: params,
+    auditContext
   });
+  let costInfo = null;
 
-  return {
-    id: uuidv4(),
-    model: model.modelKey,
-    user_id: userId,
-    channel_used: channel.name,
-    response: response.data
-  };
+  try {
+    costInfo = await charge(record, { userId, model, payload: params, type: 'chat', auditContext });
+    const response = await callUpstream({
+      channel,
+      endpointKey: 'chat',
+      data: adaptChatPayload(providerType, { ...params, stream: false })
+    });
+
+    return markRecordCompleted(record, {
+      id: record.id,
+      status: 'completed',
+      model: model.modelKey,
+      user_id: userId,
+      channel_used: channel.name,
+      response: response.data
+    }, {
+      costInfo,
+      durationMs: Date.now() - startedAt
+    });
+  } catch (err) {
+    const refundTx = await refundOnFailure(record, costInfo, { userId, auditContext });
+    await markRecordFailed(record, err, {
+      costInfo,
+      refundTx,
+      durationMs: Date.now() - startedAt
+    });
+    throw err;
+  }
 }
 
-export async function streamChatCompletions(payload) {
+export async function streamChatCompletions(payload, userId = null, auditContext = {}) {
   const { model, channel } = await resolveModelAndChannel(payload.model, 'chat');
   const params = mergeModelParams(model, payload);
   const providerType = normalizeProvider(channel.providerType);
+  const record = userId
+    ? await createGenerationRecord({
+        userId,
+        model,
+        channel,
+        type: 'chat',
+        payload: params,
+        auditContext
+      })
+    : null;
+  const costInfo = record
+    ? await charge(record, { userId, model, payload: params, type: 'chat', auditContext })
+    : null;
 
-  const response = await callUpstream({
-    channel,
-    endpointKey: 'chat',
-    data: adaptChatPayload(providerType, { ...params, stream: true }),
-    stream: true
-  });
+  try {
+    const response = await callUpstream({
+      channel,
+      endpointKey: 'chat',
+      data: adaptChatPayload(providerType, { ...params, stream: true }),
+      stream: true
+    });
 
-  return {
-    model: model.modelKey,
-    channel,
-    stream: response.data
-  };
+    if (record) {
+      response.data.on('end', () => {
+        markRecordCompleted(record, {
+          id: record.id,
+          status: 'completed',
+          model: model.modelKey,
+          user_id: userId,
+          channel_used: channel.name,
+          response: { stream: true }
+        }, { costInfo }).catch((err) => {
+          logger.warn(`流式对话记录完成状态更新失败：${err.message}`, { generation_id: record.id });
+        });
+      });
+      response.data.on('error', async (err) => {
+        const refundTx = await refundOnFailure(record, costInfo, { userId, auditContext });
+        await markRecordFailed(record, err, { costInfo, refundTx });
+      });
+    }
+
+    return {
+      model: model.modelKey,
+      channel,
+      record,
+      costInfo,
+      stream: response.data
+    };
+  } catch (err) {
+    if (record) {
+      const refundTx = await refundOnFailure(record, costInfo, { userId, auditContext });
+      await markRecordFailed(record, err, { costInfo, refundTx });
+    }
+    throw err;
+  }
 }
 
 export default {

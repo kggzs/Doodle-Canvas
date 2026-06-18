@@ -26,17 +26,23 @@ const UserBalance = sequelize.define(
       allowNull: false,
       defaultValue: 0
     },
-    totalRecharge: {
+    coinsFrozen: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
       defaultValue: 0,
-      field: 'total_recharge'
+      field: 'coins_frozen'
     },
-    totalGift: {
+    totalRecharged: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
       defaultValue: 0,
-      field: 'total_gift'
+      field: 'total_recharged'
+    },
+    totalGifted: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: 'total_gifted'
     },
     totalConsumed: {
       type: DataTypes.DECIMAL(12, 2),
@@ -49,6 +55,30 @@ const UserBalance = sequelize.define(
       allowNull: false,
       defaultValue: 0,
       field: 'total_refunded'
+    },
+    totalExpired: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: 'total_expired'
+    },
+    lastTransactionAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+      field: 'last_transaction_at'
+    },
+    lowBalanceAlert: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      field: 'low_balance_alert'
+    },
+    lowBalanceThreshold: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 1,
+      field: 'low_balance_threshold'
     },
     version: {
       type: DataTypes.INTEGER,

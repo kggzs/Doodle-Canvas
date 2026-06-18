@@ -20,12 +20,32 @@ import * as AuthService from './auth.js';
 import * as EmailService from './email.js';
 import * as ModelManagementService from './model-management.js';
 import * as AdminUserService from './admin-users.js';
+import * as CoinService from './coins.js';
+import * as BillingService from './billing.js';
+import * as StorageService from './storage.js';
+import * as ProjectService from './project.js';
+import * as RecordService from './records.js';
 
-export { AuthService, EmailService, ModelManagementService, AdminUserService };
+export {
+  AuthService,
+  EmailService,
+  ModelManagementService,
+  AdminUserService,
+  CoinService,
+  BillingService,
+  StorageService,
+  ProjectService,
+  RecordService
+};
 
 export default {
   AuthService,
   EmailService,
   ModelManagementService,
-  AdminUserService
+  AdminUserService,
+  CoinService,
+  BillingService,
+  StorageService,
+  ProjectService,
+  RecordService
 };
