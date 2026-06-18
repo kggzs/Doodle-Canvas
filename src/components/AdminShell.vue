@@ -44,6 +44,8 @@ const router = useRouter()
 
 const navItems = [
   { label: '用户管理', path: '/admin/users' },
+  { label: '用户组', path: '/admin/user-groups' },
+  { label: '金币流水', path: '/admin/coins' },
   { label: '渠道地址池', path: '/admin/channels' },
   { label: '模型配置', path: '/admin/models' }
 ]

@@ -11,7 +11,25 @@ export const adminUserApi = {
   ban: (id, data) => backend.post(`/admin/users/${id}/ban`, data),
   unban: (id) => backend.post(`/admin/users/${id}/unban`),
   loginLogs: (id, params) => backend.get(`/admin/users/${id}/login-logs`, { params }),
+  groups: (id) => backend.get(`/admin/users/${id}/groups`),
+  addGroup: (id, data) => backend.post(`/admin/users/${id}/groups`, data),
+  removeGroup: (id, groupId) => backend.delete(`/admin/users/${id}/groups/${groupId}`),
+  recharge: (id, data) => backend.post(`/admin/users/${id}/recharge`, data),
+  gift: (id, data) => backend.post(`/admin/users/${id}/gift`, data),
+  adjustCoins: (id, data) => backend.post(`/admin/users/${id}/adjust-coins`, data),
   remove: (id) => backend.delete(`/admin/users/${id}`)
+}
+
+export const adminUserGroupApi = {
+  list: (params) => backend.get('/admin/user-groups', { params }),
+  options: () => backend.get('/admin/user-groups/options'),
+  create: (data) => backend.post('/admin/user-groups', data),
+  update: (id, data) => backend.put(`/admin/user-groups/${id}`, data),
+  remove: (id) => backend.delete(`/admin/user-groups/${id}`)
+}
+
+export const adminCoinApi = {
+  transactions: (params) => backend.get('/admin/coins/transactions', { params })
 }
 
 export const adminChannelApi = {
@@ -39,6 +57,8 @@ export const adminModelApi = {
 
 export default {
   adminUserApi,
+  adminUserGroupApi,
+  adminCoinApi,
   adminChannelApi,
   adminModelApi
 }

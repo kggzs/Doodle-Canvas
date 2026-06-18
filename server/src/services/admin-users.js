@@ -10,6 +10,11 @@ import { Op } from 'sequelize';
 
 import User from '../models/User.js';
 import LoginLog from '../models/LoginLog.js';
+import db from '../models/index.js';
+import * as CoinService from './coins.js';
+import * as UserGroupService from './user-groups.js';
+
+const { UserBalance, UserGroup, UserGroupMember } = db;
 
 const USER_STATUSES = ['active', 'disabled', 'banned', 'pending_email'];
 const USER_ROLES = ['user', 'admin'];
@@ -113,14 +118,35 @@ export async function listUsers(params = {}) {
 
 export async function getUserDetail(id) {
   const user = await requireUser(id, { paranoid: false });
-  const recentLoginLogs = await LoginLog.findAll({
-    where: { userId: id },
-    order: [['createdAt', 'DESC']],
-    limit: 10
-  });
+  const [recentLoginLogs, balance, groups] = await Promise.all([
+    LoginLog.findAll({
+      where: { userId: id },
+      order: [['createdAt', 'DESC']],
+      limit: 10
+    }),
+    UserBalance.findOne({ where: { userId: id } }),
+    UserGroupMember.findAll({
+      where: { userId: id },
+      include: [{ model: UserGroup, as: 'group' }],
+      order: [
+        [{ model: UserGroup, as: 'group' }, 'priority', 'DESC'],
+        ['joinedAt', 'DESC']
+      ]
+    })
+  ]);
 
   return {
     user: sanitizeUser(user),
+    balance: balance || {
+      userId: id,
+      balance: '0.00',
+      totalRecharge: '0.00',
+      totalGift: '0.00',
+      totalConsumed: '0.00',
+      totalRefunded: '0.00',
+      version: 0
+    },
+    groups,
     recentLoginLogs
   };
 }
@@ -240,6 +266,57 @@ export async function softDeleteUser(id, operatorId) {
   return { deleted: true };
 }
 
+export async function getUserGroups(id) {
+  return UserGroupService.listUserGroups(id);
+}
+
+export async function assignUserGroup(id, groupId, data = {}, operatorId = null) {
+  return UserGroupService.assignGroup(id, groupId, data, operatorId);
+}
+
+export async function removeUserGroup(id, groupId) {
+  return UserGroupService.removeGroup(id, groupId);
+}
+
+export async function rechargeUser(id, data = {}, operatorId = null, requestId = null) {
+  const result = await CoinService.transact({
+    userId: id,
+    type: 'recharge',
+    direction: 'in',
+    amount: data.amount,
+    operatorId,
+    reason: data.reason || '管理员充值',
+    metadata: {
+      paymentChannel: data.paymentChannel || null,
+      externalOrderNo: data.externalOrderNo || null
+    },
+    requestId
+  });
+  const balance = await UserBalance.findByPk(result.balance.id);
+  return { balance, transaction: result.transaction };
+}
+
+export async function giftUser(id, data = {}, operatorId = null, requestId = null) {
+  const result = await CoinService.transact({
+    userId: id,
+    type: 'gift',
+    direction: 'in',
+    amount: data.amount,
+    operatorId,
+    reason: data.reason || '管理员赠送',
+    metadata: { scene: data.scene || null },
+    requestId
+  });
+  const balance = await UserBalance.findByPk(result.balance.id);
+  return { balance, transaction: result.transaction };
+}
+
+export async function adjustUserCoins(id, data = {}, operatorId = null, requestId = null) {
+  const result = await CoinService.adjustUserCoins(id, data, operatorId, requestId);
+  const balance = await UserBalance.findByPk(result.balance.id);
+  return { balance, transaction: result.transaction };
+}
+
 export default {
   AdminUserError,
   listUsers,
@@ -249,5 +326,11 @@ export default {
   banUser,
   unbanUser,
   getUserLoginLogs,
-  softDeleteUser
+  softDeleteUser,
+  getUserGroups,
+  assignUserGroup,
+  removeUserGroup,
+  rechargeUser,
+  giftUser,
+  adjustUserCoins
 };

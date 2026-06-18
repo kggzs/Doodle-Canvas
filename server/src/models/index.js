@@ -14,6 +14,10 @@ import LoginLog from './LoginLog.js';
 import ModelChannel from './ModelChannel.js';
 import ModelConfig from './ModelConfig.js';
 import ModelChannelBinding from './ModelChannelBinding.js';
+import UserGroup from './UserGroup.js';
+import UserGroupMember from './UserGroupMember.js';
+import UserBalance from './UserBalance.js';
+import CoinTransaction from './CoinTransaction.js';
 
 // ============================
 // 建立模型关联关系
@@ -48,6 +52,60 @@ User.hasMany(LoginLog, {
   as: 'loginLogs'
 });
 LoginLog.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+// User 1:1 UserBalance
+User.hasOne(UserBalance, {
+  foreignKey: 'user_id',
+  as: 'balance',
+  onDelete: 'CASCADE'
+});
+UserBalance.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+// User N:M UserGroup
+User.hasMany(UserGroupMember, {
+  foreignKey: 'user_id',
+  as: 'groupMemberships',
+  onDelete: 'CASCADE'
+});
+UserGroupMember.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+UserGroup.hasMany(UserGroupMember, {
+  foreignKey: 'group_id',
+  as: 'members',
+  onDelete: 'CASCADE'
+});
+UserGroupMember.belongsTo(UserGroup, {
+  foreignKey: 'group_id',
+  as: 'group'
+});
+User.belongsToMany(UserGroup, {
+  through: UserGroupMember,
+  foreignKey: 'user_id',
+  otherKey: 'group_id',
+  as: 'groups'
+});
+UserGroup.belongsToMany(User, {
+  through: UserGroupMember,
+  foreignKey: 'group_id',
+  otherKey: 'user_id',
+  as: 'users'
+});
+
+// User 1:N CoinTransaction
+User.hasMany(CoinTransaction, {
+  foreignKey: 'user_id',
+  as: 'coinTransactions',
+  onDelete: 'CASCADE'
+});
+CoinTransaction.belongsTo(User, {
   foreignKey: 'user_id',
   as: 'user'
 });
@@ -101,6 +159,10 @@ export const db = {
   RefreshToken,
   EmailVerification,
   LoginLog,
+  UserGroup,
+  UserGroupMember,
+  UserBalance,
+  CoinTransaction,
   ModelChannel,
   ModelConfig,
   ModelChannelBinding

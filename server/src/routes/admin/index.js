@@ -23,6 +23,8 @@ import { success } from '../../utils/response.js';
 import channelRoutes from './channels.js';
 import modelRoutes from './models.js';
 import userRoutes from './users.js';
+import userGroupRoutes from './user-groups.js';
+import coinRoutes from './coins.js';
 
 const router = Router();
 
@@ -37,6 +39,12 @@ router.use('/models', modelRoutes);
 
 // 用户管理：/api/admin/users/*
 router.use('/users', userRoutes);
+
+// 用户组管理：/api/admin/user-groups/*
+router.use('/user-groups', userGroupRoutes);
+
+// 金币管理：/api/admin/coins/*
+router.use('/coins', coinRoutes);
 
 /**
  * 管理后台健康检查占位接口

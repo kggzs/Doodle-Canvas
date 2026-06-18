@@ -9,6 +9,8 @@ import { body, param, query, validationResult } from 'express-validator';
 import { success, error, paginate } from '../../utils/response.js';
 import * as AdminUserService from '../../services/admin-users.js';
 import { AdminUserError } from '../../services/admin-users.js';
+import { CoinError } from '../../services/coins.js';
+import { UserGroupError } from '../../services/user-groups.js';
 import { logger } from '../../utils/logger.js';
 
 const router = Router();
@@ -34,7 +36,7 @@ function mapCodeToHttpStatus(code) {
 }
 
 function handleServiceError(res, err) {
-  if (err instanceof AdminUserError) {
+  if (err instanceof AdminUserError || err instanceof CoinError || err instanceof UserGroupError) {
     return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), Object.keys(err.extra).length ? err.extra : null);
   }
   logger.error(`用户管理服务异常：${err.message}`, { stack: err.stack });
@@ -217,6 +219,147 @@ router.get(
         status: req.query.status
       });
       return paginate(res, result);
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.get(
+  '/:id/groups',
+  [param('id').isUUID().withMessage('用户 ID 格式不正确')],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.getUserGroups(req.params.id);
+      return success(res, result, '获取用户分组成功');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.post(
+  '/:id/groups',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    body('group_id').isUUID().withMessage('group_id 格式不正确'),
+    body('expires_at').optional({ nullable: true }).isISO8601().withMessage('expires_at 必须为 ISO 时间'),
+    body('grant_reason').optional({ nullable: true }).isLength({ max: 255 }).withMessage('grant_reason 不超过 255 字')
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.assignUserGroup(
+        req.params.id,
+        req.body.group_id,
+        {
+          expiresAt: req.body.expires_at,
+          grantReason: req.body.grant_reason
+        },
+        req.user?.id
+      );
+      return success(res, result, '用户组已分配');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.delete(
+  '/:id/groups/:groupId',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    param('groupId').isUUID().withMessage('用户组 ID 格式不正确')
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.removeUserGroup(req.params.id, req.params.groupId);
+      return success(res, result, '用户组已移除');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.post(
+  '/:id/recharge',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    body('amount').isDecimal({ decimal_digits: '0,2' }).withMessage('amount 格式不正确'),
+    body('reason').optional({ nullable: true }).isLength({ max: 255 }).withMessage('reason 不超过 255 字'),
+    body('payment_channel').optional({ nullable: true }).isLength({ max: 40 }).withMessage('payment_channel 不超过 40 字'),
+    body('external_order_no').optional({ nullable: true }).isLength({ max: 80 }).withMessage('external_order_no 不超过 80 字')
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.rechargeUser(req.params.id, {
+        amount: req.body.amount,
+        reason: req.body.reason,
+        paymentChannel: req.body.payment_channel,
+        externalOrderNo: req.body.external_order_no
+      }, req.user?.id, res.locals?.requestId);
+      return success(res, result, '用户充值成功');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.post(
+  '/:id/gift',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    body('amount').isDecimal({ decimal_digits: '0,2' }).withMessage('amount 格式不正确'),
+    body('reason').optional({ nullable: true }).isLength({ max: 255 }).withMessage('reason 不超过 255 字'),
+    body('scene').optional({ nullable: true }).isLength({ max: 40 }).withMessage('scene 不超过 40 字')
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.giftUser(req.params.id, {
+        amount: req.body.amount,
+        reason: req.body.reason,
+        scene: req.body.scene
+      }, req.user?.id, res.locals?.requestId);
+      return success(res, result, '金币已赠送');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.post(
+  '/:id/adjust-coins',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    body('amount').isDecimal({ decimal_digits: '0,2' }).withMessage('amount 格式不正确'),
+    body('mode').isIn(['increase', 'decrease']).withMessage('mode 不支持'),
+    body('reason').optional({ nullable: true }).isLength({ max: 255 }).withMessage('reason 不超过 255 字')
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.adjustUserCoins(req.params.id, {
+        amount: req.body.amount,
+        mode: req.body.mode,
+        reason: req.body.reason
+      }, req.user?.id, res.locals?.requestId);
+      return success(res, result, '金币已调整');
     } catch (err) {
       return handleServiceError(res, err);
     }

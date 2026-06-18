@@ -39,6 +39,18 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
+    path: '/admin/user-groups',
+    name: 'AdminUserGroups',
+    component: () => import('../views/AdminUserGroups.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/coins',
+    name: 'AdminCoins',
+    component: () => import('../views/AdminCoins.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/admin/channels',
     name: 'AdminChannels',
     component: () => import('../views/AdminChannels.vue'),

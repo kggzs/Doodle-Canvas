@@ -109,6 +109,8 @@ npm run start
 - 前端页面：http://localhost:3000/huobao-canvas
 - 登录页面：http://localhost:3000/huobao-canvas/login
 - 管理后台：http://localhost:3000/huobao-canvas/admin/users
+- 用户组管理：http://localhost:3000/huobao-canvas/admin/user-groups
+- 金币流水：http://localhost:3000/huobao-canvas/admin/coins
 - 渠道地址池：http://localhost:3000/huobao-canvas/admin/channels
 - 模型配置：http://localhost:3000/huobao-canvas/admin/models
 - 后端健康检查：http://localhost:3000/api/health
