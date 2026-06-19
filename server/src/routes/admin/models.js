@@ -34,7 +34,8 @@ function mapCodeToHttpStatus(code) {
 
 function handleServiceError(res, err) {
   if (err instanceof ModelManagementError) {
-    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), Object.keys(err.extra).length ? err.extra : null);
+    const details = err.extra && Object.keys(err.extra).length ? err.extra : null;
+    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), details);
   }
   logger.error(`模型管理服务异常：${err.message}`, { stack: err.stack });
   return error(res, 50001, '服务器内部错误', 500);
@@ -49,7 +50,10 @@ function modelPayload(body) {
     defaultParams: body.default_params ?? body.defaultParams,
     maxParams: body.max_params ?? body.maxParams,
     sortOrder: body.sort_order ?? body.sortOrder,
-    description: body.description
+    description: body.description,
+    channelId: body.channel_id ?? body.channelId,
+    rotationWeight: body.rotation_weight ?? body.rotationWeight,
+    rotationStrategy: body.rotation_strategy ?? body.rotationStrategy
   };
 }
 
@@ -101,7 +105,10 @@ router.post(
     body('default_params').optional({ nullable: true }).isObject().withMessage('default_params 必须为对象'),
     body('max_params').optional({ nullable: true }).isObject().withMessage('max_params 必须为对象'),
     body('sort_order').optional().isInt({ min: 0 }).withMessage('sort_order 需为非负整数').toInt(),
-    body('description').optional({ nullable: true }).isString().withMessage('description 必须为字符串')
+    body('description').optional({ nullable: true }).isString().withMessage('description 必须为字符串'),
+    body('channel_id').optional({ nullable: true }).isUUID().withMessage('channel_id 格式不正确'),
+    body('rotation_weight').optional().isInt({ min: 1, max: 10 }).withMessage('rotation_weight 需为 1-10').toInt(),
+    body('rotation_strategy').optional().isIn(rotationStrategies).withMessage('rotation_strategy 不支持')
   ],
   async (req, res) => {
     const validErr = validateRequest(req, res);

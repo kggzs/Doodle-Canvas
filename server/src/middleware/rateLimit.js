@@ -1,7 +1,7 @@
 // -*- coding: utf-8 -*-
 /**
  * 速率限制中间件（基于 Redis 滑动窗口）
- * - rateLimit.global：全局限流（默认 100 次/min，可配 RATE_LIMIT_GLOBAL）
+ * - rateLimit.global：API 全局限流（默认 600 次/min，可配 RATE_LIMIT_GLOBAL）
  * - rateLimit.create({ windowMs, max, keyGenerator })：创建自定义限流器
  *
  * 实现：使用 Redis Sorted Set（ZSET）记录窗口内每次请求的时间戳，
@@ -18,6 +18,39 @@ import { redis } from '../config/redis.js';
 import { error } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
 import { getClientIp } from '../utils/ip-ua.js';
+
+const localBuckets = new Map();
+
+function cleanupLocalBuckets(now) {
+  if (localBuckets.size < 1000) return;
+  for (const [key, bucket] of localBuckets.entries()) {
+    if (bucket.expiresAt <= now) localBuckets.delete(key);
+  }
+}
+
+function applyLocalRateLimit(req, res, next, config, identifier) {
+  const { key, max, windowMs } = config;
+  const redisKey = `${key}:${identifier}`;
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  const bucket = localBuckets.get(redisKey) || { timestamps: [], expiresAt: now + windowMs };
+  bucket.timestamps = bucket.timestamps.filter((item) => item > windowStart);
+  bucket.timestamps.push(now);
+  bucket.expiresAt = now + windowMs;
+  localBuckets.set(redisKey, bucket);
+  cleanupLocalBuckets(now);
+
+  const remaining = Math.max(0, max - bucket.timestamps.length);
+  res.setHeader('X-RateLimit-Remaining', remaining);
+  res.setHeader('X-RateLimit-Reset', Math.ceil((now + windowMs) / 1000));
+
+  if (bucket.timestamps.length > max) {
+    res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
+    return error(res, 42901, '请求过于频繁，请稍后再试', 429);
+  }
+
+  return next();
+}
 
 /**
  * 执行滑动窗口速率限制检查
@@ -69,9 +102,8 @@ async function applyRateLimit(req, res, next, config) {
     }
     next();
   } catch (err) {
-    // Redis 不可用时降级放行，保证服务可用
-    logger.warn(`速率限制检查失败（Redis 不可用，降级放行）：${err.message}`);
-    next();
+    logger.warn(`速率限制检查失败（Redis 不可用，使用本地限流兜底）：${err.message}`);
+    return applyLocalRateLimit(req, res, next, config, identifier);
   }
 }
 
@@ -101,8 +133,8 @@ export function create(options = {}) {
  * 基于 IP 维度，每分钟请求数上限由 RATE_LIMIT_GLOBAL 环境变量控制（默认 100）
  */
 const globalLimiter = create({
-  key: 'rate_limit:global',
-  max: parseInt(process.env.RATE_LIMIT_GLOBAL || '100', 10),
+  key: 'rate_limit:global:v2',
+  max: parseInt(process.env.RATE_LIMIT_GLOBAL || '600', 10),
   windowMs: 60 * 1000
 });
 

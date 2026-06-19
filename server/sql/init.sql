@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS `model_channels` (
     `id`              CHAR(36)     NOT NULL,
     `name`            VARCHAR(100) NOT NULL COMMENT '渠道名称（如 OpenAI-主、阿里云万相-备用）',
     `provider_type`   ENUM('openai','aliyun','doubao','custom') NOT NULL COMMENT '适配器类型',
+    `model_type`      ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型',
     `api_base_url`    VARCHAR(500) NOT NULL COMMENT 'API 基础地址',
     `api_key`         TEXT         NOT NULL COMMENT 'API Key（AES 加密 JSON）',
     `is_active`       TINYINT(1)   DEFAULT 1 COMMENT '是否启用',
@@ -183,6 +184,7 @@ CREATE TABLE IF NOT EXISTS `model_channels` (
 
     PRIMARY KEY (`id`),
     KEY `idx_provider` (`provider_type`),
+    KEY `idx_channel_type_active` (`model_type`, `is_active`, `priority`),
     KEY `idx_active` (`is_active`, `priority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模型渠道表';
 
@@ -516,7 +518,37 @@ ON DUPLICATE KEY UPDATE
     `description` = VALUES(`description`);
 
 -- ============================================
--- 17. migrate_imports 迁移导入映射表
+-- 17. error_logs 错误日志表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `error_logs` (
+    `id`             CHAR(36) NOT NULL,
+    `request_id`     VARCHAR(64) DEFAULT NULL,
+    `level`          ENUM('error','warn','info') NOT NULL DEFAULT 'error',
+    `scope`          VARCHAR(100) DEFAULT NULL,
+    `code`           INT DEFAULT NULL,
+    `http_status`    INT DEFAULT NULL,
+    `method`         VARCHAR(10) DEFAULT NULL,
+    `path`           VARCHAR(500) DEFAULT NULL,
+    `user_id`        CHAR(36) DEFAULT NULL,
+    `client_ip`      VARCHAR(45) DEFAULT NULL,
+    `user_agent`     TEXT DEFAULT NULL,
+    `message`        TEXT NOT NULL,
+    `public_message` VARCHAR(255) DEFAULT NULL,
+    `stack`          LONGTEXT DEFAULT NULL,
+    `details`        LONGTEXT DEFAULT NULL,
+    `is_resolved`    TINYINT(1) NOT NULL DEFAULT 0,
+    `resolved_at`    DATETIME DEFAULT NULL,
+    `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_error_logs_created` (`created_at`),
+    KEY `idx_error_logs_scope_level` (`scope`, `level`, `created_at`),
+    KEY `idx_error_logs_request` (`request_id`),
+    KEY `idx_error_logs_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='错误日志表';
+
+-- ============================================
+-- 18. migrate_imports 迁移导入映射表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `migrate_imports` (
     `id`          BIGINT       NOT NULL AUTO_INCREMENT,

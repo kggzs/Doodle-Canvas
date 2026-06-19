@@ -40,7 +40,7 @@
         <!-- Model selector | 模型选择 -->
         <div class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">模型</span>
-          <n-dropdown :options="modelOptions" @select="handleModelSelect">
+          <n-dropdown :options="modelOptions" trigger="click" @select="handleModelSelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
               {{ displayModelName }}
               <n-icon :size="12"><ChevronDownOutline /></n-icon>
@@ -51,7 +51,7 @@
         <!-- Resolution selector (for wan models) | 分辨率选择（万相模型） -->
         <div v-if="isWanVideoModel" class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">分辨率</span>
-          <n-dropdown :options="resolutionOptions" @select="handleResolutionSelect">
+          <n-dropdown :options="resolutionOptions" trigger="click" @select="handleResolutionSelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
               {{ localResolution }}
               <n-icon :size="12">
@@ -64,7 +64,7 @@
         <!-- Aspect ratio selector (for non-wan models) | 宽高比选择（非万相模型） -->
         <div v-else class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">比例</span>
-          <n-dropdown :options="ratioOptions" @select="handleRatioSelect">
+          <n-dropdown :options="ratioOptions" trigger="click" @select="handleRatioSelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
               {{ localRatio }}
               <n-icon :size="12">
@@ -77,7 +77,7 @@
         <!-- Duration selector | 时长选择 -->
         <div class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">时长</span>
-          <n-dropdown :options="durationOptions" @select="handleDurationSelect">
+          <n-dropdown :options="durationOptions" trigger="click" @select="handleDurationSelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
               {{ localDuration }}s
               <n-icon :size="12">
@@ -164,7 +164,7 @@ import { useVideoGeneration } from '../../hooks'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes, edges } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import { useModelStore } from '../../stores/pinia'
-import { getModelRatioOptions, getModelDurationOptions, getModelResolutionOptions, getModelConfig, DEFAULT_VIDEO_MODEL } from '../../stores/models'
+import { getModelRatioOptions, getModelDurationOptions, getModelResolutionOptions, getModelConfig } from '../../stores/models'
 
 // 使用 Pinia store 获取模型选项（根据渠道过滤）
 const modelStore = useModelStore()
@@ -192,7 +192,7 @@ const { loading, error, status, video: generatedVideo, progress, createVideoTask
 // Local state | 本地状态
 const showHandleMenu = ref(false)
 const isGenerating = ref(false)  // 任务创建中状态
-const localModel = ref(props.data?.model || DEFAULT_VIDEO_MODEL)
+const localModel = ref(props.data?.model || modelStore.selectedVideoModel || '')
 const localRatio = ref(props.data?.ratio || '16:9')
 const localDuration = ref(props.data?.dur || 5)
 const localResolution = ref(props.data?.resolution || '720P')
@@ -214,7 +214,7 @@ const connectedImages = computed(() => {
         nodeId: sourceNode.id,
         edgeId: edge.id,
         url: sourceNode.data.url,
-        base64: sourceNode.data.base64,
+        base64: '',
         role: edge.data?.imageRole || 'first_frame_image' // Default to first frame | 默认首帧
       })
     }
@@ -342,7 +342,7 @@ const getConnectedInputs = () => {
       const content = sourceNode.data?.outputContent || ''
       if (content) prompt = content
     } else if (sourceNode.type === 'image' && sourceNode.data?.url) {
-      const imageData = sourceNode.data.base64 || sourceNode.data.url
+      const imageData = sourceNode.data.url
       const role = edge.data?.imageRole || 'first_frame_image'
 
       if (role === 'first_frame_image') {
@@ -533,7 +533,7 @@ onMounted(() => {
 
   if (!localModel.value || !isModelAvailable) {
     // 使用 store 中的默认模型或第一个可用模型
-    localModel.value = modelStore.selectedVideoModel || availableModels[0]?.key || DEFAULT_VIDEO_MODEL
+    localModel.value = modelStore.selectedVideoModel || availableModels[0]?.key || ''
     updateNode(props.id, { model: localModel.value })
   }
 })

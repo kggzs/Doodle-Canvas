@@ -13,7 +13,7 @@ import { encrypt, decrypt } from '../utils/encryption.js';
 import { safeJsonParse } from '../utils/helpers.js';
 import { logger } from '../utils/logger.js';
 
-const { ModelChannel, ModelConfig, ModelChannelBinding } = db;
+const { GenerationRecord, ModelChannel, ModelConfig, ModelChannelBinding } = db;
 
 const PROVIDER_TYPES = ['openai', 'aliyun', 'doubao', 'custom'];
 const MODEL_TYPES = ['image', 'video', 'chat'];
@@ -54,7 +54,7 @@ export function decryptApiKey(encryptedApiKey) {
   if (!payload?.encrypted || !payload?.authTag) {
     throw new ModelManagementError(50001, '渠道 API Key 加密数据格式无效');
   }
-  return decrypt(payload.encrypted, payload.authTag);
+  return decrypt(payload.encrypted, payload.authTag, payload.iv || null);
 }
 
 function ensureProviderType(providerType) {
@@ -78,9 +78,18 @@ function ensureRotationStrategy(rotationStrategy) {
 function sanitizeChannel(channel) {
   if (!channel) return null;
   const plain = typeof channel.toJSON === 'function' ? channel.toJSON() : { ...channel };
+  const encryptedApiKey = plain.apiKey || plain.api_key || channel.apiKey;
   delete plain.apiKey;
   delete plain.api_key;
-  plain.apiKeyConfigured = true;
+  plain.apiKeyConfigured = Boolean(encryptedApiKey);
+  plain.apiKeyValid = false;
+  if (encryptedApiKey) {
+    try {
+      plain.apiKeyValid = Boolean(decryptApiKey(encryptedApiKey));
+    } catch {
+      plain.apiKeyValid = false;
+    }
+  }
   return plain;
 }
 
@@ -95,12 +104,15 @@ function sanitizeBinding(binding) {
 function publicModel(model) {
   const plain = typeof model.toJSON === 'function' ? model.toJSON() : { ...model };
   const channels = plain.channels || [];
-  const providers = [...new Set(channels.map((channel) => channel.providerType).filter(Boolean))];
+  const matchingChannels = channels.filter((channel) => channel.modelType === plain.modelType);
+  const providers = [...new Set(matchingChannels
+    .map((channel) => channel.providerType)
+    .filter(Boolean))];
   delete plain.channels;
   return {
     ...plain,
     providers,
-    availableChannels: channels.length
+    availableChannels: matchingChannels.length
   };
 }
 
@@ -132,6 +144,10 @@ export async function listChannels(params = {}) {
     ensureProviderType(params.providerType);
     where.providerType = params.providerType;
   }
+  if (params.modelType) {
+    ensureModelType(params.modelType);
+    where.modelType = params.modelType;
+  }
   const active = normalizeBoolean(params.isActive);
   if (active !== undefined) {
     where.isActive = active;
@@ -160,6 +176,7 @@ export async function listChannels(params = {}) {
 
 export async function createChannel(data) {
   ensureProviderType(data.providerType);
+  ensureModelType(data.modelType);
   if (!data.apiKey) {
     throw new ModelManagementError(42201, 'api_key 不能为空');
   }
@@ -167,6 +184,7 @@ export async function createChannel(data) {
   const channel = await ModelChannel.create({
     name: data.name,
     providerType: data.providerType,
+    modelType: data.modelType,
     apiBaseUrl: data.apiBaseUrl,
     apiKey: encryptApiKey(data.apiKey),
     isActive: normalizeBoolean(data.isActive) ?? true,
@@ -189,6 +207,10 @@ export async function updateChannel(id, data) {
     ensureProviderType(data.providerType);
     payload.providerType = data.providerType;
   }
+  if (data.modelType !== undefined) {
+    ensureModelType(data.modelType);
+    payload.modelType = data.modelType;
+  }
   if (data.apiBaseUrl !== undefined) payload.apiBaseUrl = data.apiBaseUrl;
   if (data.apiKey !== undefined && data.apiKey !== '') payload.apiKey = encryptApiKey(data.apiKey);
   if (data.isActive !== undefined) payload.isActive = normalizeBoolean(data.isActive);
@@ -198,14 +220,32 @@ export async function updateChannel(id, data) {
   if (data.timeoutMs !== undefined) payload.timeoutMs = data.timeoutMs;
   if (data.config !== undefined) payload.config = data.config;
 
+  if (payload.modelType && payload.modelType !== channel.modelType) {
+    const bindings = await ModelChannelBinding.findAll({
+      where: { channelId: id },
+      include: [{ model: ModelConfig, as: 'model' }]
+    });
+    if (bindings.some((binding) => binding.model?.modelType !== payload.modelType)) {
+      throw new ModelManagementError(42201, '渠道已绑定其他类型模型，不能直接切换用途');
+    }
+  }
+
   await channel.update(payload);
   return sanitizeChannel(channel);
 }
 
 export async function deleteChannel(id) {
   const channel = await requireChannel(id);
-  await channel.destroy();
-  return { deleted: true };
+  const generationCount = await GenerationRecord.count({ where: { channelId: id } });
+  await db.sequelize.transaction(async (transaction) => {
+    await ModelChannelBinding.destroy({ where: { channelId: id }, transaction });
+    if (generationCount > 0) {
+      await channel.update({ isActive: false }, { transaction });
+    } else {
+      await channel.destroy({ transaction });
+    }
+  });
+  return generationCount > 0 ? { deleted: false, disabled: true } : { deleted: true };
 }
 
 export async function getChannelStats(id) {
@@ -308,17 +348,40 @@ export async function listModelConfigs(params = {}) {
 
 export async function createModelConfig(data) {
   ensureModelType(data.modelType);
+  if (data.channelId) {
+    const channel = await requireChannel(data.channelId);
+    if (channel.modelType !== data.modelType) {
+      throw new ModelManagementError(42201, '模型只能绑定同类型渠道');
+    }
+  }
+  if (data.rotationStrategy !== undefined) {
+    ensureRotationStrategy(data.rotationStrategy);
+  }
 
   try {
-    return await ModelConfig.create({
-      modelKey: data.modelKey,
-      displayName: data.displayName,
-      modelType: data.modelType,
-      isActive: normalizeBoolean(data.isActive) ?? true,
-      defaultParams: data.defaultParams ?? null,
-      maxParams: data.maxParams ?? null,
-      sortOrder: data.sortOrder ?? 0,
-      description: data.description ?? null
+    return await db.sequelize.transaction(async (transaction) => {
+      const model = await ModelConfig.create({
+        modelKey: data.modelKey,
+        displayName: data.displayName,
+        modelType: data.modelType,
+        isActive: normalizeBoolean(data.isActive) ?? true,
+        defaultParams: data.defaultParams ?? null,
+        maxParams: data.maxParams ?? null,
+        sortOrder: data.sortOrder ?? 0,
+        description: data.description ?? null
+      }, { transaction });
+
+      if (data.channelId) {
+        await ModelChannelBinding.create({
+          modelId: model.id,
+          channelId: data.channelId,
+          rotationWeight: data.rotationWeight ?? 1,
+          rotationStrategy: data.rotationStrategy ?? 'round_robin',
+          isActive: true
+        }, { transaction });
+      }
+
+      return model;
     });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
@@ -345,6 +408,15 @@ export async function updateModelConfig(id, data) {
   if (data.description !== undefined) payload.description = data.description;
 
   try {
+    if (payload.modelType && payload.modelType !== model.modelType) {
+      const bindings = await ModelChannelBinding.findAll({
+        where: { modelId: id },
+        include: [{ model: ModelChannel, as: 'channel' }]
+      });
+      if (bindings.some((binding) => binding.channel?.modelType !== payload.modelType)) {
+        throw new ModelManagementError(42201, '模型已绑定其他类型渠道，不能直接切换类型');
+      }
+    }
     await model.update(payload);
     return model;
   } catch (err) {
@@ -357,8 +429,16 @@ export async function updateModelConfig(id, data) {
 
 export async function deleteModelConfig(id) {
   const model = await requireModel(id);
-  await model.destroy();
-  return { deleted: true };
+  const generationCount = await GenerationRecord.count({ where: { modelId: id } });
+  await db.sequelize.transaction(async (transaction) => {
+    await ModelChannelBinding.destroy({ where: { modelId: id }, transaction });
+    if (generationCount > 0) {
+      await model.update({ isActive: false }, { transaction });
+    } else {
+      await model.destroy({ transaction });
+    }
+  });
+  return generationCount > 0 ? { deleted: false, disabled: true } : { deleted: true };
 }
 
 export async function setModelStatus(id, isActive) {
@@ -410,8 +490,11 @@ export async function listModelBindings(modelId) {
 }
 
 export async function addModelBinding(modelId, data) {
-  await requireModel(modelId);
-  await requireChannel(data.channelId);
+  const model = await requireModel(modelId);
+  const channel = await requireChannel(data.channelId);
+  if (model.modelType !== channel.modelType) {
+    throw new ModelManagementError(42201, '模型只能绑定同类型渠道');
+  }
 
   if (data.rotationStrategy !== undefined) {
     ensureRotationStrategy(data.rotationStrategy);
@@ -485,8 +568,15 @@ export async function listPublicModels(type = null) {
       {
         model: ModelChannel,
         as: 'channels',
-        attributes: ['id', 'providerType'],
-        where: { isActive: true, circuitOpen: false },
+        attributes: ['id', 'providerType', 'modelType'],
+        where: {
+          isActive: true,
+          circuitOpen: false,
+          [Op.and]: Sequelize.where(
+            Sequelize.col('channels.model_type'),
+            Sequelize.col('ModelConfig.model_type')
+          )
+        },
         through: {
           attributes: ['id', 'rotationWeight', 'rotationStrategy'],
           where: { isActive: true }
@@ -526,8 +616,15 @@ export async function getPublicModel(idOrKey) {
       {
         model: ModelChannel,
         as: 'channels',
-        attributes: ['id', 'providerType'],
-        where: { isActive: true, circuitOpen: false },
+        attributes: ['id', 'providerType', 'modelType'],
+        where: {
+          isActive: true,
+          circuitOpen: false,
+          [Op.and]: Sequelize.where(
+            Sequelize.col('channels.model_type'),
+            Sequelize.col('ModelConfig.model_type')
+          )
+        },
         through: {
           attributes: ['id', 'rotationWeight', 'rotationStrategy'],
           where: { isActive: true }

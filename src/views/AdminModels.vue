@@ -1,8 +1,11 @@
 <template>
   <AdminShell>
+    <n-tabs v-model:value="activeType" class="mb-4" type="segment" animated>
+      <n-tab-pane v-for="item in typeOptions" :key="item.value" :name="item.value" :tab="item.label" />
+    </n-tabs>
+
     <section class="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:flex-row md:items-center">
       <n-input v-model:value="filters.keyword" class="md:max-w-xs" placeholder="搜索模型标识或名称" clearable @keydown.enter="loadModels" />
-      <n-select v-model:value="filters.type" class="md:max-w-[160px]" :options="typeOptionsWithAll" placeholder="模型类型" clearable />
       <n-select v-model:value="filters.is_active" class="md:max-w-[160px]" :options="activeOptionsWithAll" placeholder="状态" clearable />
       <div class="flex-1"></div>
       <n-button :loading="loading" @click="loadModels">刷新</n-button>
@@ -53,6 +56,9 @@
                 <n-form-item label="启用">
                   <n-switch v-model:value="form.is_active" />
                 </n-form-item>
+                <n-form-item v-if="!editingId" label="默认绑定渠道">
+                  <n-select v-model:value="form.channel_id" :options="channelOptions" placeholder="选择渠道" clearable filterable />
+                </n-form-item>
               </div>
               <n-form-item label="描述">
                 <n-input v-model:value="form.description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
@@ -100,7 +106,7 @@
 </template>
 
 <script setup>
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import {
   NButton,
   NDataTable,
@@ -120,13 +126,13 @@ import {
 } from 'naive-ui'
 import AdminShell from '@/components/AdminShell.vue'
 import { adminChannelApi, adminModelApi } from '@/api/backend'
+import { useModelStore } from '@/stores/pinia'
 
 const typeOptions = [
-  { label: '图片', value: 'image' },
-  { label: '视频', value: 'video' },
-  { label: '问答', value: 'chat' }
+  { label: '问答模型', value: 'chat' },
+  { label: '图片生成模型', value: 'image' },
+  { label: '视频生成模型', value: 'video' }
 ]
-const typeOptionsWithAll = [{ label: '全部类型', value: null }, ...typeOptions]
 const activeOptionsWithAll = [
   { label: '全部状态', value: null },
   { label: '启用', value: true },
@@ -141,7 +147,6 @@ const rotationOptions = [
 
 const models = ref([])
 const channels = ref([])
-const channelOptions = ref([])
 const bindings = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -153,10 +158,11 @@ const drawerVisible = ref(false)
 const editingId = ref('')
 const defaultParamsText = ref('')
 const maxParamsText = ref('')
+const modelStore = useModelStore()
+const activeType = ref('chat')
 
 const filters = reactive({
   keyword: '',
-  type: null,
   is_active: null
 })
 
@@ -166,7 +172,8 @@ const form = reactive({
   model_type: 'chat',
   is_active: true,
   sort_order: 0,
-  description: ''
+  description: '',
+  channel_id: null
 })
 
 const bindingForm = reactive({
@@ -175,6 +182,13 @@ const bindingForm = reactive({
   rotation_strategy: 'round_robin',
   is_active: true
 })
+
+const channelOptions = computed(() => channels.value
+  .filter(item => (item.modelType || item.model_type) === form.model_type)
+  .map(item => ({
+    label: `${item.name} (${typeLabel(item.modelType || item.model_type)} / ${item.providerType})`,
+    value: item.id
+  })))
 
 function typeLabel(value) {
   return typeOptions.find(item => item.value === value)?.label || value
@@ -292,7 +306,7 @@ async function loadModels() {
       page: page.value,
       pageSize: pageSize.value,
       keyword: filters.keyword || undefined,
-      type: filters.type || undefined,
+      type: activeType.value,
       is_active: filters.is_active ?? undefined
     })
     models.value = data.items || []
@@ -305,12 +319,16 @@ async function loadModels() {
 }
 
 async function loadChannels() {
-  const data = await adminChannelApi.list({ pageSize: 100, is_active: true })
+  const data = await adminChannelApi.list({ pageSize: 100, is_active: true, model_type: form.model_type })
   channels.value = data.items || []
-  channelOptions.value = channels.value.map(item => ({
-    label: `${item.name} (${item.providerType})`,
-    value: item.id
-  }))
+}
+
+async function refreshPublicModels() {
+  try {
+    await modelStore.loadPublicModels()
+  } catch {
+    // 后台保存不因公开模型刷新失败而回滚，用户侧下次进入仍会重新拉取。
+  }
 }
 
 function handlePageSizeChange() {
@@ -322,10 +340,11 @@ function resetForm() {
   Object.assign(form, {
     model_key: '',
     display_name: '',
-    model_type: 'chat',
+    model_type: activeType.value,
     is_active: true,
     sort_order: 0,
-    description: ''
+    description: '',
+    channel_id: null
   })
   defaultParamsText.value = ''
   maxParamsText.value = ''
@@ -335,6 +354,7 @@ function resetForm() {
 function openCreate() {
   editingId.value = ''
   resetForm()
+  loadChannels()
   drawerVisible.value = true
 }
 
@@ -351,6 +371,7 @@ async function openEdit(row) {
   defaultParamsText.value = row.defaultParams ? JSON.stringify(row.defaultParams, null, 2) : ''
   maxParamsText.value = row.maxParams ? JSON.stringify(row.maxParams, null, 2) : ''
   drawerVisible.value = true
+  await loadChannels()
   await loadBindings(row.id)
 }
 
@@ -387,9 +408,11 @@ async function saveModel() {
     } else {
       const created = await adminModelApi.create(payload)
       editingId.value = created.id
-      window.$message?.success('模型已创建')
+      window.$message?.success(form.channel_id ? '模型已创建并绑定渠道' : '模型已创建')
+      if (form.channel_id) await loadBindings(created.id)
     }
     await loadModels()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '保存模型失败')
   } finally {
@@ -401,7 +424,8 @@ async function toggleStatus(row) {
   try {
     await adminModelApi.setStatus(row.id, !row.isActive)
     window.$message?.success('模型状态已更新')
-    loadModels()
+    await loadModels()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '操作失败')
   }
@@ -411,7 +435,8 @@ async function deleteModel(row) {
   try {
     await adminModelApi.remove(row.id)
     window.$message?.success('模型已删除')
-    loadModels()
+    await loadModels()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '删除失败')
   }
@@ -437,6 +462,7 @@ async function addBinding() {
     window.$message?.success('渠道已绑定')
     bindingForm.channel_id = null
     await loadBindings()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '绑定失败')
   }
@@ -446,6 +472,7 @@ async function toggleBinding(row) {
   try {
     await adminModelApi.updateBinding(editingId.value, row.id, { is_active: !row.isActive })
     await loadBindings()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '更新绑定失败')
   }
@@ -456,6 +483,7 @@ async function removeBinding(row) {
     await adminModelApi.removeBinding(editingId.value, row.id)
     window.$message?.success('绑定已移除')
     await loadBindings()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '移除绑定失败')
   }
@@ -463,5 +491,18 @@ async function removeBinding(row) {
 
 onMounted(async () => {
   await Promise.all([loadModels(), loadChannels()])
+})
+
+watch(activeType, async () => {
+  page.value = 1
+  if (!editingId.value) form.model_type = activeType.value
+  await Promise.all([loadModels(), loadChannels()])
+})
+
+watch(() => form.model_type, async () => {
+  if (bindingForm.channel_id && !channelOptions.value.some(item => item.value === bindingForm.channel_id)) {
+    bindingForm.channel_id = null
+  }
+  await loadChannels()
 })
 </script>

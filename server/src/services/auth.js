@@ -28,6 +28,7 @@ import { Op } from 'sequelize';
 
 import { jwtConfig } from '../config/auth.js';
 import { redis } from '../config/redis.js';
+import { rememberBlacklistedToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { randomInt } from '../utils/helpers.js';
 import { parseUserAgent } from '../utils/ip-ua.js';
@@ -649,6 +650,7 @@ export async function logout({ refreshToken, accessToken, userId }) {
         const ttl = decoded.exp - Math.floor(Date.now() / 1000);
         if (ttl > 0) {
           await safeRedis(() => redis.set(BLACKLIST_TOKEN_KEY(decoded.jti), '1', 'EX', ttl), null);
+          rememberBlacklistedToken(decoded.jti, ttl);
         }
       }
     } catch (err) {

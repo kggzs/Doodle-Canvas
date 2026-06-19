@@ -1,5 +1,9 @@
 <template>
   <AdminShell>
+    <n-tabs v-model:value="activeType" class="mb-4" type="segment" animated>
+      <n-tab-pane v-for="item in typeOptions" :key="item.value" :name="item.value" :tab="item.label" />
+    </n-tabs>
+
     <section class="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:flex-row md:items-center">
       <n-input v-model:value="filters.keyword" class="md:max-w-xs" placeholder="搜索渠道名称" clearable @keydown.enter="loadChannels" />
       <n-select v-model:value="filters.provider_type" class="md:max-w-[180px]" :options="providerOptionsWithAll" placeholder="Provider" clearable />
@@ -42,6 +46,9 @@
             <n-form-item label="Provider">
               <n-select v-model:value="form.provider_type" :options="providerOptions" />
             </n-form-item>
+            <n-form-item label="渠道用途">
+              <n-select v-model:value="form.model_type" :options="typeOptions" />
+            </n-form-item>
           </div>
           <n-form-item label="Base URL">
             <n-input v-model:value="form.api_base_url" placeholder="https://api.openai.com" />
@@ -79,7 +86,7 @@
 </template>
 
 <script setup>
-import { h, onMounted, reactive, ref } from 'vue'
+import { h, onMounted, reactive, ref, watch } from 'vue'
 import {
   NButton,
   NDataTable,
@@ -93,16 +100,24 @@ import {
   NPopconfirm,
   NSelect,
   NSwitch,
+  NTabPane,
+  NTabs,
   NTag
 } from 'naive-ui'
 import AdminShell from '@/components/AdminShell.vue'
 import { adminChannelApi } from '@/api/backend'
+import { useModelStore } from '@/stores/pinia'
 
 const providerOptions = [
   { label: 'OpenAI 兼容', value: 'openai' },
   { label: '阿里云万相', value: 'aliyun' },
   { label: '豆包', value: 'doubao' },
   { label: '自定义', value: 'custom' }
+]
+const typeOptions = [
+  { label: '问答模型', value: 'chat' },
+  { label: '图片生成模型', value: 'image' },
+  { label: '视频生成模型', value: 'video' }
 ]
 const providerOptionsWithAll = [{ label: '全部 Provider', value: null }, ...providerOptions]
 const activeOptionsWithAll = [
@@ -120,6 +135,8 @@ const saving = ref(false)
 const drawerVisible = ref(false)
 const editingId = ref('')
 const configText = ref('')
+const modelStore = useModelStore()
+const activeType = ref('chat')
 
 const filters = reactive({
   keyword: '',
@@ -130,6 +147,7 @@ const filters = reactive({
 const form = reactive({
   name: '',
   provider_type: 'openai',
+  model_type: 'chat',
   api_base_url: '',
   api_key: '',
   is_active: true,
@@ -140,6 +158,10 @@ const form = reactive({
 
 function providerLabel(value) {
   return providerOptions.find(item => item.value === value)?.label || value
+}
+
+function typeLabel(value) {
+  return typeOptions.find(item => item.value === value)?.label || value
 }
 
 function formatDateTime(value) {
@@ -155,6 +177,14 @@ const columns = [
     width: 130,
     render(row) {
       return h(NTag, { size: 'small' }, { default: () => providerLabel(row.providerType) })
+    }
+  },
+  {
+    title: '用途',
+    key: 'modelType',
+    width: 120,
+    render(row) {
+      return h(NTag, { size: 'small' }, { default: () => typeLabel(row.modelType || row.model_type) })
     }
   },
   { title: 'Base URL', key: 'apiBaseUrl', minWidth: 260, ellipsis: { tooltip: true } },
@@ -218,6 +248,7 @@ async function loadChannels() {
       pageSize: pageSize.value,
       keyword: filters.keyword || undefined,
       provider_type: filters.provider_type || undefined,
+      model_type: activeType.value,
       is_active: filters.is_active ?? undefined
     })
     channels.value = data.items || []
@@ -238,6 +269,7 @@ function resetForm() {
   Object.assign(form, {
     name: '',
     provider_type: 'openai',
+    model_type: activeType.value,
     api_base_url: '',
     api_key: '',
     is_active: true,
@@ -259,6 +291,7 @@ function openEdit(row) {
   Object.assign(form, {
     name: row.name,
     provider_type: row.providerType,
+    model_type: row.modelType || row.model_type || activeType.value,
     api_base_url: row.apiBaseUrl,
     api_key: '',
     is_active: !!row.isActive,
@@ -277,6 +310,14 @@ function parseConfig() {
   } catch {
     window.$message?.error('渠道配置 JSON 格式不正确')
     return undefined
+  }
+}
+
+async function refreshPublicModels() {
+  try {
+    await modelStore.loadPublicModels()
+  } catch {
+    // 渠道管理保存成功即可，公开模型缓存失败时由用户侧页面下次进入重拉。
   }
 }
 
@@ -305,6 +346,7 @@ async function saveChannel() {
     }
     drawerVisible.value = false
     await loadChannels()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '保存渠道失败')
   } finally {
@@ -325,11 +367,17 @@ async function deleteChannel(row) {
   try {
     await adminChannelApi.remove(row.id)
     window.$message?.success('渠道已删除')
-    loadChannels()
+    await loadChannels()
+    await refreshPublicModels()
   } catch (err) {
     window.$message?.error(err?.message || '删除失败')
   }
 }
+
+watch(activeType, () => {
+  page.value = 1
+  loadChannels()
+})
 
 onMounted(loadChannels)
 </script>

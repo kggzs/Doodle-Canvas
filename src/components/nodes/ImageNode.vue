@@ -328,7 +328,7 @@ import { NIcon, NTooltip, NSwitch, NImagePreview, NModal, NButton } from 'naive-
 import { TrashOutline, ExpandOutline, ImageOutline, CloseCircleOutline, CopyOutline, VideocamOutline, DownloadOutline, EyeOutline, BrushOutline, RefreshOutline, ColorWandOutline, SwapHorizontalOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
-import { getCachedImage, cacheImage } from '../../utils/imageCache'
+import { fileApi } from '@/api/backend'
 
 // VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
 defineOptions({ inheritAttrs: false })
@@ -338,39 +338,16 @@ const props = defineProps({
   data: Object
 })
 
-// 图片显示 URL：优先 base64 > IndexedDB 缓存 > 原始 URL
+// 图片显示 URL：使用服务端文件 URL 或远程 URL，不再依赖浏览器 IndexedDB 缓存。
 const displayUrl = ref('')
 
-// 加载本地缓存用于图片显示
 const loadDisplayUrl = async () => {
   const url = props.data?.url
-  const base64 = props.data?.base64
-
-  // 优先使用 base64
-  if (base64) {
-    displayUrl.value = base64
-    return
-  }
-
-  // 已经是 base64 data URL
-  if (url?.startsWith('data:')) {
-    displayUrl.value = url
-    return
-  }
-
-  // 无 URL
-  if (!url) {
-    displayUrl.value = ''
-    return
-  }
-
-  // 远程 URL 或 upload:// 缓存 key：尝试从 IndexedDB 获取
-  const cached = await getCachedImage(url)
-  displayUrl.value = cached || url
+  displayUrl.value = url && !url.startsWith('data:') && !url.startsWith('blob:') && !url.startsWith('upload://') ? url : ''
 }
 
 // 监听 URL 变化重新加载
-watch(() => [props.data?.url, props.data?.base64], () => {
+watch(() => props.data?.url, () => {
   loadDisplayUrl()
 }, { immediate: true })
 
@@ -708,30 +685,16 @@ const createInpaintWorkflow = () => {
   window.$message?.success('已创建局部重绘工作流')
 }
 
-// Convert file to base64 | 将文件转换为 base64
-const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
 // Handle file upload | 处理文件上传
 const handleFileUpload = async (event) => {
   const file = event.target.files[0]
   if (file) {
     try {
-      // Convert to base64 | 转换为 base64
-      const base64 = await fileToBase64(file)
-      // 生成缓存 key 并缓存到 IndexedDB
-      const cacheKey = `upload://${props.id}/${Date.now()}`
-      await cacheImage(cacheKey, base64)
-      // 使用缓存 key 作为 url（保存时不会被删除），base64 存在 IndexedDB
+      const result = await fileApi.uploadImage(file)
+      const uploaded = result.file
       updateNode(props.id, {
-        url: cacheKey,
-        base64: base64,
+        url: uploaded.fileUrl || uploaded.file_url,
+        fileId: uploaded.id,
         fileName: file.name,
         fileType: file.type,
         label: '参考图',
@@ -770,8 +733,6 @@ const handleUrlSubmit = () => {
     })
     urlInput.value = ''
     urlLoading.value = false
-    // 异步缓存远程图片到 IndexedDB
-    cacheImage(url).catch(() => {})
   }
   img.onerror = () => {
     window.$message?.error('图片加载失败，请检查地址是否正确')
@@ -787,13 +748,11 @@ const handleReplaceFileUpload = async (event) => {
   const file = event.target.files[0]
   if (file) {
     try {
-      const base64 = await fileToBase64(file)
-      // 缓存到 IndexedDB
-      const cacheKey = `upload://${props.id}/${Date.now()}`
-      await cacheImage(cacheKey, base64)
+      const result = await fileApi.uploadImage(file)
+      const uploaded = result.file
       updateNode(props.id, {
-        url: cacheKey,
-        base64: base64,
+        url: uploaded.fileUrl || uploaded.file_url,
+        fileId: uploaded.id,
         fileName: file.name,
         fileType: file.type,
         label: '参考图',
@@ -831,7 +790,6 @@ const handleReplaceUrlSubmit = () => {
     replaceUrlInput.value = ''
     window.$message?.success('图片已替换')
     // 异步缓存远程图片到 IndexedDB
-    cacheImage(url).catch(() => {})
   }
   img.onerror = () => {
     window.$message?.error('图片加载失败，请检查地址是否正确')

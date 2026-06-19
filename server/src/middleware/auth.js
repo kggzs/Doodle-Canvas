@@ -20,6 +20,32 @@ import { sequelize } from '../config/database.js';
 import { error } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
 
+const localTokenBlacklist = new Map();
+
+function cleanupLocalBlacklist() {
+  const now = Date.now();
+  for (const [key, expiresAt] of localTokenBlacklist.entries()) {
+    if (expiresAt <= now) localTokenBlacklist.delete(key);
+  }
+}
+
+function isLocalTokenBlacklisted(payload) {
+  cleanupLocalBlacklist();
+  return Boolean(payload?.jti && localTokenBlacklist.has(payload.jti));
+}
+
+export function rememberBlacklistedToken(jti, ttlSeconds) {
+  if (!jti || ttlSeconds <= 0) return;
+  cleanupLocalBlacklist();
+  localTokenBlacklist.set(jti, Date.now() + ttlSeconds * 1000);
+}
+
+function redisFailureDeniesAuth() {
+  const configured = process.env.AUTH_REDIS_FAILURE_MODE;
+  if (configured) return configured === 'deny';
+  return process.env.NODE_ENV === 'production';
+}
+
 /**
  * 从请求头提取 Bearer Token
  * @param {Object} req Express 请求对象
@@ -52,6 +78,8 @@ function hashToken(token) {
  * @returns {Promise<boolean>} true 表示已列入黑名单
  */
 async function isTokenBlacklisted(token, payload) {
+  if (isLocalTokenBlacklisted(payload)) return true;
+
   const tokenHash = hashToken(token);
   // 构建待查 key 列表：优先 jti，兜底 tokenHash
   const keys = [];
@@ -64,9 +92,9 @@ async function isTokenBlacklisted(token, payload) {
     const results = await redis.mget(...keys);
     return results.some((v) => v !== null);
   } catch (err) {
-    // Redis 不可用时降级放行，仅记录警告
-    logger.warn(`Redis 黑名单检查失败（降级放行）：${err.message}`);
-    return false;
+    const deny = redisFailureDeniesAuth();
+    logger.warn(`Redis 黑名单检查失败（${deny ? '拒绝鉴权' : '降级放行'}）：${err.message}`);
+    return deny;
   }
 }
 

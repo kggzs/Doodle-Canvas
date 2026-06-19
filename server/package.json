@@ -6,6 +6,7 @@
   "main": "src/app.js",
   "scripts": {
     "build:client": "npm --prefix .. run build",
+    "backfill-generated-files": "node src/scripts/backfill-generated-files.js",
     "create-admin": "node src/scripts/create-admin.js",
     "upgrade-core-features": "node src/scripts/upgrade-core-features.js",
     "start": "node src/app.js",
@@ -25,15 +26,19 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.0",
-    "nanoid": "^4.0.2",
-    "nodemailer": "^6.9.5",
+    "nanoid": "^5.1.11",
+    "nodemailer": "^9.0.1",
     "sequelize": "^6.32.1",
     "sharp": "^0.32.6",
     "ua-parser-js": "^1.0.36",
-    "uuid": "^9.0.0",
+    "uuid": "11.1.1",
     "winston": "^3.10.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
+  },
+  "overrides": {
+    "dottie": "2.0.7",
+    "uuid": "11.1.1"
   }
 }

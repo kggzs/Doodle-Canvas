@@ -14,6 +14,7 @@ import { logger } from '../../utils/logger.js';
 const router = Router();
 
 const providerTypes = ['openai', 'aliyun', 'doubao', 'custom'];
+const modelTypes = ['image', 'video', 'chat'];
 
 function validateRequest(req, res) {
   const errors = validationResult(req);
@@ -33,7 +34,8 @@ function mapCodeToHttpStatus(code) {
 
 function handleServiceError(res, err) {
   if (err instanceof ModelManagementError) {
-    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), Object.keys(err.extra).length ? err.extra : null);
+    const details = err.extra && Object.keys(err.extra).length ? err.extra : null;
+    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), details);
   }
   logger.error(`渠道管理服务异常：${err.message}`, { stack: err.stack });
   return error(res, 50001, '服务器内部错误', 500);
@@ -43,6 +45,7 @@ function channelPayload(body) {
   return {
     name: body.name,
     providerType: body.provider_type ?? body.providerType,
+    modelType: body.model_type ?? body.modelType,
     apiBaseUrl: body.api_base_url ?? body.apiBaseUrl,
     apiKey: body.api_key ?? body.apiKey,
     isActive: body.is_active ?? body.isActive,
@@ -60,6 +63,8 @@ router.get(
     query('page').optional().isInt({ min: 1 }).withMessage('页码需为正整数').toInt(),
     query('pageSize').optional().isInt({ min: 1, max: 100 }).withMessage('每页条数需为 1-100').toInt(),
     query('provider_type').optional().isIn(providerTypes).withMessage('provider_type 不支持'),
+    query('model_type').optional().isIn(modelTypes).withMessage('model_type 不支持'),
+    query('type').optional().isIn(modelTypes).withMessage('type 不支持'),
     query('is_active').optional().isBoolean().withMessage('is_active 必须为布尔值').toBoolean(),
     query('keyword').optional().isString().trim()
   ],
@@ -72,6 +77,7 @@ router.get(
         page: req.query.page,
         pageSize: req.query.pageSize,
         providerType: req.query.provider_type,
+        modelType: req.query.model_type || req.query.type,
         isActive: req.query.is_active,
         keyword: req.query.keyword
       });
@@ -87,6 +93,7 @@ router.post(
   [
     body('name').isLength({ min: 1, max: 100 }).withMessage('渠道名称不能为空且不超过 100 字').trim(),
     body('provider_type').isIn(providerTypes).withMessage('provider_type 不支持'),
+    body('model_type').isIn(modelTypes).withMessage('model_type 不支持'),
     body('api_base_url').isLength({ min: 1, max: 500 }).withMessage('api_base_url 不能为空且不超过 500 字').trim(),
     body('api_key').isLength({ min: 1 }).withMessage('api_key 不能为空'),
     body('is_active').optional().isBoolean().withMessage('is_active 必须为布尔值').toBoolean(),
@@ -115,6 +122,7 @@ router.put(
     param('id').isUUID().withMessage('渠道 ID 格式不正确'),
     body('name').optional().isLength({ min: 1, max: 100 }).withMessage('渠道名称不能为空且不超过 100 字').trim(),
     body('provider_type').optional().isIn(providerTypes).withMessage('provider_type 不支持'),
+    body('model_type').optional().isIn(modelTypes).withMessage('model_type 不支持'),
     body('api_base_url').optional().isLength({ min: 1, max: 500 }).withMessage('api_base_url 不能为空且不超过 500 字').trim(),
     body('api_key').optional().isLength({ min: 1 }).withMessage('api_key 不能为空'),
     body('is_active').optional().isBoolean().withMessage('is_active 必须为布尔值').toBoolean(),

@@ -29,6 +29,64 @@
         />
       </div>
     </section>
+
+    <n-drawer v-model:show="detailVisible" width="760">
+      <n-drawer-content title="金币流水详情" closable>
+        <div v-if="selectedTransaction" class="space-y-4 text-sm">
+          <section class="grid gap-3 md:grid-cols-2">
+            <div class="rounded-md border border-[var(--border-color)] p-3">
+              <div class="text-[var(--text-secondary)]">用户</div>
+              <div class="mt-1">{{ selectedTransaction.user?.username || '-' }} / {{ selectedTransaction.user?.email || '-' }}</div>
+            </div>
+            <div class="rounded-md border border-[var(--border-color)] p-3">
+              <div class="text-[var(--text-secondary)]">流水号</div>
+              <div class="mt-1 break-all">{{ selectedTransaction.txNo || selectedTransaction.id }}</div>
+            </div>
+            <div class="rounded-md border border-[var(--border-color)] p-3">
+              <div class="text-[var(--text-secondary)]">变动</div>
+              <div class="mt-1">{{ optionLabel(typeOptions, selectedTransaction.type) }} / {{ optionLabel(directionOptions, selectedTransaction.direction) }} / {{ formatCoins(selectedTransaction.amount) }} 金币</div>
+            </div>
+            <div class="rounded-md border border-[var(--border-color)] p-3">
+              <div class="text-[var(--text-secondary)]">余额</div>
+              <div class="mt-1">{{ formatCoins(selectedTransaction.balanceBefore) }} -> {{ formatCoins(selectedTransaction.balanceAfter) }}</div>
+            </div>
+            <div class="rounded-md border border-[var(--border-color)] p-3">
+              <div class="text-[var(--text-secondary)]">项目</div>
+              <div class="mt-1">{{ projectName(selectedTransaction) }}</div>
+            </div>
+            <div class="rounded-md border border-[var(--border-color)] p-3">
+              <div class="text-[var(--text-secondary)]">模型</div>
+              <div class="mt-1">{{ modelName(selectedTransaction) }}</div>
+            </div>
+          </section>
+
+          <section>
+            <h3 class="mb-2 font-medium">说明</h3>
+            <pre class="max-h-28 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-3 whitespace-pre-wrap">{{ selectedTransaction.description || selectedTransaction.reason || '-' }}</pre>
+          </section>
+
+          <section v-if="promptText(selectedTransaction)">
+            <h3 class="mb-2 font-medium">提示词</h3>
+            <pre class="max-h-36 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-3 whitespace-pre-wrap">{{ promptText(selectedTransaction) }}</pre>
+          </section>
+
+          <section>
+            <h3 class="mb-2 font-medium">生成记录</h3>
+            <pre class="max-h-36 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-3 whitespace-pre-wrap">{{ generationSummary(selectedTransaction) }}</pre>
+          </section>
+
+          <section>
+            <h3 class="mb-2 font-medium">计费快照</h3>
+            <pre class="max-h-56 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-3">{{ stringifyJson(selectedTransaction.costSnapshot) }}</pre>
+          </section>
+
+          <section>
+            <h3 class="mb-2 font-medium">元数据</h3>
+            <pre class="max-h-56 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-3">{{ stringifyJson(selectedTransaction.metadata) }}</pre>
+          </section>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
   </AdminShell>
 </template>
 
@@ -37,6 +95,8 @@ import { h, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NDataTable,
+  NDrawer,
+  NDrawerContent,
   NInput,
   NPagination,
   NSelect,
@@ -50,6 +110,8 @@ const transactions = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const detailVisible = ref(false)
+const selectedTransaction = ref(null)
 
 const filters = reactive({
   keyword: '',
@@ -59,13 +121,21 @@ const filters = reactive({
 
 const typeOptions = [
   { label: '充值', value: 'recharge' },
+  { label: '充值赠送', value: 'recharge_bonus' },
+  { label: '卡密兑换', value: 'redeem' },
   { label: '赠送', value: 'gift' },
+  { label: '注册赠送', value: 'register_gift' },
   { label: '消费', value: 'consume' },
   { label: '退款', value: 'refund' },
-  { label: '调整', value: 'adjust' },
+  { label: '管理员增加', value: 'adjust_add' },
+  { label: '管理员扣减', value: 'adjust_deduct' },
   { label: '冻结', value: 'freeze' },
   { label: '解冻', value: 'unfreeze' },
-  { label: '过期', value: 'expire' }
+  { label: '没收', value: 'forfeit' },
+  { label: '过期', value: 'expire' },
+  { label: '转入', value: 'transfer_in' },
+  { label: '转出', value: 'transfer_out' },
+  { label: '冲正', value: 'rollback' }
 ]
 const directionOptions = [
   { label: '入账', value: 'in' },
@@ -85,6 +155,52 @@ function formatDateTime(value) {
 
 function formatCoins(value) {
   return Number(value || 0).toFixed(2)
+}
+
+function projectName(row) {
+  return row?.generation?.project?.name || row?.metadata?.project_name || '-'
+}
+
+function modelName(row) {
+  return row?.generation?.model?.displayName
+    || row?.generation?.model?.modelKey
+    || row?.metadata?.model_display_name
+    || row?.metadata?.model_key
+    || '-'
+}
+
+function generationId(row) {
+  return row?.generation?.id || row?.metadata?.generation_id || (row?.refType === 'generation' ? row?.refId : null)
+}
+
+function promptText(row) {
+  return row?.generation?.promptText || row?.metadata?.prompt || ''
+}
+
+function generationSummary(row) {
+  const generation = row?.generation
+  if (!generation) return generationId(row) || '-'
+  return [
+    `记录 ID: ${generation.id}`,
+    `状态: ${generation.status}`,
+    `类型: ${generation.type}`,
+    `渠道: ${generation.channel?.name || '-'}`,
+    `文件数: ${(generation.files || []).length}`
+  ].join('\n')
+}
+
+function stringifyJson(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function openDetail(row) {
+  selectedTransaction.value = row
+  detailVisible.value = true
 }
 
 const columns = [
@@ -128,7 +244,29 @@ const columns = [
       return formatCoins(row.balanceAfter)
     }
   },
-  { title: '原因', key: 'reason', minWidth: 180 },
+  {
+    title: '业务详情',
+    key: 'business',
+    minWidth: 260,
+    render(row) {
+      const lines = [
+        `项目：${projectName(row)}`,
+        `模型：${modelName(row)}`
+      ]
+      const id = generationId(row)
+      if (id) lines.push(`记录：${id}`)
+      return h('div', { class: 'space-y-1 text-xs leading-5' }, lines.map(line => h('div', { class: 'truncate' }, line)))
+    }
+  },
+  {
+    title: '说明',
+    key: 'reason',
+    minWidth: 220,
+    ellipsis: { tooltip: true },
+    render(row) {
+      return row.description || row.reason || '-'
+    }
+  },
   { title: '操作人', key: 'operatorId', minWidth: 160 },
   {
     title: '时间',
@@ -136,6 +274,15 @@ const columns = [
     width: 180,
     render(row) {
       return formatDateTime(row.createdAt)
+    }
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 90,
+    fixed: 'right',
+    render(row) {
+      return h(NButton, { size: 'small', onClick: () => openDetail(row) }, { default: () => '详情' })
     }
   }
 ]

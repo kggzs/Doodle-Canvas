@@ -38,7 +38,8 @@ function mapCodeToHttpStatus(code) {
 
 function handleServiceError(res, err, scope) {
   if (err instanceof GenerationError || Number.isInteger(err.code)) {
-    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), Object.keys(err.extra).length ? err.extra : null);
+    const details = err.extra && Object.keys(err.extra).length ? err.extra : null;
+    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), details);
   }
   logger.error(`${scope}异常：${err.message}`, { stack: err.stack });
   return error(res, 50001, '服务器内部错误', 500);

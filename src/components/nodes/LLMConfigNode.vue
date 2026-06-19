@@ -658,7 +658,7 @@ onMounted(() => {
 
   if (!model.value || !isModelAvailable) {
     // 使用 store 中的默认模型或第一个可用模型
-    model.value = modelStore.selectedChatModel || availableModels[0]?.key || 'gpt-4o-mini'
+    model.value = modelStore.selectedChatModel || availableModels[0]?.key || ''
     updateConfig()
   }
 
@@ -687,7 +687,7 @@ const modelStore = useModelStore()
 const modelOptions = computed(() => modelStore.allChatModelOptions)
 
 // 默认模型使用选中的模型
-const model = ref(props.data?.model || modelStore.selectedChatModel || 'gpt-4o-mini')
+const model = ref(props.data?.model || modelStore.selectedChatModel || '')
 // Format options | 格式选项
 const formatOptions = [
   { label: '纯文本', value: 'text' },

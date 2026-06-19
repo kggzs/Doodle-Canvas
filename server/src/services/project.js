@@ -4,7 +4,7 @@
  */
 import db from '../models/index.js';
 
-const { Project } = db;
+const { GenerationRecord, Project } = db;
 
 export class ProjectError extends Error {
   constructor(code, message, extra = {}) {
@@ -28,6 +28,36 @@ function countNodes(canvasData = {}) {
   return Array.isArray(canvasData?.nodes) ? canvasData.nodes.length : 0;
 }
 
+function latestMediaThumbnail(canvasData = {}) {
+  const nodes = Array.isArray(canvasData?.nodes) ? canvasData.nodes : [];
+  const mediaNodes = nodes
+    .filter((node) => ['image', 'video'].includes(node.type) && node.data?.url)
+    .sort((a, b) => {
+      const aTime = Number(a.data?.updatedAt || a.data?.createdAt || 0);
+      const bTime = Number(b.data?.updatedAt || b.data?.createdAt || 0);
+      return bTime - aTime;
+    });
+  return mediaNodes[0]?.data?.thumbnail || mediaNodes[0]?.data?.url || '';
+}
+
+function serializeProject(project) {
+  const plain = typeof project.toJSON === 'function' ? project.toJSON() : { ...project };
+  const canvasData = plain.canvasData || {};
+  const thumbnail = canvasData.thumbnail || latestMediaThumbnail(canvasData);
+  return {
+    ...plain,
+    canvasData,
+    canvas_data: canvasData,
+    thumbnail
+  };
+}
+
+async function requireProject(userId, id) {
+  const project = await Project.findOne({ where: { id, userId } });
+  if (!project) throw new ProjectError(40402, '项目不存在');
+  return project;
+}
+
 export async function listProjects(userId, params = {}) {
   const { page, pageSize, offset } = normalizePage(params.page, params.pageSize);
   const { rows, count } = await Project.findAndCountAll({
@@ -37,7 +67,7 @@ export async function listProjects(userId, params = {}) {
     offset
   });
 
-  return { items: rows, total: count, page, pageSize };
+  return { items: rows.map(serializeProject), total: count, page, pageSize };
 }
 
 export async function createProject(userId, data = {}) {
@@ -45,7 +75,7 @@ export async function createProject(userId, data = {}) {
     throw new ProjectError(42201, '项目名称不能为空');
   }
 
-  return Project.create({
+  const project = await Project.create({
     userId,
     name: String(data.name).trim(),
     description: data.description || null,
@@ -54,16 +84,15 @@ export async function createProject(userId, data = {}) {
     nodeCount: countNodes(data.canvas_data || data.canvasData),
     isPublic: Boolean(data.is_public ?? data.isPublic ?? false)
   });
+  return serializeProject(project);
 }
 
 export async function getProject(userId, id) {
-  const project = await Project.findOne({ where: { id, userId } });
-  if (!project) throw new ProjectError(40402, '项目不存在');
-  return project;
+  return serializeProject(await requireProject(userId, id));
 }
 
 export async function updateProject(userId, id, data = {}) {
-  const project = await getProject(userId, id);
+  const project = await requireProject(userId, id);
   const payload = {};
 
   if (data.name !== undefined) payload.name = String(data.name).trim();
@@ -81,12 +110,18 @@ export async function updateProject(userId, id, data = {}) {
   }
 
   await project.update(payload);
-  return project;
+  return serializeProject(project);
 }
 
 export async function deleteProject(userId, id) {
-  const project = await getProject(userId, id);
-  await project.destroy();
+  await requireProject(userId, id);
+  await db.sequelize.transaction(async (transaction) => {
+    await GenerationRecord.update(
+      { projectId: null },
+      { where: { userId, projectId: id }, transaction }
+    );
+    await Project.destroy({ where: { id, userId }, transaction });
+  });
   return { deleted: true };
 }
 

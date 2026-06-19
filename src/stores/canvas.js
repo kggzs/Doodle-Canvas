@@ -26,6 +26,8 @@ export const selectedNode = ref(null)
 // Auto-save flag | 自动保存标志
 let autoSaveEnabled = false
 let saveTimeout = null
+let saveInFlight = false
+let saveQueued = false
 
 // History for undo/redo | 撤销/重做历史
 const history = ref([])
@@ -47,6 +49,17 @@ let batchStartState = null
  */
 const deepClone = (obj) => {
   return JSON.parse(JSON.stringify(obj))
+}
+
+const cleanNodeForCloud = (node) => {
+  if (!node?.data) return node
+  const data = { ...node.data }
+  delete data.base64
+  delete data.maskData
+  if (typeof data.url === 'string' && (data.url.startsWith('data:') || data.url.startsWith('blob:') || data.url.startsWith('upload://'))) {
+    data.url = ''
+  }
+  return { ...node, data }
 }
 
 /**
@@ -477,13 +490,27 @@ export const loadProject = (projectId) => {
 /**
  * Save current project | 保存当前项目
  */
-export const saveProject = () => {
+export const saveProject = async () => {
   if (!currentProjectId.value) return
-  updateProjectCanvas(currentProjectId.value, {
-    nodes: nodes.value,
-    edges: edges.value,
-    viewport: canvasViewport.value
-  })
+  if (saveInFlight) {
+    saveQueued = true
+    return
+  }
+
+  saveInFlight = true
+  try {
+    await updateProjectCanvas(currentProjectId.value, {
+      nodes: nodes.value.map(cleanNodeForCloud),
+      edges: edges.value,
+      viewport: canvasViewport.value
+    })
+  } finally {
+    saveInFlight = false
+    if (saveQueued) {
+      saveQueued = false
+      saveProject()
+    }
+  }
 }
 
 /**

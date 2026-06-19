@@ -6,6 +6,8 @@
  * - 前端只访问本服务，不再接触第三方 API Key / Base URL
  */
 import axios from 'axios';
+import http from 'http';
+import https from 'https';
 import { Op } from 'sequelize';
 
 import db from '../models/index.js';
@@ -15,6 +17,7 @@ import { logger } from '../utils/logger.js';
 import { decryptApiKey } from './model-management.js';
 import * as BillingService from './billing.js';
 import * as StorageService from './storage.js';
+import { recordError } from './error-logs.js';
 
 const { GenerationRecord, ModelConfig, ModelChannel, ModelChannelBinding } = db;
 
@@ -48,6 +51,9 @@ const DEFAULT_ENDPOINTS = {
 const VIDEO_TASK_TTL_SECONDS = 2 * 24 * 60 * 60;
 const IMAGE_MAX_POLLS = 60;
 const IMAGE_POLL_INTERVAL_MS = 3000;
+const HTTP_AGENT = new http.Agent({ family: 4 });
+const HTTPS_AGENT = new https.Agent({ family: 4 });
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 60000;
 
 export class GenerationError extends Error {
   constructor(code, message, extra = {}) {
@@ -86,7 +92,12 @@ function endpointFor(channel, endpointKey) {
 function buildUrl(channel, endpoint) {
   if (/^https?:\/\//i.test(endpoint)) return endpoint;
   const baseUrl = String(channel.apiBaseUrl || '').replace(/\/+$/, '');
-  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const lastBaseSegment = baseUrl.split('/').filter(Boolean).pop();
+  const firstPathSegment = path.split('/').filter(Boolean)[0];
+  if (lastBaseSegment && firstPathSegment && lastBaseSegment === firstPathSegment) {
+    path = `/${path.split('/').filter(Boolean).slice(1).join('/')}`;
+  }
   return `${baseUrl}${path}`;
 }
 
@@ -110,6 +121,11 @@ function mergeModelParams(model, payload = {}) {
   };
 }
 
+function stripInternalParams(params = {}) {
+  const { project_id: _projectIdSnake, projectId: _projectIdCamel, ...rest } = params;
+  return rest;
+}
+
 function errorMessageFromUpstream(data, fallback) {
   if (!data) return fallback;
   if (typeof data === 'string') return data.slice(0, 300) || fallback;
@@ -117,6 +133,30 @@ function errorMessageFromUpstream(data, fallback) {
     || data.message
     || data.code
     || fallback;
+}
+
+function upstreamPublicMessage(err) {
+  if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) {
+    return '上游服务响应超时，请稍后再试';
+  }
+  if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ECONNRESET') {
+    return '上游服务连接失败，请稍后再试';
+  }
+  return '上游请求失败，请稍后再试';
+}
+
+function upstreamErrorDetails(err, channel, url, endpointKey, timeoutMs) {
+  return {
+    channel_id: channel.id,
+    channel_name: channel.name,
+    provider_type: channel.providerType,
+    model_type: channel.modelType,
+    endpoint_key: endpointKey,
+    url,
+    timeout_ms: timeoutMs,
+    error_code: err?.code || null,
+    original_message: err?.message || null
+  };
 }
 
 async function streamToText(stream) {
@@ -208,7 +248,8 @@ async function resolveModelAndChannel(modelKey, modelType) {
         as: 'channel',
         where: {
           isActive: true,
-          circuitOpen: false
+          circuitOpen: false,
+          modelType
         },
         required: true
       }
@@ -242,7 +283,16 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
     ? withTaskId(endpointFor(channel, endpointKey), taskId)
     : endpointFor(channel, endpointKey);
   const url = buildUrl(channel, endpoint);
-  const apiKey = decryptApiKey(channel.apiKey);
+  const timeoutMs = channel.timeoutMs || DEFAULT_UPSTREAM_TIMEOUT_MS;
+  let apiKey;
+  try {
+    apiKey = decryptApiKey(channel.apiKey);
+  } catch (err) {
+    await markFailure(channel);
+    throw new GenerationError(50301, `渠道 ${channel.name} API Key 配置无效，请在后台重新保存渠道密钥`, {
+      channel_id: channel.id
+    });
+  }
 
   await markAttempt(channel);
 
@@ -251,7 +301,9 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
       url,
       method,
       data,
-      timeout: channel.timeoutMs || 60000,
+      httpAgent: HTTP_AGENT,
+      httpsAgent: HTTPS_AGENT,
+      timeout: timeoutMs,
       responseType: stream ? 'stream' : 'json',
       validateStatus: () => true,
       headers: compactObject({
@@ -265,9 +317,37 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
 
     if (response.status >= 400) {
       const raw = stream ? await streamToText(response.data) : response.data;
+      const upstreamMessage = errorMessageFromUpstream(raw, `上游接口返回 ${response.status}`);
+      recordError({
+        scope: 'upstream',
+        level: response.status >= 500 ? 'error' : 'warn',
+        code: response.status >= 500 ? 50201 : 40001,
+        httpStatus: response.status,
+        message: upstreamMessage,
+        publicMessage: response.status === 401 || response.status === 403
+          ? '渠道认证失败，请检查后台配置'
+          : '上游接口请求失败',
+        details: {
+          channel_id: channel.id,
+          channel_name: channel.name,
+          provider_type: channel.providerType,
+          model_type: channel.modelType,
+          endpoint_key: endpointKey,
+          url,
+          upstream_status: response.status,
+          upstream_body: raw
+        }
+      });
+      if (response.status === 401 || response.status === 403) {
+        throw new GenerationError(
+          50301,
+          `渠道 ${channel.name} 上游认证失败，请检查 API Key 是否正确`,
+          { upstream_status: response.status, channel_id: channel.id }
+        );
+      }
       throw new GenerationError(
         response.status >= 500 ? 50201 : 40001,
-        errorMessageFromUpstream(raw, `上游接口返回 ${response.status}`),
+        upstreamMessage,
         { upstream_status: response.status, channel_id: channel.id }
       );
     }
@@ -277,8 +357,21 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
   } catch (err) {
     if (!(err instanceof GenerationError)) {
       await markFailure(channel);
-      throw new GenerationError(50201, err.message || '上游请求失败', {
-        channel_id: channel.id
+      const publicMessage = upstreamPublicMessage(err);
+      recordError({
+        scope: 'upstream',
+        level: 'error',
+        code: err?.code === 'ECONNABORTED' ? 50401 : 50201,
+        httpStatus: err?.code === 'ECONNABORTED' ? 504 : 502,
+        message: err.message || '上游请求失败',
+        publicMessage,
+        stack: err.stack || null,
+        details: upstreamErrorDetails(err, channel, url, endpointKey, timeoutMs)
+      });
+      throw new GenerationError(err?.code === 'ECONNABORTED' ? 50401 : 50201, publicMessage, {
+        channel_id: channel.id,
+        original_message: err.message || null,
+        error_code: err?.code || null
       });
     }
     await markFailure(channel);
@@ -291,52 +384,54 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
 // ============================
 
 function adaptChatPayload(providerType, params) {
+  const upstreamParams = stripInternalParams(params);
   if (providerType === 'doubao') {
     return compactObject({
-      model: params.model,
-      input: (params.messages || []).map((msg) => ({
+      model: upstreamParams.model,
+      input: (upstreamParams.messages || []).map((msg) => ({
         role: msg.role,
         content: typeof msg.content === 'string'
           ? [{ type: 'input_text', text: msg.content }]
           : msg.content
       })),
-      temperature: params.temperature,
-      max_tokens: params.max_tokens,
-      stream: params.stream,
-      tools: params.tools
+      temperature: upstreamParams.temperature,
+      max_tokens: upstreamParams.max_tokens,
+      stream: upstreamParams.stream,
+      tools: upstreamParams.tools
     });
   }
 
   return compactObject({
-    ...params,
-    model: params.model,
-    messages: params.messages || []
+    ...upstreamParams,
+    model: upstreamParams.model,
+    messages: upstreamParams.messages || []
   });
 }
 
 function adaptImagePayload(providerType, params) {
+  const upstreamParams = stripInternalParams(params);
   if (providerType === 'aliyun') {
-    const images = Array.isArray(params.image)
-      ? params.image
-      : params.image
-        ? [params.image]
+    const images = Array.isArray(upstreamParams.image)
+      ? upstreamParams.image
+      : upstreamParams.image
+        ? [upstreamParams.image]
         : [];
 
     const content = [
       ...images.map((image) => ({ image })),
-      { text: params.prompt || '' }
+      { text: upstreamParams.prompt || '' }
     ];
 
     const parameters = compactObject({
-      size: params.size,
-      n: params.n,
-      thinking_mode: images.length ? undefined : params.thinking_mode,
-      watermark: params.watermark,
-      seed: params.seed
+      size: upstreamParams.size,
+      n: upstreamParams.n,
+      thinking_mode: images.length ? undefined : upstreamParams.thinking_mode,
+      watermark: upstreamParams.watermark,
+      seed: upstreamParams.seed
     });
 
     return {
-      model: params.model,
+      model: upstreamParams.model,
       input: {
         messages: [
           {
@@ -351,30 +446,31 @@ function adaptImagePayload(providerType, params) {
 
   if (providerType === 'doubao') {
     return compactObject({
-      model: params.model,
-      prompt: params.prompt,
-      size: params.size,
-      n: params.n,
-      quality: params.quality,
-      watermark: params.watermark,
-      image: params.image,
-      sequential_image_generation: params.sequential_image_generation || 'disabled',
-      response_format: params.response_format || 'url',
+      model: upstreamParams.model,
+      prompt: upstreamParams.prompt,
+      size: upstreamParams.size,
+      n: upstreamParams.n,
+      quality: upstreamParams.quality,
+      watermark: upstreamParams.watermark,
+      image: upstreamParams.image,
+      sequential_image_generation: upstreamParams.sequential_image_generation || 'disabled',
+      response_format: upstreamParams.response_format || 'url',
       stream: false
     });
   }
 
   return compactObject({
-    ...params,
-    model: params.model,
-    prompt: params.prompt
+    ...upstreamParams,
+    model: upstreamParams.model,
+    prompt: upstreamParams.prompt
   });
 }
 
 function adaptVideoPayload(providerType, params) {
-  const images = Array.isArray(params.images) ? params.images : [];
-  const firstFrame = params.first_frame_image || images[0];
-  const lastFrame = params.last_frame_image;
+  const upstreamParams = stripInternalParams(params);
+  const images = Array.isArray(upstreamParams.images) ? upstreamParams.images : [];
+  const firstFrame = upstreamParams.first_frame_image || images[0];
+  const lastFrame = upstreamParams.last_frame_image;
 
   if (providerType === 'aliyun') {
     const media = [];
@@ -382,31 +478,31 @@ function adaptVideoPayload(providerType, params) {
     if (lastFrame) media.push({ type: 'last_frame', url: lastFrame });
 
     const input = compactObject({
-      prompt: params.prompt || '',
+      prompt: upstreamParams.prompt || '',
       media: media.length ? media : undefined
     });
 
     return {
-      model: params.model,
+      model: upstreamParams.model,
       input,
       parameters: compactObject({
-        resolution: params.resolution,
-        duration: params.duration || params.dur,
-        prompt_extend: params.prompt_extend,
-        watermark: params.watermark,
-        seed: params.seed
+        resolution: upstreamParams.resolution,
+        duration: upstreamParams.duration || upstreamParams.dur,
+        prompt_extend: upstreamParams.prompt_extend,
+        watermark: upstreamParams.watermark,
+        seed: upstreamParams.seed
       })
     };
   }
 
   return compactObject({
-    model: params.model,
-    prompt: params.prompt || '',
+    model: upstreamParams.model,
+    prompt: upstreamParams.prompt || '',
     first_frame_image: firstFrame,
     last_frame_image: lastFrame,
     image: firstFrame,
-    size: params.size || params.ratio,
-    seconds: params.seconds || params.duration || params.dur
+    size: upstreamParams.size || upstreamParams.ratio,
+    seconds: upstreamParams.seconds || upstreamParams.duration || upstreamParams.dur
   });
 }
 
@@ -415,8 +511,24 @@ function adaptVideoPayload(providerType, params) {
 // ============================
 
 function normalizeImageItem(item) {
+  const base64Image = item.b64_json || item.b64Json;
+  if (base64Image) {
+    const value = String(base64Image);
+    return {
+      url: value.startsWith('data:') ? value : `data:image/png;base64,${value}`,
+      revisedPrompt: item.revised_prompt || item.revisedPrompt || ''
+    };
+  }
+
+  const rawUrl = item.url || item.image || '';
+  const url = typeof rawUrl === 'string'
+    && !/^(https?:|data:|\/)/i.test(rawUrl)
+    && rawUrl.length > 100
+    ? `data:image/png;base64,${rawUrl}`
+    : rawUrl;
+
   return {
-    url: item.url || item.image || item.b64_json || '',
+    url,
     revisedPrompt: item.revised_prompt || item.revisedPrompt || ''
   };
 }
@@ -672,6 +784,10 @@ async function refundOnFailure(record, costInfo, { userId, auditContext }) {
 async function persistGeneratedFiles(items = [], { userId, generationId, type }) {
   const files = [];
   const normalized = [];
+  const isImage = type === 'generated_image';
+  const publicMessage = isImage
+    ? '生成图片保存失败，请稍后再试'
+    : '生成视频保存失败，请稍后再试';
 
   for (const item of items) {
     if (!item?.url) continue;
@@ -685,16 +801,38 @@ async function persistGeneratedFiles(items = [], { userId, generationId, type })
       files.push(file);
       normalized.push({
         ...item,
-        originalUrl: item.url,
+        ...(String(item.url).startsWith('data:') ? {} : { originalUrl: item.url }),
         url: file.fileUrl,
         file_id: file.id
       });
     } catch (err) {
-      logger.warn(`生成结果转存失败，保留原始 URL：${err.message}`, {
+      logger.error(`生成结果转存失败：${err.message}`, {
         generation_id: generationId,
-        url: item.url
+        type,
+        url: item.url,
+        stack: err.stack
       });
-      normalized.push(item);
+      await recordError({
+        scope: 'storage',
+        level: 'error',
+        code: 50201,
+        httpStatus: 502,
+        message: err.message || publicMessage,
+        publicMessage,
+        stack: err.stack || null,
+        userId,
+        details: {
+          generation_id: generationId,
+          file_type: type,
+          original_url: item.url,
+          storage_error_code: err.code || null,
+          storage_error_extra: err.extra || null
+        }
+      });
+      throw new GenerationError(50201, publicMessage, {
+        generation_id: generationId,
+        file_type: type
+      });
     }
   }
 
@@ -1016,11 +1154,13 @@ export async function streamChatCompletions(payload, userId = null, auditContext
         auditContext
       })
     : null;
-  const costInfo = record
-    ? await charge(record, { userId, model, payload: params, type: 'chat', auditContext })
-    : null;
+  let costInfo = null;
 
   try {
+    costInfo = record
+      ? await charge(record, { userId, model, payload: params, type: 'chat', auditContext })
+      : null;
+
     const response = await callUpstream({
       channel,
       endpointKey: 'chat',

@@ -15,6 +15,7 @@ const {
   CoinTransaction,
   GenerationRecord,
   ModelConfig,
+  Project,
   UserGroup,
   UserGroupMember
 } = db;
@@ -44,6 +45,30 @@ function startOfMonth() {
   date.setDate(1);
   date.setHours(0, 0, 0, 0);
   return date;
+}
+
+async function withUserBillingLock(userId, fn) {
+  const lockKey = `billing:${userId}`.slice(0, 64);
+  const timeoutSeconds = Math.min(Math.max(parseInt(process.env.BILLING_LOCK_TIMEOUT_SECONDS || '5', 10), 1), 30);
+
+  return db.sequelize.transaction(async (transaction) => {
+    const [rows] = await db.sequelize.query('SELECT GET_LOCK(?, ?) AS locked', {
+      replacements: [lockKey, timeoutSeconds],
+      transaction
+    });
+    if (Number(rows?.[0]?.locked || 0) !== 1) {
+      throw new BillingError(40901, '用户计费处理中，请稍后再试');
+    }
+
+    try {
+      return await fn();
+    } finally {
+      await db.sequelize.query('SELECT RELEASE_LOCK(?)', {
+        replacements: [lockKey],
+        transaction
+      });
+    }
+  });
 }
 
 async function resolveModel({ modelId, modelKey, modelType }) {
@@ -80,13 +105,59 @@ function amountFromParamRules(rule, payload = {}) {
   return null;
 }
 
-function calculateBaseAmount(rule, payload = {}) {
-  if (!rule || !rule.isActive) return 0;
+function defaultAmountForModelType(modelType) {
+  const envKey = `DEFAULT_${String(modelType || '').toUpperCase()}_COST`;
+  const configured = process.env[envKey] ?? process.env.DEFAULT_GENERATION_COST;
+  if (configured !== undefined) return toMoney(configured);
+  return modelType === 'image' ? 1 : 0;
+}
+
+function calculateBaseAmount(rule, payload = {}, modelType = null) {
+  if (!rule || !rule.isActive) return defaultAmountForModelType(modelType);
+  let amount = null;
   if (rule.ruleType === 'param_tiered') {
     const tierAmount = amountFromParamRules(rule, payload);
-    if (tierAmount !== null) return tierAmount;
+    if (tierAmount !== null) amount = tierAmount;
   }
-  return toMoney(rule.fixedAmount);
+  if (amount === null) amount = toMoney(rule.fixedAmount);
+  const minimumAmount = defaultAmountForModelType(modelType);
+  return modelType === 'image' && amount <= 0 ? minimumAmount : amount;
+}
+
+function modelTypeLabel(modelType) {
+  const labels = {
+    image: '图片生成',
+    video: '视频生成',
+    chat: '问答生成'
+  };
+  return labels[modelType] || '模型生成';
+}
+
+function promptSnippet(payload = {}) {
+  const prompt = payload.prompt
+    || (Array.isArray(payload.messages)
+      ? payload.messages
+          .filter((item) => item?.role === 'user')
+          .map((item) => (typeof item.content === 'string' ? item.content : JSON.stringify(item.content)))
+          .join('\n')
+      : '');
+  return prompt ? String(prompt).slice(0, 300) : null;
+}
+
+async function projectContext(userId, projectId) {
+  if (!projectId) return null;
+  return Project.findOne({
+    where: { id: projectId, userId },
+    attributes: ['id', 'name']
+  });
+}
+
+function generationDescription({ action, modelType, model, project }) {
+  const parts = [action || modelTypeLabel(modelType)];
+  if (project?.name) parts.push(`项目「${project.name}」`);
+  const modelName = model?.displayName || model?.modelKey;
+  if (modelName) parts.push(`模型「${modelName}」`);
+  return parts.join(' / ');
 }
 
 export async function getEffectiveGroup(userId) {
@@ -128,7 +199,7 @@ export async function estimateCost({ userId, modelId, modelKey, modelType, paylo
     getEffectiveGroup(userId)
   ]);
 
-  const baseAmount = calculateBaseAmount(rule, payload);
+  const baseAmount = calculateBaseAmount(rule, payload, model.modelType);
   const multiplier = Number(group?.costMultiplier || 1);
   const finalCost = toMoney(baseAmount * multiplier);
   const groupSnapshot = group
@@ -152,7 +223,7 @@ export async function estimateCost({ userId, modelId, modelKey, modelType, paylo
       cost_multiplier: multiplier,
       group: groupSnapshot?.code || null,
       final_cost: finalCost,
-      rule_type: rule?.ruleType || 'none',
+      rule_type: rule?.ruleType || 'default',
       rule_id: rule?.id || null
     }
   };
@@ -222,45 +293,72 @@ export async function chargeForGeneration({
   auditContext = {},
   requestId = null
 }) {
-  const estimate = await estimateCost({ userId, modelId, modelKey, modelType, payload });
-  await checkQuota({
-    userId,
-    group: estimate.group,
-    finalCost: estimate.finalCost
-  });
+  return withUserBillingLock(userId, async () => {
+    const estimate = await estimateCost({ userId, modelId, modelKey, modelType, payload });
+    await checkQuota({
+      userId,
+      group: estimate.group,
+      finalCost: estimate.finalCost
+    });
 
-  if (estimate.finalCost <= 0) {
-    return {
-      ...estimate,
-      transaction: null
-    };
-  }
+    if (estimate.finalCost <= 0) {
+      return {
+        ...estimate,
+        transaction: null
+      };
+    }
 
-  const result = await CoinService.transact({
-    userId,
-    type: 'consume',
-    amount: estimate.finalCost,
-    operatorId: userId,
-    operatorType: 'user',
-    refType: 'generation',
-    refId: generationId,
-    reasonCode: 'generation.consume',
-    description: '模型生成消费',
-    metadata: {
+    const projectId = payload.project_id || payload.projectId || null;
+    const project = await projectContext(userId, projectId);
+    const contextMetadata = {
+      generation_id: generationId,
+      project_id: project?.id || projectId || null,
+      project_name: project?.name || null,
       model_id: estimate.model.id,
       model_key: estimate.model.modelKey,
-      model_type: modelType
-    },
-    requestId: requestId || auditContext.requestId || null,
-    clientIp: auditContext.ip || null,
-    userAgent: auditContext.userAgent || null,
-    costSnapshot: estimate.costBreakdown
-  });
+      model_display_name: estimate.model.displayName,
+      model_type: modelType,
+      prompt: promptSnippet(payload)
+    };
 
-  return {
-    ...estimate,
-    transaction: result.transaction
-  };
+    const result = await CoinService.transact({
+      userId,
+      type: 'consume',
+      amount: estimate.finalCost,
+      operatorId: userId,
+      operatorType: 'user',
+      refType: 'generation',
+      refId: generationId,
+      reasonCode: 'generation.consume',
+      description: generationDescription({
+        action: `${modelTypeLabel(modelType)}消费`,
+        modelType,
+        model: estimate.model,
+        project
+      }),
+      metadata: {
+        ...contextMetadata
+      },
+      requestId: requestId || auditContext.requestId || null,
+      clientIp: auditContext.ip || null,
+      userAgent: auditContext.userAgent || null,
+      costSnapshot: {
+        ...estimate.costBreakdown,
+        project: project ? { id: project.id, name: project.name } : null,
+        model: {
+          id: estimate.model.id,
+          key: estimate.model.modelKey,
+          name: estimate.model.displayName,
+          type: estimate.model.modelType
+        }
+      }
+    });
+
+    return {
+      ...estimate,
+      transaction: result.transaction
+    };
+  });
 }
 
 export async function refundGeneration({
@@ -274,6 +372,22 @@ export async function refundGeneration({
 }) {
   if (toMoney(amount) <= 0) return null;
 
+  const record = await GenerationRecord.findByPk(generationId, {
+    include: [
+      { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
+      { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'], required: false }
+    ]
+  });
+  const metadata = {
+    generation_id: generationId,
+    project_id: record?.project?.id || record?.projectId || null,
+    project_name: record?.project?.name || null,
+    model_id: record?.model?.id || record?.modelId || null,
+    model_key: record?.model?.modelKey || null,
+    model_display_name: record?.model?.displayName || null,
+    model_type: record?.type || null
+  };
+
   const result = await CoinService.transact({
     userId,
     type: 'refund',
@@ -283,7 +397,13 @@ export async function refundGeneration({
     refId: generationId,
     relatedTxId,
     reasonCode: 'generation.refund',
-    description: reason,
+    description: generationDescription({
+      action: reason,
+      modelType: record?.type,
+      model: record?.model,
+      project: record?.project
+    }),
+    metadata,
     requestId: requestId || auditContext.requestId || null,
     clientIp: auditContext.ip || null,
     userAgent: auditContext.userAgent || null

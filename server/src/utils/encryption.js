@@ -2,52 +2,65 @@
 /**
  * AES-256-GCM 加解密工具
  * 用于 API Key 等敏感信息的加密存储
- * - 密钥与初始向量从环境变量读取
- * - encrypt 返回 { encrypted, authTag }（base64 编码）
- * - decrypt 接收密文与 authTag，返回原文
+ * - 密钥从环境变量读取，生产环境必须显式配置
+ * - 每次加密生成随机 IV，避免 GCM IV 复用
+ * - decrypt 兼容旧数据：无 iv 字段时使用历史 AES_IV 解密
  */
 import crypto from 'crypto';
 
-// 从环境变量读取密钥（32 字节）与初始向量（16 字节）
-const SECRET_KEY = process.env.AES_SECRET_KEY || 'dev_aes_secret_key_32bytes_change_me';
-const IV = process.env.AES_IV || 'dev_aes_iv_16byte';
+const DEFAULT_SECRET_KEY = 'dev_aes_secret_key_32bytes_change_me';
+const DEFAULT_LEGACY_IV = 'dev_aes_iv_16byte';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-/**
- * 校验密钥与 IV 长度是否符合要求
- * @returns {{key: Buffer, iv: Buffer}} 规范化后的密钥与 IV
- */
-function getKeyAndIv() {
-  // 密钥必须为 32 字节（AES-256）
-  const key = Buffer.from(SECRET_KEY, 'utf8');
-  if (key.length !== 32) {
-    // 长度不足时用 0 填充，超长时截断（仅开发环境容错，生产环境应严格配置）
-    const padded = Buffer.alloc(32);
-    key.copy(padded, 0, 0, Math.min(key.length, 32));
-    return { key: padded, iv: getIv() };
-  }
-  return { key, iv: getIv() };
+function normalizeBuffer(raw, length) {
+  const buffer = Buffer.from(raw || '', 'utf8');
+  if (buffer.length === length) return buffer;
+  const padded = Buffer.alloc(length);
+  buffer.copy(padded, 0, 0, Math.min(buffer.length, length));
+  return padded;
 }
 
 /**
- * 获取规范化后的 IV（16 字节）
- * @returns {Buffer} 16 字节初始向量
+ * 校验密钥长度是否符合 AES-256 要求。
+ * 开发环境为兼容旧配置会补齐/截断，生产环境必须精确配置 32 字节。
  */
-function getIv() {
-  const iv = Buffer.from(IV, 'utf8');
-  if (iv.length === 16) return iv;
-  // 长度不足时用 0 填充，超长时截断
-  const padded = Buffer.alloc(16);
-  iv.copy(padded, 0, 0, Math.min(iv.length, 16));
-  return padded;
+function getKey() {
+  const raw = process.env.AES_SECRET_KEY || DEFAULT_SECRET_KEY;
+  const key = Buffer.from(raw, 'utf8');
+  if (NODE_ENV === 'production') {
+    if (!process.env.AES_SECRET_KEY || raw === DEFAULT_SECRET_KEY || key.length !== 32) {
+      throw new Error('生产环境必须配置 32 字节 AES_SECRET_KEY');
+    }
+    return key;
+  }
+  return key.length === 32 ? key : normalizeBuffer(raw, 32);
+}
+
+/**
+ * 仅用于解密旧数据。新加密数据会把随机 IV 写入 payload.iv。
+ */
+function getLegacyIv() {
+  const raw = process.env.AES_IV || DEFAULT_LEGACY_IV;
+  if (NODE_ENV === 'production' && !process.env.AES_IV) {
+    throw new Error('旧版加密数据缺少 iv 字段，生产环境需配置 AES_IV 完成兼容解密');
+  }
+  const iv = Buffer.from(raw, 'utf8');
+  return iv.length ? iv : normalizeBuffer(raw, 16);
+}
+
+function decodeIv(iv) {
+  if (!iv) return getLegacyIv();
+  return Buffer.from(iv, 'base64');
 }
 
 /**
  * AES-256-GCM 加密
  * @param {string} plaintext 待加密明文
- * @returns {{encrypted: string, authTag: string}} base64 编码的密文与认证标签
+ * @returns {{encrypted: string, authTag: string, iv: string}} base64 编码的密文、认证标签与随机 IV
  */
 export function encrypt(plaintext) {
-  const { key, iv } = getKeyAndIv();
+  const key = getKey();
+  const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([
     cipher.update(plaintext, 'utf8'),
@@ -56,7 +69,8 @@ export function encrypt(plaintext) {
   const authTag = cipher.getAuthTag();
   return {
     encrypted: encrypted.toString('base64'),
-    authTag: authTag.toString('base64')
+    authTag: authTag.toString('base64'),
+    iv: iv.toString('base64')
   };
 }
 
@@ -64,11 +78,12 @@ export function encrypt(plaintext) {
  * AES-256-GCM 解密
  * @param {string} encrypted base64 编码的密文
  * @param {string} authTag base64 编码的认证标签
+ * @param {string|null} iv base64 编码的随机 IV；为空时按旧版固定 IV 解密
  * @returns {string} 解密后的原文
  */
-export function decrypt(encrypted, authTag) {
-  const { key, iv } = getKeyAndIv();
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+export function decrypt(encrypted, authTag, iv = null) {
+  const key = getKey();
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, decodeIv(iv));
   decipher.setAuthTag(Buffer.from(authTag, 'base64'));
   const decrypted = Buffer.concat([
     decipher.update(Buffer.from(encrypted, 'base64')),

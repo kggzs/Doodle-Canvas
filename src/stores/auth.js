@@ -46,6 +46,14 @@ export async function register({ email, username, password }) {
   return backend.post('/auth/register', { email, username, password })
 }
 
+export async function checkEmail(email) {
+  return backend.post('/auth/check-email', { email })
+}
+
+export async function resendVerification(email) {
+  return backend.post('/auth/resend-verification', { email })
+}
+
 export async function verifyEmail({ email, code }) {
   const data = await backend.post('/auth/verify-email', { email, code })
   setAuthSession(data)
@@ -75,6 +83,8 @@ export default {
   isAdmin,
   login,
   register,
+  checkEmail,
+  resendVerification,
   verifyEmail,
   fetchProfile,
   logout,

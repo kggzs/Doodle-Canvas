@@ -41,7 +41,7 @@
         <!-- Model selector | 模型选择 -->
         <div class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">模型</span>
-          <n-dropdown :options="modelOptions" @select="handleModelSelect">
+          <n-dropdown :options="modelOptions" trigger="click" @select="handleModelSelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
               {{ displayModelName }}
               <n-icon :size="12"><ChevronDownOutline /></n-icon>
@@ -52,7 +52,7 @@
         <!-- Quality selector | 画质选择 -->
         <div v-if="hasQualityOptions" class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">画质</span>
-          <n-dropdown :options="qualityOptions" @select="handleQualitySelect">
+          <n-dropdown :options="qualityOptions" trigger="click" @select="handleQualitySelect">
             <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
               {{ displayQuality }}
               <n-icon :size="12"><ChevronForwardOutline /></n-icon>
@@ -64,7 +64,7 @@
         <div v-if="hasSizeOptions" class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">尺寸</span>
           <div class="flex items-center gap-2">
-            <n-dropdown :options="sizeOptions" @select="handleSizeSelect">
+            <n-dropdown :options="sizeOptions" trigger="click" @select="handleSizeSelect">
               <button
                 class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
                 {{ displaySize }}
@@ -166,7 +166,7 @@ import { useImageGeneration } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import { useModelStore } from '../../stores/pinia'
-import { getModelSizeOptions, getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
+import { getModelSizeOptions, getModelQualityOptions, getModelConfig } from '../../stores/models'
 import { parseMentions } from '../../hooks/useNodeRef'
 
 // 使用 Pinia store 获取模型选项（根据渠道过滤）
@@ -194,7 +194,7 @@ const { loading, error, images: generatedImages, generate } = useImageGeneration
 
 // Local state | 本地状态
 const showHandleMenu = ref(false)
-const localModel = ref(props.data?.model || DEFAULT_IMAGE_MODEL)
+const localModel = ref(props.data?.model || modelStore.selectedImageModel || '')
 const localSize = ref(props.data?.size || '2048x2048')
 const localQuality = ref(props.data?.quality || 'standard')
 
@@ -294,7 +294,7 @@ onMounted(() => {
 
   if (!localModel.value || !isModelAvailable) {
     // 使用 store 中的默认模型或第一个可用模型
-    localModel.value = modelStore.selectedImageModel || availableModels[0]?.key || DEFAULT_IMAGE_MODEL
+    localModel.value = modelStore.selectedImageModel || availableModels[0]?.key || ''
     updateNode(props.id, { model: localModel.value })
   }
 })
@@ -313,7 +313,7 @@ const resolveTextMentionsForImage = (textNode) => {
   for (const mention of mentions) {
     const referencedNode = nodes.value.find(n => n.id === mention.nodeId)
     if (referencedNode?.type === 'image') {
-      const imageData = referencedNode.data?.base64 || referencedNode.data?.url
+      const imageData = referencedNode.data?.url
       if (imageData) {
         imageMentions.push({
           order: mention.order,
@@ -409,8 +409,7 @@ const getConnectedInputs = () => {
     if (!sourceNode) continue
 
     if (sourceNode.type === 'image') {
-      // Prefer base64, fallback to url | 优先使用 base64，回退到 url
-      const imageData = sourceNode.data?.base64 || sourceNode.data?.url
+      const imageData = sourceNode.data?.url
       if (imageData) {
         // Get order from edge data, default to 1 | 从边数据获取顺序，默认为1
         // Add offset of @ mentions count | 加上 @ 提及图片数量的偏移

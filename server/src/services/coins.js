@@ -9,7 +9,17 @@ import { Op, fn, col } from 'sequelize';
 
 import db from '../models/index.js';
 
-const { sequelize, User, UserBalance, CoinTransaction } = db;
+const {
+  sequelize,
+  User,
+  UserBalance,
+  CoinTransaction,
+  File,
+  GenerationRecord,
+  ModelChannel,
+  ModelConfig,
+  Project
+} = db;
 
 const IN_TYPES = new Set(['recharge', 'recharge_bonus', 'redeem', 'gift', 'register_gift', 'refund', 'adjust_add', 'unfreeze', 'transfer_in', 'rollback']);
 const OUT_TYPES = new Set(['consume', 'adjust_deduct', 'freeze', 'forfeit', 'expire', 'transfer_out']);
@@ -77,6 +87,12 @@ async function requireUser(userId, transaction = null) {
   return user;
 }
 
+function isUniqueConstraintError(err) {
+  return err?.name === 'SequelizeUniqueConstraintError'
+    || err?.original?.code === 'ER_DUP_ENTRY'
+    || err?.parent?.code === 'ER_DUP_ENTRY';
+}
+
 export async function getOrCreateBalance(userId, transaction = null, lock = false) {
   await requireUser(userId, transaction);
 
@@ -87,7 +103,17 @@ export async function getOrCreateBalance(userId, transaction = null, lock = fals
   });
 
   if (!balance) {
-    balance = await UserBalance.create({ userId, balance: 0 }, { transaction });
+    try {
+      balance = await UserBalance.create({ userId, balance: 0 }, { transaction });
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
+      balance = await UserBalance.findOne({
+        where: { userId },
+        transaction,
+        lock: lock && transaction ? transaction.LOCK?.UPDATE || true : undefined
+      });
+      if (!balance) throw err;
+    }
     if (lock && transaction) {
       balance = await UserBalance.findOne({
         where: { userId },
@@ -239,6 +265,8 @@ export async function listTransactions(params = {}) {
     where[Op.or] = [
       { reason: { [Op.like]: `%${params.keyword}%` } },
       { description: { [Op.like]: `%${params.keyword}%` } },
+      { metadata: { [Op.like]: `%${params.keyword}%` } },
+      { costSnapshot: { [Op.like]: `%${params.keyword}%` } },
       { txNo: { [Op.like]: `%${params.keyword}%` } },
       { refType: { [Op.like]: `%${params.keyword}%` } },
       { refId: { [Op.like]: `%${params.keyword}%` } }
@@ -258,6 +286,26 @@ export async function listTransactions(params = {}) {
     limit: pageSize,
     offset
   });
+
+  const generationIds = [...new Set(rows
+    .filter((row) => row.refType === 'generation' && row.refId)
+    .map((row) => row.refId))];
+
+  if (generationIds.length) {
+    const records = await GenerationRecord.findAll({
+      where: { id: { [Op.in]: generationIds } },
+      include: [
+        { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
+        { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'], required: false },
+        { model: ModelChannel, as: 'channel', attributes: ['id', 'name', 'providerType'], required: false },
+        { model: File, as: 'files', attributes: ['id', 'type', 'fileName', 'fileUrl', 'mimeType', 'status'], required: false }
+      ]
+    });
+    const recordMap = new Map(records.map((record) => [record.id, record]));
+    for (const row of rows) {
+      row.setDataValue('generation', recordMap.get(row.refId) || null);
+    }
+  }
 
   return {
     items: rows,

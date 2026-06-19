@@ -11,6 +11,7 @@ import { success, error } from '../utils/response.js';
 import * as GenerationService from '../services/generation.js';
 import { GenerationError } from '../services/generation.js';
 import { logger } from '../utils/logger.js';
+import { recordError } from '../services/error-logs.js';
 
 const router = Router();
 
@@ -38,7 +39,8 @@ function mapCodeToHttpStatus(code) {
 
 function handleServiceError(res, err) {
   if (err instanceof GenerationError || Number.isInteger(err.code)) {
-    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), Object.keys(err.extra).length ? err.extra : null);
+    const details = err.extra && Object.keys(err.extra).length ? err.extra : null;
+    return error(res, err.code, err.message, mapCodeToHttpStatus(err.code), details);
   }
   logger.error(`对话代理异常：${err.message}`, { stack: err.stack });
   return error(res, 50001, '服务器内部错误', 500);
@@ -84,8 +86,26 @@ router.post('/completions/stream', chatValidators, async (req, res) => {
         model: result.model,
         channel_id: result.channel?.id
       });
+      recordError({
+        requestId: res.locals?.requestId || null,
+        scope: 'user_api',
+        level: 'error',
+        code: 50201,
+        httpStatus: 502,
+        method: req.method,
+        path: req.originalUrl,
+        userId: req.userId || null,
+        clientIp: req.auditContext?.ip || req.ip || null,
+        userAgent: req.auditContext?.userAgent || req.get?.('user-agent') || null,
+        message: err.message || '对话流转发失败',
+        publicMessage: '生成失败，请稍后再试',
+        details: {
+          model: result.model,
+          channel_id: result.channel?.id
+        }
+      });
       if (!res.writableEnded) {
-        res.write(`event: error\ndata: ${JSON.stringify({ code: 50201, message: err.message })}\n\n`);
+        res.write(`event: error\ndata: ${JSON.stringify({ code: 50201, message: '生成失败，请稍后再试' })}\n\n`);
         res.end();
       }
     });

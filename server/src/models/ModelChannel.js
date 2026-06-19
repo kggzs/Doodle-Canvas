@@ -42,6 +42,13 @@ const ModelChannel = sequelize.define(
       field: 'provider_type',
       comment: '适配器类型'
     },
+    modelType: {
+      type: DataTypes.ENUM('image', 'video', 'chat'),
+      allowNull: false,
+      defaultValue: 'chat',
+      field: 'model_type',
+      comment: '渠道用途类型'
+    },
     apiBaseUrl: {
       type: DataTypes.STRING(500),
       allowNull: false,

@@ -6,7 +6,7 @@ import { Op } from 'sequelize';
 
 import db from '../models/index.js';
 
-const { File, GenerationRecord, ModelChannel, ModelConfig, User } = db;
+const { File, GenerationRecord, ModelChannel, ModelConfig, Project, User } = db;
 
 export class RecordError extends Error {
   constructor(code, message, extra = {}) {
@@ -51,6 +51,7 @@ export async function listUserRecords(userId, params = {}) {
     include: [
       { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'] },
       { model: ModelChannel, as: 'channel', attributes: ['id', 'name', 'providerType'] },
+      { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
       { model: File, as: 'files', where: { status: 'active' }, required: false }
     ],
     order: [['createdAt', 'DESC']],
@@ -68,6 +69,7 @@ export async function getUserRecord(userId, id) {
     include: [
       { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'] },
       { model: ModelChannel, as: 'channel', attributes: ['id', 'name', 'providerType'] },
+      { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
       { model: File, as: 'files', where: { status: 'active' }, required: false }
     ]
   });
@@ -85,6 +87,7 @@ export async function listAdminRecords(params = {}) {
       { model: User, as: 'user', attributes: ['id', 'username', 'email'] },
       { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'] },
       { model: ModelChannel, as: 'channel', attributes: ['id', 'name', 'providerType'] },
+      { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
       { model: File, as: 'files', required: false }
     ],
     order: [['createdAt', 'DESC']],
@@ -102,6 +105,7 @@ export async function getAdminRecord(id) {
       { model: User, as: 'user', attributes: ['id', 'username', 'email'] },
       { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'] },
       { model: ModelChannel, as: 'channel', attributes: ['id', 'name', 'providerType'] },
+      { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
       { model: File, as: 'files', required: false }
     ]
   });

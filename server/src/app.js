@@ -22,9 +22,10 @@ import { requestIdMiddleware } from './middleware/requestId.js';
 import { auditContextMiddleware } from './middleware/audit-context.js';
 import { globalRateLimitMiddleware } from './middleware/rateLimit.js';
 import routes from './routes/index.js';
-import { getStorageRoot } from './services/storage.js';
+import { getPublicFileByStoragePath, StorageError } from './services/storage.js';
 import { testConnection as testMysql } from './config/database.js';
 import { testConnection as testRedis } from './config/redis.js';
+import { recordError } from './services/error-logs.js';
 
 // 当前模块路径（ES Modules 下替代 __dirname）
 const __filename = fileURLToPath(import.meta.url);
@@ -33,7 +34,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const FRONTEND_BASE = process.env.FRONTEND_BASE || '/huobao-canvas';
+const FRONTEND_BASE = process.env.FRONTEND_BASE || '/';
 const FRONTEND_DIST_DIR = process.env.FRONTEND_DIST_DIR || '../../dist';
 const SERVE_FRONTEND = process.env.SERVE_FRONTEND !== 'false';
 
@@ -96,14 +97,58 @@ app.use(requestIdMiddleware);
 // 审计上下文中间件（采集 IP/UA）
 app.use(auditContextMiddleware);
 
-// 全局速率限制
-app.use(globalRateLimitMiddleware);
+// 记录客户端主动断开的 API 请求，避免前端超时后后端错误无处可查。
+app.use((req, res, next) => {
+  if (!req.originalUrl?.startsWith('/api')) return next();
 
-// 本地存储静态分发（生产环境仍建议由 Nginx 映射 /storage/）
-app.use('/storage', express.static(getStorageRoot(), {
-  index: false,
-  maxAge: NODE_ENV === 'production' ? '7d' : 0
-}));
+  let finished = false;
+  let logged = false;
+  const logClientAbort = () => {
+    if (finished || logged) return;
+    logged = true;
+    recordError({
+      requestId: res.locals?.requestId || null,
+      scope: req.originalUrl.startsWith('/api/admin') ? 'admin_api' : 'user_api',
+      level: 'warn',
+      code: 49901,
+      httpStatus: 499,
+      method: req.method,
+      path: req.originalUrl,
+      userId: req.userId || req.user?.id || null,
+      clientIp: req.auditContext?.ip || req.ip || null,
+      userAgent: req.auditContext?.userAgent || req.get?.('user-agent') || null,
+      message: '客户端在响应完成前断开连接',
+      publicMessage: '请求已取消',
+      details: { type: 'client_aborted' }
+    });
+  };
+
+  res.on('finish', () => {
+    finished = true;
+  });
+  req.on('aborted', logClientAbort);
+  res.on('close', logClientAbort);
+  return next();
+});
+
+// API 全局速率限制。静态资源不参与计数，避免后台页面加载资源时误触发 429。
+app.use('/api', globalRateLimitMiddleware);
+
+// 本地存储访问：先查 files 表状态，避免软删除/隔离文件被旧 URL 直接访问。
+app.get('/storage/*', async (req, res) => {
+  try {
+    const { file, absolutePath } = await getPublicFileByStoragePath(req.params[0]);
+    res.setHeader('Cache-Control', NODE_ENV === 'production' ? 'public, max-age=604800' : 'no-store');
+    if (file.mimeType) res.type(file.mimeType);
+    return res.sendFile(absolutePath);
+  } catch (err) {
+    if (err instanceof StorageError || Number.isInteger(err.code)) {
+      return error(res, err.code || 40402, err.message || '文件不存在或已删除', err.code === 40001 ? 400 : 404);
+    }
+    logger.error(`文件访问异常：${err.message}`, { stack: err.stack, path: req.originalUrl });
+    return error(res, 50001, '服务器内部错误', 500);
+  }
+});
 
 // ============================
 // 路由挂载
@@ -207,10 +252,24 @@ async function startServer() {
 // 捕获未处理的 Promise 异常，防止进程崩溃
 process.on('unhandledRejection', (reason) => {
   logger.error('未处理的 Promise 异常：', reason);
+  recordError({
+    scope: 'process',
+    level: 'error',
+    message: reason?.message || String(reason),
+    stack: reason?.stack || null,
+    details: { type: 'unhandledRejection' }
+  });
 });
 
 process.on('uncaughtException', (err) => {
   logger.error('未捕获的异常：', err);
+  recordError({
+    scope: 'process',
+    level: 'error',
+    message: err?.message || String(err),
+    stack: err?.stack || null,
+    details: { type: 'uncaughtException' }
+  });
 });
 
 // 启动服务

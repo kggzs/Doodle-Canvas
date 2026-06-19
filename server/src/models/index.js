@@ -24,6 +24,7 @@ import GenerationRecord from './GenerationRecord.js';
 import Project from './Project.js';
 import SystemSetting from './SystemSetting.js';
 import MigrateImport from './MigrateImport.js';
+import ErrorLog from './ErrorLog.js';
 
 // ============================
 // 建立模型关联关系
@@ -285,6 +286,7 @@ export const db = {
   Project,
   SystemSetting,
   MigrateImport,
+  ErrorLog,
   ModelChannel,
   ModelConfig,
   ModelChannelBinding

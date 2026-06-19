@@ -44,6 +44,86 @@ async function tableExists(table) {
 }
 
 async function run() {
+  await addColumn('model_channels', 'model_type', "`model_type` ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型' AFTER `provider_type`");
+  await connection.query(`
+    UPDATE \`model_channels\` c
+    JOIN (
+      SELECT
+        b.\`channel_id\`,
+        MIN(m.\`model_type\`) AS model_type,
+        COUNT(DISTINCT m.\`model_type\`) AS type_count
+      FROM \`model_channel_bindings\` b
+      JOIN \`models\` m ON m.\`id\` = b.\`model_id\`
+      GROUP BY b.\`channel_id\`
+    ) inferred ON inferred.\`channel_id\` = c.\`id\`
+    SET c.\`model_type\` = inferred.\`model_type\`
+    WHERE inferred.\`type_count\` = 1
+  `);
+  await connection.query(`
+    CREATE TEMPORARY TABLE IF NOT EXISTS \`tmp_mixed_channel_type_map\` AS
+    SELECT
+      UUID() AS new_channel_id,
+      c.\`id\` AS old_channel_id,
+      CONCAT(c.\`name\`, '-', typed.\`model_type\`) AS new_name,
+      typed.\`model_type\`
+    FROM \`model_channels\` c
+    JOIN (
+      SELECT
+        b.\`channel_id\`,
+        m.\`model_type\`
+      FROM \`model_channel_bindings\` b
+      JOIN \`models\` m ON m.\`id\` = b.\`model_id\`
+      GROUP BY b.\`channel_id\`, m.\`model_type\`
+    ) typed ON typed.\`channel_id\` = c.\`id\`
+    JOIN (
+      SELECT
+        b.\`channel_id\`,
+        MIN(m.\`model_type\`) AS keep_type,
+        COUNT(DISTINCT m.\`model_type\`) AS type_count
+      FROM \`model_channel_bindings\` b
+      JOIN \`models\` m ON m.\`id\` = b.\`model_id\`
+      GROUP BY b.\`channel_id\`
+      HAVING type_count > 1
+    ) mixed ON mixed.\`channel_id\` = c.\`id\`
+    WHERE typed.\`model_type\` <> mixed.\`keep_type\`
+  `);
+  await connection.query(`
+    INSERT INTO \`model_channels\` (
+      \`id\`, \`name\`, \`provider_type\`, \`model_type\`, \`api_base_url\`, \`api_key\`,
+      \`is_active\`, \`priority\`, \`weight\`, \`max_concurrent\`, \`timeout_ms\`, \`config\`,
+      \`total_requests\`, \`success_count\`, \`fail_count\`, \`last_used_at\`, \`last_fail_at\`,
+      \`circuit_open\`, \`circuit_open_at\`, \`created_at\`, \`updated_at\`
+    )
+    SELECT
+      map.\`new_channel_id\`, map.\`new_name\`, c.\`provider_type\`, map.\`model_type\`, c.\`api_base_url\`, c.\`api_key\`,
+      c.\`is_active\`, c.\`priority\`, c.\`weight\`, c.\`max_concurrent\`, c.\`timeout_ms\`, c.\`config\`,
+      0, 0, 0, NULL, NULL,
+      0, NULL, NOW(), NOW()
+    FROM \`tmp_mixed_channel_type_map\` map
+    JOIN \`model_channels\` c ON c.\`id\` = map.\`old_channel_id\`
+  `);
+  await connection.query(`
+    UPDATE \`model_channel_bindings\` b
+    JOIN \`models\` m ON m.\`id\` = b.\`model_id\`
+    JOIN \`tmp_mixed_channel_type_map\` map
+      ON map.\`old_channel_id\` = b.\`channel_id\`
+      AND map.\`model_type\` = m.\`model_type\`
+    SET b.\`channel_id\` = map.\`new_channel_id\`
+  `);
+  await connection.query(`
+    UPDATE \`model_channels\` c
+    JOIN (
+      SELECT
+        b.\`channel_id\`,
+        MIN(m.\`model_type\`) AS model_type
+      FROM \`model_channel_bindings\` b
+      JOIN \`models\` m ON m.\`id\` = b.\`model_id\`
+      GROUP BY b.\`channel_id\`
+    ) inferred ON inferred.\`channel_id\` = c.\`id\`
+    SET c.\`model_type\` = inferred.\`model_type\`
+  `);
+  await connection.query('DROP TEMPORARY TABLE IF EXISTS `tmp_mixed_channel_type_map`');
+
   await addColumn('user_balances', 'coins_frozen', "`coins_frozen` DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '冻结金币' AFTER `balance`");
   await addColumn('user_balances', 'total_recharged', "`total_recharged` DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '累计充值金币' AFTER `coins_frozen`");
   await addColumn('user_balances', 'total_gifted', "`total_gifted` DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '累计赠送金币' AFTER `total_recharged`");
@@ -225,6 +305,34 @@ async function run() {
       KEY \`idx_system_setting_category\` (\`category\`),
       KEY \`idx_system_setting_public\` (\`is_public\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统设置表'
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS \`error_logs\` (
+      \`id\` CHAR(36) NOT NULL,
+      \`request_id\` VARCHAR(64) DEFAULT NULL,
+      \`level\` ENUM('error','warn','info') NOT NULL DEFAULT 'error',
+      \`scope\` VARCHAR(100) DEFAULT NULL,
+      \`code\` INT DEFAULT NULL,
+      \`http_status\` INT DEFAULT NULL,
+      \`method\` VARCHAR(10) DEFAULT NULL,
+      \`path\` VARCHAR(500) DEFAULT NULL,
+      \`user_id\` CHAR(36) DEFAULT NULL,
+      \`client_ip\` VARCHAR(45) DEFAULT NULL,
+      \`user_agent\` TEXT DEFAULT NULL,
+      \`message\` TEXT NOT NULL,
+      \`public_message\` VARCHAR(255) DEFAULT NULL,
+      \`stack\` LONGTEXT DEFAULT NULL,
+      \`details\` LONGTEXT DEFAULT NULL,
+      \`is_resolved\` TINYINT(1) NOT NULL DEFAULT 0,
+      \`resolved_at\` DATETIME DEFAULT NULL,
+      \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`id\`),
+      KEY \`idx_error_logs_created\` (\`created_at\`),
+      KEY \`idx_error_logs_scope_level\` (\`scope\`, \`level\`, \`created_at\`),
+      KEY \`idx_error_logs_request\` (\`request_id\`),
+      KEY \`idx_error_logs_user\` (\`user_id\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='错误日志表'
   `);
 
   if (!(await tableExists('migrate_imports'))) {

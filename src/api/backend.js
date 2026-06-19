@@ -32,6 +32,59 @@ export const adminCoinApi = {
   transactions: (params) => backend.get('/admin/coins/transactions', { params })
 }
 
+export const coinApi = {
+  balance: () => backend.get('/coins/balance'),
+  summary: () => backend.get('/coins/summary'),
+  transactions: (params) => backend.get('/coins/transactions', { params })
+}
+
+export const projectApi = {
+  list: (params) => backend.get('/projects', { params }),
+  create: (data) => backend.post('/projects', data),
+  detail: (id) => backend.get(`/projects/${id}`),
+  update: (id, data) => backend.put(`/projects/${id}`, data),
+  remove: (id) => backend.delete(`/projects/${id}`)
+}
+
+export const fileApi = {
+  uploadImage: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return backend.post('/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
+}
+
+export const adminDashboardApi = {
+  overview: () => backend.get('/admin/dashboard/overview'),
+  trend: () => backend.get('/admin/dashboard/trend'),
+  modelStats: () => backend.get('/admin/dashboard/model-stats')
+}
+
+export const adminRecordApi = {
+  list: (params) => backend.get('/admin/records', { params }),
+  detail: (id) => backend.get(`/admin/records/${id}`)
+}
+
+export const adminBillingApi = {
+  rules: (params) => backend.get('/admin/billing/rules', { params }),
+  createRule: (data) => backend.post('/admin/billing/rules', data),
+  updateRule: (id, data) => backend.put(`/admin/billing/rules/${id}`, data),
+  removeRule: (id) => backend.delete(`/admin/billing/rules/${id}`)
+}
+
+export const adminFileApi = {
+  list: (params) => backend.get('/admin/files', { params }),
+  restore: (id) => backend.post(`/admin/files/${id}/restore`)
+}
+
+export const adminErrorLogApi = {
+  list: (params) => backend.get('/admin/error-logs', { params }),
+  detail: (id) => backend.get(`/admin/error-logs/${id}`),
+  resolve: (id) => backend.post(`/admin/error-logs/${id}/resolve`)
+}
+
 export const adminChannelApi = {
   list: (params) => backend.get('/admin/channels', { params }),
   create: (data) => backend.post('/admin/channels', data),
@@ -59,6 +112,14 @@ export default {
   adminUserApi,
   adminUserGroupApi,
   adminCoinApi,
+  adminDashboardApi,
+  adminRecordApi,
+  adminBillingApi,
+  adminFileApi,
+  adminErrorLogApi,
   adminChannelApi,
-  adminModelApi
+  adminModelApi,
+  coinApi,
+  fileApi,
+  projectApi
 }

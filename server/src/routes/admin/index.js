@@ -28,11 +28,16 @@ import coinRoutes from './coins.js';
 import billingRoutes from './billing.js';
 import recordRoutes from './records.js';
 import fileRoutes from './files.js';
+import dashboardRoutes from './dashboard.js';
+import errorLogRoutes from './error-logs.js';
 
 const router = Router();
 
 // 所有管理路由均需登录 + Admin 角色
 router.use(authMiddleware, adminMiddleware);
+
+// 管理仪表盘：/api/admin/dashboard/*
+router.use('/dashboard', dashboardRoutes);
 
 // 渠道地址池管理：/api/admin/channels/*
 router.use('/channels', channelRoutes);
@@ -57,6 +62,9 @@ router.use('/records', recordRoutes);
 
 // 文件管理：/api/admin/files/*
 router.use('/files', fileRoutes);
+
+// 错误日志：/api/admin/error-logs/*
+router.use('/error-logs', errorLogRoutes);
 
 /**
  * 管理后台健康检查占位接口

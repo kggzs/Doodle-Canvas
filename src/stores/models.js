@@ -43,6 +43,7 @@ const getModelConfigHook = () => {
 export const loadAllModels = async () => {
   const modelConfig = getModelConfigHook()
   if (modelConfig) {
+    await modelConfig.loadPublicModels?.()
     // Pinia store exposes computed properties directly (no .value)
     return [...modelConfig.allImageModels, ...modelConfig.allVideoModels, ...modelConfig.allChatModels]
   }

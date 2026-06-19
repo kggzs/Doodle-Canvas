@@ -4,7 +4,6 @@
 
 export * from './constants'
 export * from './schema'
-export * from './imageCache'
 import backend from './backend'
 
 export { backend }

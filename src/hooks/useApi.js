@@ -11,7 +11,7 @@ import {
   streamChatCompletions
 } from '@/api'
 import { getModelByName } from '@/config/models'
-import { cacheImage } from '@/utils/imageCache'
+import { currentProjectId } from '@/stores/canvas'
 
 /**
  * Base API state hook | 基础 API 状态 Hook
@@ -87,7 +87,8 @@ export const useChat = (options = {}) => {
 
       const requestParams = {
         model: chatOptions.model || options.model || 'gpt-4o-mini',
-        messages: msgList
+        messages: msgList,
+        project_id: chatOptions.projectId || options.projectId || currentProjectId.value || undefined
       }
 
       if (stream) {
@@ -113,6 +114,8 @@ export const useChat = (options = {}) => {
         setError(err)
         throw err
       }
+    } finally {
+      window.dispatchEvent(new CustomEvent('doodle-balance-refresh'))
     }
   }
 
@@ -161,7 +164,8 @@ export const useImageGeneration = () => {
         model: params.model,
         prompt: params.prompt,
         size: params.size || modelConfig?.defaultParams?.size || '2048x2048',
-        n: params.n || 1
+        n: params.n || 1,
+        project_id: currentProjectId.value || undefined
       }
 
       // Add reference image if provided | 添加参考图
@@ -200,15 +204,6 @@ export const useImageGeneration = () => {
       const response = await generateImage(requestData)
       const adaptedData = response.images || []
 
-      // 异步缓存生成的图片到 IndexedDB（不阻塞返回）
-      if (adaptedData && adaptedData.length > 0) {
-        for (const item of adaptedData) {
-          if (item.url && !item.url.startsWith('data:')) {
-            cacheImage(item.url).catch(() => {})
-          }
-        }
-      }
-
       images.value = adaptedData
       currentImage.value = adaptedData[0] || null
       setSuccess()
@@ -216,6 +211,8 @@ export const useImageGeneration = () => {
     } catch (err) {
       setError(err)
       throw err
+    } finally {
+      window.dispatchEvent(new CustomEvent('doodle-balance-refresh'))
     }
   }
 
@@ -250,7 +247,8 @@ export const useVideoGeneration = () => {
     // Build request data | 构建请求数据
     const requestData = {
       model: params.model,
-      prompt: params.prompt || ''
+      prompt: params.prompt || '',
+      project_id: currentProjectId.value || undefined
     }
 
     if (isAliyunWan) {
@@ -312,7 +310,7 @@ export const useVideoGeneration = () => {
       }
 
       if (result.status === 'failed') {
-        throw new Error(result.error || result.message || '视频生成失败')
+        throw new Error('视频生成失败，请稍后再试')
       }
     }
 
@@ -357,6 +355,8 @@ export const useVideoGeneration = () => {
     } catch (err) {
       setError(err)
       throw err
+    } finally {
+      window.dispatchEvent(new CustomEvent('doodle-balance-refresh'))
     }
   }
 

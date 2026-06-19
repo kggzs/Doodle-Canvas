@@ -269,7 +269,7 @@ import { nodes, edges, addNode, addNodes, addEdge, addEdges, updateNode, initSam
 import { loadAllModels } from '../stores/models'
 import { useChat, useWorkflowOrchestrator } from '../hooks'
 import { useModelStore } from '../stores/pinia'
-import { projects, initProjectsStore, updateProject, renameProject, duplicateProject, deleteProject, currentProject } from '../stores/projects'
+import { projects, initProjectsStore, renameProject, duplicateProject, deleteProject, ensureProject } from '../stores/projects'
 
 import DownloadModal from '../components/DownloadModal.vue'
 import WorkflowPanel from '../components/WorkflowPanel.vue'
@@ -641,30 +641,30 @@ const handleProjectAction = (key) => {
 }
 
 // Confirm rename | 确认重命名
-const confirmRename = () => {
+const confirmRename = async () => {
   const projectId = route.params.id
   if (renameValue.value.trim()) {
-    renameProject(projectId, renameValue.value.trim())
+    await renameProject(projectId, renameValue.value.trim())
     window.$message?.success('已重命名')
   }
   showRenameModal.value = false
 }
 
 // Confirm delete | 确认删除
-const confirmDelete = () => {
+const confirmDelete = async () => {
   const projectId = route.params.id
-  deleteProject(projectId)
+  await deleteProject(projectId)
   showDeleteModal.value = false
   window.$message?.success('项目已删除')
-  router.push('/')
+  router.push('/projects')
 }
 
 // Duplicate current project | 复制当前项目
-const duplicateCurrentProject = () => {
+const duplicateCurrentProject = async () => {
   const projectId = route.params.id
   // 保存当前画布最新状态后再复制，确保副本包含未保存改动
-  saveProject()
-  const newId = duplicateProject(projectId)
+  await saveProject()
+  const newId = await duplicateProject(projectId)
   if (newId) {
     window.$message?.success('项目已复制')
     router.push(`/canvas/${newId}`)
@@ -777,7 +777,7 @@ const sendMessage = async () => {
 
 // Go back to home | 返回首页
 const goBack = () => {
-  router.push('/')
+  router.push('/projects')
 }
 
 // Check if mobile | 检测是否移动端
@@ -786,49 +786,50 @@ const checkMobile = () => {
 }
 
 // Load project by ID | 根据ID加载项目
-const loadProjectById = (projectId) => {
+const loadProjectById = async (projectId) => {
   // Update flow key to force VueFlow re-render | 更新 key 强制 VueFlow 重新渲染
   flowKey.value = Date.now()
   
-  if (projectId && projectId !== 'new') {
-    loadProject(projectId)
-  } else {
-    // New project - clear canvas | 新项目 - 清空画布
-    clearCanvas()
+  const project = await ensureProject(projectId || 'new')
+  if (projectId === 'new' || !projectId) {
+    loadProject(project.id)
+    router.replace(`/canvas/${project.id}`)
+    return
   }
+  loadProject(project.id)
 }
 
 // Watch for route changes | 监听路由变化
 watch(
   () => route.params.id,
-  (newId, oldId) => {
+  async (newId, oldId) => {
     if (newId && newId !== oldId) {
       // Save current project before switching | 切换前保存当前项目
       if (oldId) {
-        saveProject()
+        await saveProject()
       }
       // Load new project | 加载新项目
-      loadProjectById(newId)
+      await loadProjectById(newId)
     }
   }
 )
 
 // Initialize | 初始化
-onMounted(() => {
+onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   
   // Initialize projects store | 初始化项目存储
-  initProjectsStore()
+  await initProjectsStore()
   
   // Load project data | 加载项目数据
-  loadProjectById(route.params.id)
+  await loadProjectById(route.params.id || 'new')
   
-  // Check for initial prompt from home page | 检查来自首页的初始提示词
-  const initialPrompt = sessionStorage.getItem('ai-canvas-initial-prompt')
+  // Check for initial prompt from project entry | 检查来自项目入口的初始提示词
+  const initialPrompt = typeof route.query.prompt === 'string' ? route.query.prompt : ''
   if (initialPrompt) {
-    sessionStorage.removeItem('ai-canvas-initial-prompt')
     chatInput.value = initialPrompt
+    router.replace({ path: route.path })
     // Auto-send the message | 自动发送消息
     nextTick(() => {
       sendMessage()

@@ -6,14 +6,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import backend from '@/utils/backend'
-import {
-  CHAT_MODELS,
-  IMAGE_MODELS,
-  VIDEO_MODELS,
-  DEFAULT_CHAT_MODEL,
-  DEFAULT_IMAGE_MODEL,
-  DEFAULT_VIDEO_MODEL
-} from '@/config/models'
 
 // 存储键名
 const STORAGE_KEYS = {
@@ -88,14 +80,6 @@ const mapServerModel = (model, type) => ({
   modelType: model.modelType || model.model_type || type
 })
 
-const mergeModelsByKey = (primary, fallback) => {
-  const used = new Set(primary.map(item => item.key))
-  return [
-    ...primary,
-    ...fallback.filter(item => !used.has(item.key))
-  ]
-}
-
 export const useModelStore = defineStore('model', () => {
   // 旧版按 provider 存储自定义模型，保留当前 provider 仅用于读取历史自定义模型。
   const currentProvider = ref(getStored(STORAGE_KEYS.PROVIDER, 'openai'))
@@ -119,9 +103,9 @@ export const useModelStore = defineStore('model', () => {
   const serverModelsError = ref(null)
 
   // 选中的模型
-  const selectedChatModel = ref(getStored(STORAGE_KEYS.SELECTED_CHAT_MODEL, DEFAULT_CHAT_MODEL))
-  const selectedImageModel = ref(getStored(STORAGE_KEYS.SELECTED_IMAGE_MODEL, DEFAULT_IMAGE_MODEL))
-  const selectedVideoModel = ref(getStored(STORAGE_KEYS.SELECTED_VIDEO_MODEL, DEFAULT_VIDEO_MODEL))
+  const selectedChatModel = ref(getStored(STORAGE_KEYS.SELECTED_CHAT_MODEL, ''))
+  const selectedImageModel = ref(getStored(STORAGE_KEYS.SELECTED_IMAGE_MODEL, ''))
+  const selectedVideoModel = ref(getStored(STORAGE_KEYS.SELECTED_VIDEO_MODEL, ''))
 
   /**
    * 判断某服务是否有可用后端模型。
@@ -130,74 +114,10 @@ export const useModelStore = defineStore('model', () => {
    */
   const isServiceConfigured = (service) => (serverModels.value[service] || []).length > 0
 
-  // ============ Computed: All Models (built-in + custom + by provider) ============
-
-  const allChatModels = computed(() => {
-    const serverList = serverModels.value.chat || []
-    const localList = [
-      ...CHAT_MODELS.map(m => ({ ...m, isCustom: false })),
-      ...customChatModels.value.map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true
-      })),
-      ...(customChatModelsByProvider.value[currentProvider.value] || []).map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        provider: [currentProvider.value]
-      }))
-    ]
-    return serverList.length ? mergeModelsByKey(serverList, localList) : localList
-  })
-
-  const allImageModels = computed(() => {
-    const serverList = serverModels.value.image || []
-    const localList = [
-      ...IMAGE_MODELS.map(m => ({ ...m, isCustom: false })),
-      ...customImageModels.value.map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        sizes: [],
-        defaultParams: { quality: 'standard', style: 'vivid' }
-      })),
-      ...(customImageModelsByProvider.value[currentProvider.value] || []).map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        sizes: [],
-        defaultParams: { quality: 'standard', style: 'vivid' },
-        provider: [currentProvider.value]
-      }))
-    ]
-    return serverList.length ? mergeModelsByKey(serverList, localList) : localList
-  })
-
-  const allVideoModels = computed(() => {
-    const serverList = serverModels.value.video || []
-    const localList = [
-      ...VIDEO_MODELS.map(m => ({ ...m, isCustom: false })),
-      ...customVideoModels.value.map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        ratios: ['16x9', '9:16', '1:1'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        defaultParams: { ratio: '16:9', duration: 5 }
-      })),
-      ...(customVideoModelsByProvider.value[currentProvider.value] || []).map(m => ({
-        label: m.label || m.key,
-        key: m.key,
-        isCustom: true,
-        ratios: ['16x9', '9:16', '1:1'],
-        durs: [{ label: '5 秒', key: 5 }, { label: '10 秒', key: 10 }],
-        defaultParams: { ratio: '16:9', duration: 5 },
-        provider: [currentProvider.value]
-      }))
-    ]
-    return serverList.length ? mergeModelsByKey(serverList, localList) : localList
-  })
+  // ============ Computed: Public Models from backend ============
+  const allChatModels = computed(() => serverModels.value.chat || [])
+  const allImageModels = computed(() => serverModels.value.image || [])
+  const allVideoModels = computed(() => serverModels.value.video || [])
 
   // ============ Computed: Available Models (filtered by provider) ============
 
@@ -240,14 +160,14 @@ export const useModelStore = defineStore('model', () => {
     const allVideoKeys = allVideoModels.value.map(m => m.key)
     const allChatKeys = allChatModels.value.map(m => m.key)
 
-    if (selectedImageModel.value && !allImageKeys.includes(selectedImageModel.value)) {
-      selectedImageModel.value = allImageKeys[0] || DEFAULT_IMAGE_MODEL
+    if (!selectedImageModel.value || !allImageKeys.includes(selectedImageModel.value)) {
+      selectedImageModel.value = allImageKeys[0] || ''
     }
-    if (selectedVideoModel.value && !allVideoKeys.includes(selectedVideoModel.value)) {
-      selectedVideoModel.value = allVideoKeys[0] || DEFAULT_VIDEO_MODEL
+    if (!selectedVideoModel.value || !allVideoKeys.includes(selectedVideoModel.value)) {
+      selectedVideoModel.value = allVideoKeys[0] || ''
     }
-    if (selectedChatModel.value && !allChatKeys.includes(selectedChatModel.value)) {
-      selectedChatModel.value = allChatKeys[0] || DEFAULT_CHAT_MODEL
+    if (!selectedChatModel.value || !allChatKeys.includes(selectedChatModel.value)) {
+      selectedChatModel.value = allChatKeys[0] || ''
     }
   }
 
@@ -303,7 +223,7 @@ export const useModelStore = defineStore('model', () => {
     if (idx > -1) {
       customChatModels.value.splice(idx, 1)
       if (selectedChatModel.value === modelKey) {
-        selectedChatModel.value = DEFAULT_CHAT_MODEL
+        selectedChatModel.value = allChatModels.value[0]?.key || ''
       }
       return true
     }
@@ -315,7 +235,7 @@ export const useModelStore = defineStore('model', () => {
     if (idx > -1) {
       customImageModels.value.splice(idx, 1)
       if (selectedImageModel.value === modelKey) {
-        selectedImageModel.value = DEFAULT_IMAGE_MODEL
+        selectedImageModel.value = allImageModels.value[0]?.key || ''
       }
       return true
     }
@@ -327,7 +247,7 @@ export const useModelStore = defineStore('model', () => {
     if (idx > -1) {
       customVideoModels.value.splice(idx, 1)
       if (selectedVideoModel.value === modelKey) {
-        selectedVideoModel.value = DEFAULT_VIDEO_MODEL
+        selectedVideoModel.value = allVideoModels.value[0]?.key || ''
       }
       return true
     }
@@ -429,17 +349,17 @@ export const useModelStore = defineStore('model', () => {
     customChatModels.value = []
     customImageModels.value = []
     customVideoModels.value = []
-    selectedChatModel.value = DEFAULT_CHAT_MODEL
-    selectedImageModel.value = DEFAULT_IMAGE_MODEL
-    selectedVideoModel.value = DEFAULT_VIDEO_MODEL
+    selectedChatModel.value = allChatModels.value[0]?.key || ''
+    selectedImageModel.value = allImageModels.value[0]?.key || ''
+    selectedVideoModel.value = allVideoModels.value[0]?.key || ''
   }
 
   // ============ Methods: Clear Config Cache ============
 
   /**
-   * 清除配置缓存(保留生成的图片和主题)
+   * 清除配置缓存(保留登录状态和主题)
    * 清除范围: 历史前端 API 配置、自定义模型、选中的模型
-   * 保留范围: ai-canvas-projects(生成的图片)、theme(主题)
+   * 保留范围: auth token、theme(主题)
    */
   const clearConfigCache = () => {
     // 需要清除的 localStorage 键
@@ -474,9 +394,9 @@ export const useModelStore = defineStore('model', () => {
     customChatModelsByProvider.value = {}
     customImageModelsByProvider.value = {}
     customVideoModelsByProvider.value = {}
-    selectedChatModel.value = DEFAULT_CHAT_MODEL
-    selectedImageModel.value = DEFAULT_IMAGE_MODEL
-    selectedVideoModel.value = DEFAULT_VIDEO_MODEL
+    selectedChatModel.value = allChatModels.value[0]?.key || ''
+    selectedImageModel.value = allImageModels.value[0]?.key || ''
+    selectedVideoModel.value = allVideoModels.value[0]?.key || ''
 
     return true
   }
@@ -499,7 +419,7 @@ export const useModelStore = defineStore('model', () => {
   watch(selectedVideoModel, (val) => setStored(STORAGE_KEYS.SELECTED_VIDEO_MODEL, val))
 
   return {
-    // All models (built-in + custom)
+    // All models from backend public configuration
     allChatModels,
     allImageModels,
     allVideoModels,

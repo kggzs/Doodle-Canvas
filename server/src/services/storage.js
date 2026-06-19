@@ -6,7 +6,11 @@
  * - 用户删除为软删除，物理文件保留
  */
 import crypto from 'crypto';
+import dns from 'dns/promises';
 import fs from 'fs/promises';
+import http from 'http';
+import https from 'https';
+import net from 'net';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -17,13 +21,14 @@ import { Op } from 'sequelize';
 
 import db from '../models/index.js';
 
-const { File } = db;
+const { File, GenerationRecord, ModelChannel, ModelConfig, Project, User } = db;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SERVER_ROOT = path.resolve(__dirname, '../..');
 const DEFAULT_STORAGE_ROOT = path.resolve(SERVER_ROOT, 'storage');
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm']);
 const EXT_BY_MIME = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -31,6 +36,14 @@ const EXT_BY_MIME = {
   'image/gif': '.gif',
   'video/mp4': '.mp4',
   'video/webm': '.webm'
+};
+const REMOTE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const HTTP_AGENT = new http.Agent({ family: 4 });
+const HTTPS_AGENT = new https.Agent({ family: 4 });
+const REMOTE_HEADERS = {
+  Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,video/*,*/*;q=0.8',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+  Referer: process.env.FRONTEND_BASE || 'http://localhost:5173/'
 };
 
 export class StorageError extends Error {
@@ -63,6 +76,26 @@ export function getStorageBaseUrl() {
   return (process.env.STORAGE_BASE_URL || '/storage').replace(/\/+$/, '');
 }
 
+export function normalizeStoragePath(storagePath = '') {
+  const normalized = String(storagePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const parts = normalized.split('/').filter(Boolean);
+  if (!parts.length || parts.some((part) => part === '.' || part === '..' || part.includes('\0'))) {
+    throw new StorageError(40001, '文件路径不正确');
+  }
+  return path.posix.join(...parts);
+}
+
+export function resolveStorageFilePath(storagePath) {
+  const normalized = normalizeStoragePath(storagePath);
+  const root = getStorageRoot();
+  const absolutePath = path.resolve(root, normalized);
+  const relative = path.relative(root, absolutePath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new StorageError(40001, '文件路径不正确');
+  }
+  return absolutePath;
+}
+
 function nowParts() {
   const date = new Date();
   return {
@@ -79,6 +112,35 @@ function guessExt(mimeType, fallbackName = '') {
   if (EXT_BY_MIME[mimeType]) return EXT_BY_MIME[mimeType];
   const ext = path.extname(fallbackName || '').toLowerCase();
   return ext || '.bin';
+}
+
+function sniffMimeType(buffer, fallback = 'application/octet-stream') {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return fallback;
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png';
+  }
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') {
+    return 'image/webp';
+  }
+  if (buffer.subarray(0, 3).toString('ascii') === 'GIF') {
+    return 'image/gif';
+  }
+  if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+    return 'video/mp4';
+  }
+  return fallback;
+}
+
+function assertMimeMatchesType(mimeType, type) {
+  if (type === 'generated_image' && !IMAGE_MIME_TYPES.has(mimeType)) {
+    throw new StorageError(50201, `生成图片转存失败：远程文件不是图片（${mimeType || 'unknown'}）`);
+  }
+  if (type === 'generated_video' && !VIDEO_MIME_TYPES.has(mimeType)) {
+    throw new StorageError(50201, `生成视频转存失败：远程文件不是视频（${mimeType || 'unknown'}）`);
+  }
 }
 
 function buildFileUrl(storagePath) {
@@ -115,23 +177,101 @@ function parseDataUrl(dataUrl) {
   };
 }
 
-async function downloadRemoteFile(url) {
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: parseInt(process.env.STORAGE_REMOTE_DOWNLOAD_TIMEOUT_MS || '60000', 10),
-    maxContentLength: parseInt(process.env.STORAGE_REMOTE_MAX_BYTES || `${100 * 1024 * 1024}`, 10),
-    validateStatus: () => true
-  });
+function isPrivateIp(ip) {
+  const version = net.isIP(ip);
+  if (version === 4) {
+    const parts = ip.split('.').map((part) => Number(part));
+    const [a, b] = parts;
+    const blockBenchmarkIps = process.env.STORAGE_BLOCK_BENCHMARK_IPS === 'true';
+    return a === 0
+      || a === 10
+      || a === 127
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+      || (a === 192 && b === 0)
+      || (blockBenchmarkIps && a === 198 && (b === 18 || b === 19))
+      || a >= 224;
+  }
+  if (version === 6) {
+    const lower = ip.toLowerCase();
+    if (lower.startsWith('::ffff:')) {
+      const mapped = lower.slice(7);
+      return net.isIP(mapped) === 4 ? isPrivateIp(mapped) : true;
+    }
+    return lower === '::'
+      || lower === '::1'
+      || lower.startsWith('fc')
+      || lower.startsWith('fd')
+      || lower.startsWith('fe80:')
+      || lower.startsWith('ff');
+  }
+  return true;
+}
 
-  if (response.status >= 400) {
-    throw new StorageError(50201, `远程文件下载失败：HTTP ${response.status}`);
+async function assertSafeRemoteUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new StorageError(42201, '远程文件 URL 格式不正确');
   }
 
-  const contentType = String(response.headers['content-type'] || 'application/octet-stream').split(';')[0].trim();
-  return {
-    buffer: Buffer.from(response.data),
-    mimeType: contentType
-  };
+  if (!REMOTE_ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+    throw new StorageError(42201, '远程文件 URL 仅支持 HTTP/HTTPS');
+  }
+  if (parsed.username || parsed.password) {
+    throw new StorageError(42201, '远程文件 URL 不允许包含认证信息');
+  }
+
+  const directIpVersion = net.isIP(parsed.hostname);
+  const addresses = directIpVersion
+    ? [{ address: parsed.hostname }]
+    : await dns.lookup(parsed.hostname, { all: true, verbatim: false });
+
+  if (!addresses.length || addresses.some((item) => isPrivateIp(item.address))) {
+    throw new StorageError(42201, '远程文件 URL 指向受限地址');
+  }
+
+  return parsed.toString();
+}
+
+async function downloadRemoteFile(url) {
+  const maxRedirects = Math.min(Math.max(parseInt(process.env.STORAGE_REMOTE_MAX_REDIRECTS || '3', 10), 0), 5);
+  let currentUrl = url;
+
+  for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+    currentUrl = await assertSafeRemoteUrl(currentUrl);
+    const response = await axios.get(currentUrl, {
+      responseType: 'arraybuffer',
+      httpAgent: HTTP_AGENT,
+      httpsAgent: HTTPS_AGENT,
+      timeout: parseInt(process.env.STORAGE_REMOTE_DOWNLOAD_TIMEOUT_MS || '60000', 10),
+      maxContentLength: parseInt(process.env.STORAGE_REMOTE_MAX_BYTES || `${100 * 1024 * 1024}`, 10),
+      maxRedirects: 0,
+      headers: REMOTE_HEADERS,
+      validateStatus: () => true
+    });
+
+    if (response.status >= 300 && response.status < 400 && response.headers.location) {
+      currentUrl = new URL(response.headers.location, currentUrl).toString();
+      continue;
+    }
+
+    if (response.status >= 400 || response.status >= 300) {
+      throw new StorageError(50201, `远程文件下载失败：HTTP ${response.status}`);
+    }
+
+    const buffer = Buffer.from(response.data);
+    const headerContentType = String(response.headers['content-type'] || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+    return {
+      buffer,
+      mimeType: sniffMimeType(buffer, headerContentType)
+    };
+  }
+
+  throw new StorageError(50201, '远程文件下载重定向次数过多');
 }
 
 export async function saveBuffer({
@@ -195,6 +335,7 @@ export async function persistRemoteFile({ url, userId, generationId = null, type
   }
 
   const downloaded = await downloadRemoteFile(url);
+  assertMimeMatchesType(downloaded.mimeType, type);
   return saveBuffer({
     buffer: downloaded.buffer,
     mimeType: downloaded.mimeType,
@@ -215,6 +356,21 @@ export async function getFileForUser(id, userId) {
   });
   if (!file) throw new StorageError(40402, '文件不存在或已删除');
   return file;
+}
+
+export async function getPublicFileByStoragePath(storagePath) {
+  const normalized = normalizeStoragePath(storagePath);
+  const file = await File.findOne({
+    where: {
+      storagePath: normalized,
+      status: 'active'
+    }
+  });
+  if (!file) throw new StorageError(40402, '文件不存在或已删除');
+  return {
+    file,
+    absolutePath: resolveStorageFilePath(file.storagePath)
+  };
 }
 
 export async function softDeleteFile(id, userId, { deletedByType = 'user', reason = null } = {}) {
@@ -268,9 +424,29 @@ export async function listFiles(params = {}) {
 
   const { rows, count } = await File.findAndCountAll({
     where,
+    include: [
+      {
+        model: User,
+        as: 'user',
+        attributes: ['id', 'username', 'email'],
+        required: false
+      },
+      {
+        model: GenerationRecord,
+        as: 'generation',
+        attributes: ['id', 'type', 'status', 'promptText', 'costAmount', 'projectId', 'createdAt'],
+        required: false,
+        include: [
+          { model: Project, as: 'project', attributes: ['id', 'name'], required: false },
+          { model: ModelConfig, as: 'model', attributes: ['id', 'modelKey', 'displayName', 'modelType'], required: false },
+          { model: ModelChannel, as: 'channel', attributes: ['id', 'name', 'providerType'], required: false }
+        ]
+      }
+    ],
     order: [['createdAt', 'DESC']],
     limit: pageSize,
-    offset: (page - 1) * pageSize
+    offset: (page - 1) * pageSize,
+    distinct: true
   });
 
   return { items: rows, total: count, page, pageSize };
@@ -281,10 +457,13 @@ export default {
   uploadImageMiddleware,
   getStorageRoot,
   getStorageBaseUrl,
+  normalizeStoragePath,
+  resolveStorageFilePath,
   saveBuffer,
   saveDataUrl,
   persistRemoteFile,
   getFileForUser,
+  getPublicFileByStoragePath,
   softDeleteFile,
   restoreFile,
   listFiles

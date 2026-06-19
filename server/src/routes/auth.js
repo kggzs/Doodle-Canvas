@@ -79,7 +79,8 @@ function handleServiceError(res, err) {
   if (err instanceof AuthError) {
     // 根据错误码映射 HTTP 状态码
     const httpStatus = mapCodeToHttpStatus(err.code);
-    return error(res, err.code, err.message, httpStatus, Object.keys(err.extra).length ? err.extra : null);
+    const details = err.extra && Object.keys(err.extra).length ? err.extra : null;
+    return error(res, err.code, err.message, httpStatus, details);
   }
   // 未知异常：记录日志并返回 500
   logger.error(`认证服务未知异常：${err.message}`, { stack: err.stack });

@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-    <AppHeader>
+    <AppHeader :show-auth-nav="false">
       <template #left>
         <button class="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]" @click="router.push('/')">
           返回首页
@@ -10,8 +10,8 @@
 
     <main class="mx-auto flex min-h-[calc(100vh-72px)] max-w-md items-center px-4">
       <section class="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-6 shadow-sm">
-        <h1 class="mb-2 text-2xl font-semibold">登录</h1>
-        <p class="mb-6 text-sm text-[var(--text-secondary)]">使用账号进入画布和管理后台。</p>
+        <h1 class="mb-2 text-2xl font-semibold">用户登录</h1>
+        <p class="mb-6 text-sm text-[var(--text-secondary)]">登录后进入画布、项目和用户中心。</p>
 
         <n-form :model="form" label-placement="top">
           <n-form-item label="邮箱或用户名">
@@ -25,7 +25,7 @@
 
         <div class="mt-4 flex items-center justify-between text-sm">
           <button class="text-[var(--accent-color)] hover:underline" @click="router.push('/register')">注册新账号</button>
-          <button class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" @click="router.push('/admin/users')">进入管理后台</button>
+          <button class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" @click="router.push('/admin/login')">管理员登录</button>
         </div>
       </section>
     </main>
@@ -47,6 +47,11 @@ const form = reactive({
   password: ''
 })
 
+function postLoginRedirect() {
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  return redirect && !redirect.startsWith('/admin') ? redirect : '/projects'
+}
+
 async function handleLogin() {
   if (!form.emailOrUsername || !form.password) {
     window.$message?.warning('请输入账号和密码')
@@ -54,11 +59,16 @@ async function handleLogin() {
   }
   loading.value = true
   try {
-    const result = await login(form.emailOrUsername, form.password)
+    await login(form.emailOrUsername, form.password)
     window.$message?.success('登录成功')
-    const redirect = route.query.redirect || (result.user?.role === 'admin' ? '/admin/users' : '/')
-    router.push(String(redirect))
+    router.push(postLoginRedirect())
   } catch (err) {
+    if (err?.code === 40104) {
+      window.$message?.warning('邮箱未验证，请先完成注册验证')
+      const query = form.emailOrUsername.includes('@') ? { verify_email: form.emailOrUsername } : {}
+      router.push({ path: '/register', query })
+      return
+    }
     window.$message?.error(err?.message || '登录失败')
   } finally {
     loading.value = false
