@@ -12,6 +12,7 @@ export const adminUserApi = {
   unban: (id) => backend.post(`/admin/users/${id}/unban`),
   loginLogs: (id, params) => backend.get(`/admin/users/${id}/login-logs`, { params }),
   groups: (id) => backend.get(`/admin/users/${id}/groups`),
+  projects: (id, params) => backend.get(`/admin/users/${id}/projects`, { params }),
   addGroup: (id, data) => backend.post(`/admin/users/${id}/groups`, data),
   removeGroup: (id, groupId) => backend.delete(`/admin/users/${id}/groups/${groupId}`),
   recharge: (id, data) => backend.post(`/admin/users/${id}/recharge`, data),

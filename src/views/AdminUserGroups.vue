@@ -40,13 +40,7 @@
             <n-form-item label="编码">
               <n-input v-model:value="form.code" :disabled="!!editingId" />
             </n-form-item>
-            <n-form-item label="折扣率">
-              <n-input-number v-model:value="form.discount_rate" :min="0" :step="0.01" />
-            </n-form-item>
-            <n-form-item label="充值赠送倍率">
-              <n-input-number v-model:value="form.recharge_bonus_rate" :min="0" :step="0.01" />
-            </n-form-item>
-            <n-form-item label="成本倍率">
+            <n-form-item label="模型价格倍率">
               <n-input-number v-model:value="form.cost_multiplier" :min="0" :step="0.01" />
             </n-form-item>
             <n-form-item label="优先级">
@@ -54,12 +48,6 @@
             </n-form-item>
             <n-form-item label="每日生成限制">
               <n-input-number v-model:value="form.daily_generate_limit" :min="0" :step="1" />
-            </n-form-item>
-            <n-form-item label="每日金币限制">
-              <n-input-number v-model:value="form.daily_coin_limit" :min="0" :step="1" />
-            </n-form-item>
-            <n-form-item label="每月金币限制">
-              <n-input-number v-model:value="form.monthly_coin_limit" :min="0" :step="1" />
             </n-form-item>
             <n-form-item label="徽章颜色">
               <n-color-picker v-model:value="form.badge_color" :show-alpha="false" />
@@ -133,12 +121,8 @@ function defaultForm() {
     code: '',
     description: '',
     is_default: false,
-    discount_rate: 1,
-    recharge_bonus_rate: 1,
     cost_multiplier: 1,
     daily_generate_limit: 0,
-    daily_coin_limit: 0,
-    monthly_coin_limit: 0,
     priority: 0,
     badge_color: '#18a058',
     is_active: true
@@ -151,12 +135,8 @@ function resetForm(row = null) {
     code: row.code,
     description: row.description || '',
     is_default: !!row.isDefault,
-    discount_rate: Number(row.discountRate ?? 1),
-    recharge_bonus_rate: Number(row.rechargeBonusRate ?? 1),
     cost_multiplier: Number(row.costMultiplier ?? 1),
     daily_generate_limit: Number(row.dailyGenerateLimit ?? 0),
-    daily_coin_limit: Number(row.dailyCoinLimit ?? 0),
-    monthly_coin_limit: Number(row.monthlyCoinLimit ?? 0),
     priority: Number(row.priority ?? 0),
     badge_color: row.badgeColor || '#18a058',
     is_active: !!row.isActive
@@ -165,6 +145,11 @@ function resetForm(row = null) {
 
 function formatNumber(value) {
   return Number(value || 0).toFixed(2)
+}
+
+function formatApiError(err, fallback) {
+  const firstFieldError = Array.isArray(err?.errors) ? err.errors[0] : null
+  return firstFieldError?.msg || err?.message || fallback
 }
 
 const columns = [
@@ -187,15 +172,15 @@ const columns = [
     key: 'billing',
     minWidth: 210,
     render(row) {
-      return `折扣 ${formatNumber(row.discountRate)} / 成本 ${formatNumber(row.costMultiplier)}`
+      return `模型价格 x ${formatNumber(row.costMultiplier)}`
     }
   },
   {
     title: '限额',
     key: 'limits',
-    minWidth: 220,
+    minWidth: 140,
     render(row) {
-      return `日生成 ${row.dailyGenerateLimit || 0} / 日金币 ${formatNumber(row.dailyCoinLimit)}`
+      return `日生成 ${row.dailyGenerateLimit || 0}`
     }
   },
   { title: '优先级', key: 'priority', width: 90 },
@@ -228,7 +213,7 @@ async function loadGroups() {
     groups.value = data.items || []
     total.value = data.total || 0
   } catch (err) {
-    window.$message?.error(err?.message || '加载用户组失败')
+    window.$message?.error(formatApiError(err, '加载用户组失败'))
   } finally {
     loading.value = false
   }
@@ -263,7 +248,7 @@ async function saveGroup() {
     drawerVisible.value = false
     await loadGroups()
   } catch (err) {
-    window.$message?.error(err?.message || '保存失败')
+    window.$message?.error(formatApiError(err, '保存失败'))
   } finally {
     saving.value = false
   }
@@ -275,7 +260,7 @@ async function deleteGroup(row) {
     window.$message?.success('已删除')
     await loadGroups()
   } catch (err) {
-    window.$message?.error(err?.message || '删除失败')
+    window.$message?.error(formatApiError(err, '删除失败'))
   }
 }
 

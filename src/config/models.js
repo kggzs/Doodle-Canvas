@@ -45,6 +45,15 @@ export const BANANA_SIZE_OPTIONS = [
     { label: '9:16', key: '9x16' },
 ]
 
+// StepFun image size options | 阶跃图片尺寸选项
+export const STEPFUN_SIZE_OPTIONS = [
+    { label: '1:1', key: '1024x1024' },
+    { label: '9:16', key: '768x1360' },
+    { label: '3:4', key: '896x1184' },
+    { label: '16:9', key: '1360x768' },
+    { label: '4:3', key: '1184x896' },
+]
+
 // Wan (阿里云万相) image size options | 万相图片尺寸选项
 // wan2.7 使用分辨率规格(1K/2K/4K),不再使用像素值
 export const WAN_SIZE_OPTIONS = [

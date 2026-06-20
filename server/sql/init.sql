@@ -1,10 +1,10 @@
 -- ============================================
--- Doodle-Canvas 数据库初始化脚本
+-- Doodle-Canvas 数据库初始化脚本（当前合并版）
 -- 引擎：MySQL InnoDB
 -- 字符集：utf8mb4 / 排序规则：utf8mb4_unicode_ci
--- 说明：本脚本包含认证相关 4 张表（users / refresh_tokens / email_verifications / login_logs）
---       以及阶段二模型调度相关 3 张表（model_channels / models / model_channel_bindings）
---       其他业务表（用户组、计费、文件、生成记录、审计等）将在后续 Task 中补充
+-- 适用：新服务器首次部署。已合并历史升级脚本中的当前项目所需表结构。
+-- 数据：仅写入程序启动所需的默认用户组与系统设置；不包含测试用户、渠道 Key、
+--       模型配置、生成记录、文件记录、金币流水、登录日志等业务/测试数据。
 -- ============================================
 
 -- 数据库创建
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `login_logs` (
 CREATE TABLE IF NOT EXISTS `model_channels` (
     `id`              CHAR(36)     NOT NULL,
     `name`            VARCHAR(100) NOT NULL COMMENT '渠道名称（如 OpenAI-主、阿里云万相-备用）',
-    `provider_type`   ENUM('openai','aliyun','doubao','custom') NOT NULL COMMENT '适配器类型',
+    `provider_type`   ENUM('openai','aliyun','doubao','stepfun','custom') NOT NULL COMMENT '适配器类型',
     `model_type`      ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型',
     `api_base_url`    VARCHAR(500) NOT NULL COMMENT 'API 基础地址',
     `api_key`         TEXT         NOT NULL COMMENT 'API Key（AES 加密 JSON）',
@@ -244,12 +244,8 @@ CREATE TABLE IF NOT EXISTS `user_groups` (
     `description`           VARCHAR(255) DEFAULT NULL,
     `is_default`            TINYINT(1)   DEFAULT 0 COMMENT '是否默认组',
     `is_system`             TINYINT(1)   DEFAULT 0 COMMENT '系统内置组不可删除',
-    `discount_rate`         DECIMAL(4,3) DEFAULT 1.000 COMMENT '折扣系数',
-    `recharge_bonus_rate`   DECIMAL(4,3) DEFAULT 1.000 COMMENT '充值赠送倍率',
-    `cost_multiplier`       DECIMAL(4,3) DEFAULT 1.000 COMMENT '消费费率倍数',
+    `cost_multiplier`       DECIMAL(4,3) DEFAULT 1.000 COMMENT '模型价格倍率，最终费用=模型价格*倍率',
     `daily_generate_limit`  INT          DEFAULT 0 COMMENT '每日生成次数上限，0=不限',
-    `daily_coin_limit`      DECIMAL(12,2) DEFAULT 0.00 COMMENT '每日消费金币上限，0=不限',
-    `monthly_coin_limit`    DECIMAL(12,2) DEFAULT 0.00 COMMENT '每月消费金币上限，0=不限',
     `priority`              INT          DEFAULT 0 COMMENT '优先级',
     `badge_color`           VARCHAR(20)  DEFAULT NULL COMMENT '徽章颜色',
     `is_active`             TINYINT(1)   DEFAULT 1,

@@ -34,3 +34,6 @@ debug*.txt
 debug*.log
 *_local.*
 local_*.md
+
+# Runtime uploads / generated media | 运行期上传与生成文件，不应入仓
+server/storage/

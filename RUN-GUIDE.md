@@ -70,11 +70,11 @@ npm run dev
 ```
 VITE v5.4.21  ready in xxx ms
 
-➜  Local:   http://localhost:5173/huobao-canvas
+➜  Local:   http://localhost:5173/
 ➜  Network: use --host to expose
 ```
 
-在浏览器中打开 **http://localhost:5173/huobao-canvas** 即可访问。
+在浏览器中打开 **http://localhost:5173/** 即可访问。
 
 > 如果 5173 端口被占用，Vite 会自动尝试下一个可用端口（如 5174）。
 
@@ -100,19 +100,18 @@ VITE v5.4.21  ready in xxx ms
 # 1. 构建前端 dist/
 npm run build
 
-# 2. 启动后端，Express 会同时提供 /api 与 /huobao-canvas
+# 2. 启动后端，Express 会同时提供 /api、/storage 与前端页面
 npm run start
 ```
 
 访问地址：
 
-- 前端页面：http://localhost:3000/huobao-canvas
-- 登录页面：http://localhost:3000/huobao-canvas/login
-- 管理后台：http://localhost:3000/huobao-canvas/admin/users
-- 用户组管理：http://localhost:3000/huobao-canvas/admin/user-groups
-- 金币流水：http://localhost:3000/huobao-canvas/admin/coins
-- 渠道地址池：http://localhost:3000/huobao-canvas/admin/channels
-- 模型配置：http://localhost:3000/huobao-canvas/admin/models
+- 前端页面：http://localhost:3000/
+- 登录页面：http://localhost:3000/login
+- 管理后台：http://localhost:3000/admin/users
+- 用户组管理：http://localhost:3000/admin/user-groups
+- 金币流水：http://localhost:3000/admin/coins
+- 模型配置：http://localhost:3000/admin/models
 - 后端健康检查：http://localhost:3000/api/health
 
 首次部署可创建管理员账号：
@@ -125,11 +124,13 @@ npm run create-admin -- --email admin@example.com --username admin --password Ad
 
 ```env
 SERVE_FRONTEND=true
-FRONTEND_BASE=/huobao-canvas
+FRONTEND_BASE=/
 FRONTEND_DIST_DIR=../../dist
 ```
 
 只要 `dist/index.html` 存在，后端启动后会自动托管前端构建产物。
+
+完整服务器部署流程见 `DEPLOYMENT.md`。
 
 ---
 
@@ -191,9 +192,8 @@ npm install -g pnpm
 
 旧版为纯前端配置。后端化后，API Key / Base URL 应统一在管理后台维护：
 
-1. 进入 `/huobao-canvas/admin/channels` 创建渠道地址，填写 Provider、Base URL、API Key。
-2. 进入 `/huobao-canvas/admin/models` 创建 image / video / chat 模型。
-3. 在模型详情的“渠道绑定”中，把模型绑定到一个或多个渠道，并设置轮换权重与策略。
+1. 进入 `/admin/models/chat`、`/admin/models/image`、`/admin/models/video` 创建模型与渠道地址。
+2. 在模型详情的“渠道绑定”中，把模型绑定到一个或多个渠道，并设置轮换权重与策略。
 
 普通用户页面不再显示 API Key 设置入口。
 
@@ -219,4 +219,4 @@ docker build -t huobao-canvas .
 docker run -d -p 8080:80 huobao-canvas
 ```
 
-访问 **http://localhost:8080/huobao-canvas**。
+访问 **http://localhost:8080/**。

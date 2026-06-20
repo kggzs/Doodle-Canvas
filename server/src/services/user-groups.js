@@ -72,12 +72,8 @@ function groupPayload(data = {}) {
   if (data.code !== undefined) payload.code = data.code;
   if (data.description !== undefined) payload.description = data.description || null;
   if (data.isDefault !== undefined) payload.isDefault = normalizeBoolean(data.isDefault);
-  if (data.discountRate !== undefined) payload.discountRate = toNumber(data.discountRate, 1);
-  if (data.rechargeBonusRate !== undefined) payload.rechargeBonusRate = toNumber(data.rechargeBonusRate, 1);
   if (data.costMultiplier !== undefined) payload.costMultiplier = toNumber(data.costMultiplier, 1);
   if (data.dailyGenerateLimit !== undefined) payload.dailyGenerateLimit = parseInt(data.dailyGenerateLimit, 10) || 0;
-  if (data.dailyCoinLimit !== undefined) payload.dailyCoinLimit = toNumber(data.dailyCoinLimit, 0);
-  if (data.monthlyCoinLimit !== undefined) payload.monthlyCoinLimit = toNumber(data.monthlyCoinLimit, 0);
   if (data.priority !== undefined) payload.priority = parseInt(data.priority, 10) || 0;
   if (data.badgeColor !== undefined) payload.badgeColor = data.badgeColor || null;
   if (data.isActive !== undefined) payload.isActive = normalizeBoolean(data.isActive);

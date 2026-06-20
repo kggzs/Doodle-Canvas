@@ -10,7 +10,7 @@ import {
   getVideoTaskStatus,
   streamChatCompletions
 } from '@/api'
-import { getModelByName } from '@/config/models'
+import { getModelConfig, getValidModelSize } from '@/stores/models'
 import { currentProjectId } from '@/stores/canvas'
 
 /**
@@ -157,13 +157,14 @@ export const useImageGeneration = () => {
     currentImage.value = null
 
     try {
-      const modelConfig = getModelByName(params.model)
+      const modelConfig = getModelConfig(params.model)
+      const quality = params.quality || modelConfig?.defaultParams?.quality || 'standard'
 
       // Build request data | 构建请求数据
       const requestData = {
         model: params.model,
         prompt: params.prompt,
-        size: params.size || modelConfig?.defaultParams?.size || '2048x2048',
+        size: getValidModelSize(params.model, params.size || modelConfig?.defaultParams?.size, quality),
         n: params.n || 1,
         project_id: currentProjectId.value || undefined
       }
@@ -176,7 +177,7 @@ export const useImageGeneration = () => {
       // 万相模型不支持 quality/style 参数，仅传万相专用参数
       const isWanModel = params.model && params.model.startsWith('wan')
       if (!isWanModel) {
-        if (params.quality) requestData.quality = params.quality
+        if (quality) requestData.quality = quality
         if (params.style) requestData.style = params.style
       } else {
         // 万相模型：透传 thinking_mode
@@ -239,7 +240,7 @@ export const useVideoGeneration = () => {
    * Create video task only (no polling) | 仅创建视频任务（不轮询）
    */
   const createVideoTaskOnly = async (params) => {
-    const modelConfig = getModelByName(params.model)
+    const modelConfig = getModelConfig(params.model)
 
     // 判断是否为阿里云万相模型
     const isAliyunWan = params.model && params.model.startsWith('wan2.7')

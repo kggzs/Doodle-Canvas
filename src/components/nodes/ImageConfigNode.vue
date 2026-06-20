@@ -166,7 +166,7 @@ import { useImageGeneration } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import { useModelStore } from '../../stores/pinia'
-import { getModelSizeOptions, getModelQualityOptions, getModelConfig } from '../../stores/models'
+import { getModelSizeOptions, getModelQualityOptions, getModelConfig, getModelDefaultSize, getValidModelSize } from '../../stores/models'
 import { parseMentions } from '../../hooks/useNodeRef'
 
 // 使用 Pinia store 获取模型选项（根据渠道过滤）
@@ -195,8 +195,8 @@ const { loading, error, images: generatedImages, generate } = useImageGeneration
 // Local state | 本地状态
 const showHandleMenu = ref(false)
 const localModel = ref(props.data?.model || modelStore.selectedImageModel || '')
-const localSize = ref(props.data?.size || '2048x2048')
-const localQuality = ref(props.data?.quality || 'standard')
+const localQuality = ref(props.data?.quality || getModelConfig(localModel.value)?.defaultParams?.quality || 'standard')
+const localSize = ref(getValidModelSize(localModel.value, props.data?.size, localQuality.value))
 
 // Label editing state | Label 编辑状态
 const isEditingLabel = ref(false)
@@ -276,8 +276,7 @@ const sizeOptions = computed(() => {
 
 // Check if model has size options | 检查模型是否有尺寸选项
 const hasSizeOptions = computed(() => {
-  const config = getModelConfig(localModel.value)
-  return config?.sizes && config.sizes.length > 0
+  return sizeOptions.value.length > 0
 })
 
 // Display size with label | 显示尺寸（带标签）
@@ -291,11 +290,22 @@ onMounted(() => {
   // 检查当前模型是否在可用模型列表中
   const availableModels = modelStore.availableImageModels
   const isModelAvailable = availableModels.some(m => m.key === localModel.value)
+  const updates = {}
 
   if (!localModel.value || !isModelAvailable) {
     // 使用 store 中的默认模型或第一个可用模型
     localModel.value = modelStore.selectedImageModel || availableModels[0]?.key || ''
-    updateNode(props.id, { model: localModel.value })
+    updates.model = localModel.value
+  }
+
+  const validSize = getValidModelSize(localModel.value, localSize.value, localQuality.value)
+  if (validSize !== localSize.value) {
+    localSize.value = validSize
+    updates.size = validSize
+  }
+
+  if (Object.keys(updates).length) {
+    updateNode(props.id, updates)
   }
 })
 
@@ -487,15 +497,7 @@ const handleModelSelect = (key) => {
   }
 
   // 同步 Size 到模型默认值
-  const newSizeOptions = getModelSizeOptions(key, localQuality.value)
-  let defaultSize = config?.defaultParams?.size
-
-  if (!defaultSize && newSizeOptions.length > 0) {
-    // 备用逻辑：查找 2048 或最接近的尺寸
-    defaultSize = newSizeOptions.find(o => o.key === '2048x2048')?.key
-      || newSizeOptions.find(o => o.key.includes('1024'))?.key
-      || newSizeOptions[0].key
-  }
+  const defaultSize = getModelDefaultSize(key, localQuality.value)
 
   localSize.value = defaultSize
 
@@ -513,8 +515,7 @@ const handleQualitySelect = (quality) => {
   // Update size to first option of new quality | 更新尺寸为新画质的第一个选项
   const newSizeOptions = getModelSizeOptions(localModel.value, quality)
   if (newSizeOptions.length > 0) {
-    const defaultSize = quality === '4k' ? newSizeOptions.find(o => o.key.includes('4096'))?.key || newSizeOptions[4]?.key : newSizeOptions[4]?.key
-    localSize.value = defaultSize || newSizeOptions[0].key
+    localSize.value = getModelDefaultSize(localModel.value, quality)
     updateNode(props.id, { quality, size: localSize.value })
   } else {
     updateNode(props.id, { quality })
@@ -651,11 +652,17 @@ const handleGenerate = async (mode = 'auto') => {
   }, 50)
 
   try {
+    const validSize = getValidModelSize(localModel.value, localSize.value, localQuality.value)
+    if (validSize !== localSize.value) {
+      localSize.value = validSize
+      updateNode(props.id, { size: validSize })
+    }
+
     // Build request params | 构建请求参数
     const params = {
       model: localModel.value,
       prompt: prompt,
-      size: localSize.value,
+      size: validSize,
       quality: localQuality.value,
       n: 1
     }
@@ -748,9 +755,7 @@ watch(() => props.data?.model, (newModel) => {
     }
 
     // 同步 Size
-    if (config?.defaultParams?.size) {
-      localSize.value = config.defaultParams.size
-    }
+    localSize.value = getValidModelSize(newModel, props.data?.size || config?.defaultParams?.size, localQuality.value)
   }
 })
 

@@ -75,6 +75,7 @@ const mapServerModel = (model, type) => ({
   key: model.modelKey || model.model_key,
   provider: model.providers || [],
   defaultParams: model.defaultParams || model.default_params || {},
+  maxParams: model.maxParams || model.max_params || {},
   description: model.description || '',
   isServer: true,
   modelType: model.modelType || model.model_type || type

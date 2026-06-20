@@ -6,9 +6,12 @@
  * - 前端只访问本服务，不再接触第三方 API Key / Base URL
  */
 import axios from 'axios';
+import { readFile } from 'fs/promises';
 import http from 'http';
 import https from 'https';
+import path from 'path';
 import { Op } from 'sequelize';
+import { fileURLToPath } from 'url';
 
 import db from '../models/index.js';
 import { redis } from '../config/redis.js';
@@ -40,6 +43,11 @@ const DEFAULT_ENDPOINTS = {
     chat: '/api/v3/responses',
     image: '/api/v3/images/generations'
   },
+  stepfun: {
+    chat: '/v1/chat/completions',
+    image: '/v1/images/generations',
+    imageEdit: '/v1/images/edits'
+  },
   custom: {
     chat: '/v1/chat/completions',
     image: '/v1/images/generations',
@@ -54,6 +62,8 @@ const IMAGE_POLL_INTERVAL_MS = 3000;
 const HTTP_AGENT = new http.Agent({ family: 4 });
 const HTTPS_AGENT = new https.Agent({ family: 4 });
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 60000;
+const STORAGE_ROOT = fileURLToPath(new URL('../../storage/', import.meta.url));
+const STEPFUN_IMAGE_SIZES = ['1024x1024', '768x1360', '896x1184', '1360x768', '1184x896'];
 
 export class GenerationError extends Error {
   constructor(code, message, extra = {}) {
@@ -118,6 +128,73 @@ function mergeModelParams(model, payload = {}) {
     ...(model.defaultParams || {}),
     ...payload,
     model: model.modelKey
+  };
+}
+
+function isSizeLikeKey(value) {
+  return /^(\d+x\d+|\d+:\d+|[124]K)$/i.test(String(value || ''));
+}
+
+function normalizeSizeList(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => typeof item === 'object' ? item.key || item.value || item.size : item)
+      .filter(Boolean)
+      .map(String);
+  }
+  if (typeof raw === 'string') return raw ? [raw] : [];
+  if (typeof raw === 'object') {
+    const nested = raw.options || raw.values || raw.enum || raw.enums || raw.items;
+    if (nested) return normalizeSizeList(nested);
+    if (raw.key || raw.value || raw.size) return normalizeSizeList([raw]);
+    return Object.keys(raw).filter(isSizeLikeKey);
+  }
+  return [];
+}
+
+function uniqueList(items = []) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function configuredImageSizes(model) {
+  const sources = [
+    model?.defaultParams?.sizes,
+    model?.defaultParams?.sizeOptions,
+    model?.defaultParams?.size_options,
+    model?.defaultParams?.parameters?.sizes,
+    model?.defaultParams?.parameters?.sizeOptions,
+    model?.maxParams?.sizes,
+    model?.maxParams?.sizeOptions,
+    model?.maxParams?.size_options,
+    model?.maxParams?.parameters?.sizes,
+    model?.maxParams?.parameters?.sizeOptions,
+    model?.maxParams?.size
+  ];
+
+  for (const source of sources) {
+    const sizes = normalizeSizeList(source);
+    if (sizes.length) return uniqueList(sizes);
+  }
+  return [];
+}
+
+function providerImageSizes(providerType, model) {
+  if (providerType === 'stepfun') return STEPFUN_IMAGE_SIZES;
+  const configured = configuredImageSizes(model);
+  if (configured.length) return configured;
+  return [];
+}
+
+function normalizeImageParams(params, model, providerType) {
+  const supportedSizes = providerImageSizes(providerType, model);
+  if (!supportedSizes.length) return params;
+  if (params.size && supportedSizes.includes(params.size)) return params;
+
+  const defaultSize = model?.defaultParams?.size;
+  return {
+    ...params,
+    size: supportedSizes.includes(defaultSize) ? defaultSize : supportedSizes[0]
   };
 }
 
@@ -322,7 +399,7 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
       validateStatus: () => true,
       headers: compactObject({
         Accept: stream ? 'text/event-stream' : 'application/json',
-        ...(method.toLowerCase() !== 'get' ? { 'Content-Type': 'application/json' } : {}),
+        ...(method.toLowerCase() !== 'get' && !isFormDataPayload(data) ? { 'Content-Type': 'application/json' } : {}),
         Authorization: `Bearer ${apiKey}`,
         ...customHeaders(channel),
         ...headers
@@ -391,6 +468,10 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
     await markFailure(channel);
     throw err;
   }
+}
+
+function isFormDataPayload(value) {
+  return typeof FormData !== 'undefined' && value instanceof FormData;
 }
 
 // ============================
@@ -473,11 +554,125 @@ function adaptImagePayload(providerType, params) {
     });
   }
 
+  if (providerType === 'stepfun') {
+    return compactObject({
+      model: upstreamParams.model,
+      prompt: upstreamParams.prompt,
+      image: upstreamParams.image,
+      size: upstreamParams.size,
+      n: upstreamParams.n,
+      response_format: upstreamParams.response_format || 'b64_json',
+      cfg_scale: upstreamParams.cfg_scale,
+      steps: upstreamParams.steps,
+      seed: upstreamParams.seed,
+      text_mode: upstreamParams.text_mode
+    });
+  }
+
   return compactObject({
     ...upstreamParams,
     model: upstreamParams.model,
     prompt: upstreamParams.prompt
   });
+}
+
+function imageEndpointKey(providerType, params) {
+  if (providerType !== 'stepfun') return 'image';
+  const images = Array.isArray(params.image) ? params.image : params.image ? [params.image] : [];
+  return images.length ? 'imageEdit' : 'image';
+}
+
+function mimeTypeFromName(name = '') {
+  const ext = path.extname(name).toLowerCase();
+  return {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif'
+  }[ext] || 'application/octet-stream';
+}
+
+function dataUrlToImagePart(value, index) {
+  const match = String(value || '').match(/^data:([^;,]+)?(?:;base64)?,(.*)$/i);
+  if (!match) return null;
+  const mimeType = match[1] || 'image/png';
+  const raw = match[2] || '';
+  const isBase64 = /^data:[^,]*;base64,/i.test(value);
+  const bytes = Buffer.from(isBase64 ? raw : decodeURIComponent(raw), isBase64 ? 'base64' : 'utf8');
+  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+  return {
+    blob: new Blob([bytes], { type: mimeType }),
+    filename: `reference-${index + 1}.${ext}`
+  };
+}
+
+async function localStorageUrlToImagePart(value, index) {
+  const pathname = new URL(String(value || ''), 'http://local').pathname;
+  if (!pathname.startsWith('/storage/')) return null;
+  const relativePath = decodeURIComponent(pathname.slice('/storage/'.length));
+  const resolvedPath = path.resolve(STORAGE_ROOT, relativePath);
+  if (!resolvedPath.startsWith(STORAGE_ROOT)) {
+    throw new GenerationError(42201, '参考图路径不合法');
+  }
+  const bytes = await readFile(resolvedPath);
+  const filename = path.basename(resolvedPath) || `reference-${index + 1}.png`;
+  return {
+    blob: new Blob([bytes], { type: mimeTypeFromName(filename) }),
+    filename
+  };
+}
+
+async function stepfunImagePart(value, index) {
+  if (typeof value !== 'string') return null;
+  return dataUrlToImagePart(value, index) || await localStorageUrlToImagePart(value, index);
+}
+
+function appendFormValue(formData, key, value) {
+  if (value === undefined || value === null || value === '') return;
+  formData.append(key, typeof value === 'boolean' ? String(value) : value);
+}
+
+async function buildStepfunImageEditFormData(params) {
+  const upstreamParams = stripInternalParams(params);
+  const images = Array.isArray(upstreamParams.image)
+    ? upstreamParams.image
+    : upstreamParams.image
+      ? [upstreamParams.image]
+      : [];
+  const formData = new FormData();
+
+  appendFormValue(formData, 'model', upstreamParams.model);
+  appendFormValue(formData, 'prompt', upstreamParams.prompt);
+  appendFormValue(formData, 'response_format', upstreamParams.response_format || 'b64_json');
+  appendFormValue(formData, 'cfg_scale', upstreamParams.cfg_scale);
+  appendFormValue(formData, 'steps', upstreamParams.steps);
+  appendFormValue(formData, 'seed', upstreamParams.seed);
+  appendFormValue(formData, 'text_mode', upstreamParams.text_mode);
+
+  for (let i = 0; i < images.length; i += 1) {
+    const part = await stepfunImagePart(images[i], i);
+    if (part) {
+      formData.append('image', part.blob, part.filename);
+    } else {
+      formData.append('image', images[i]);
+    }
+  }
+
+  return formData;
+}
+
+async function adaptImageRequest(providerType, endpointKey, params) {
+  if (providerType === 'stepfun' && endpointKey === 'imageEdit') {
+    return {
+      data: await buildStepfunImageEditFormData(params),
+      headers: {}
+    };
+  }
+  return {
+    data: adaptImagePayload(providerType, params),
+    headers: providerType === 'aliyun' && params.async ? { 'X-DashScope-Async': 'enable' } : {}
+  };
 }
 
 function adaptVideoPayload(providerType, params) {
@@ -861,8 +1056,8 @@ async function persistGeneratedFiles(items = [], { userId, generationId, type })
 export async function generateImage(payload, userId, auditContext = {}) {
   const startedAt = Date.now();
   const { model, channel } = await resolveModelAndChannel(payload.model, 'image');
-  const params = mergeModelParams(model, payload);
   const providerType = normalizeProvider(channel.providerType);
+  const params = normalizeImageParams(mergeModelParams(model, payload), model, providerType);
   const record = await createGenerationRecord({
     userId,
     model,
@@ -875,12 +1070,14 @@ export async function generateImage(payload, userId, auditContext = {}) {
 
   try {
     costInfo = await charge(record, { userId, model, payload: params, type: 'image', auditContext });
+    const endpointKey = imageEndpointKey(providerType, params);
+    const request = await adaptImageRequest(providerType, endpointKey, params);
 
     const response = await callUpstream({
       channel,
-      endpointKey: 'image',
-      data: adaptImagePayload(providerType, params),
-      headers: providerType === 'aliyun' && params.async ? { 'X-DashScope-Async': 'enable' } : {}
+      endpointKey,
+      data: request.data,
+      headers: request.headers
     });
 
     const adapted = adaptImageResponse(providerType, response.data);

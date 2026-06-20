@@ -81,6 +81,7 @@
                 :key="item.id"
                 size="small"
                 :type="selectedUser.userGroupId === item.groupId ? 'success' : 'default'"
+                :color="groupTagColor(item.group)"
                 closable
                 @close="removeGroup(item.groupId)"
               >
@@ -92,6 +93,31 @@
               <n-select v-model:value="groupForm.group_id" :options="groupOptions" placeholder="选择用户组" filterable clearable />
               <n-input v-model:value="groupForm.grant_reason" placeholder="分配原因" clearable />
               <n-button :loading="saving" @click="assignGroup">分配</n-button>
+            </div>
+          </div>
+
+          <div class="rounded-md border border-[var(--border-color)] p-3">
+            <div class="mb-2 flex items-center justify-between">
+              <h3 class="font-medium">画布流程</h3>
+              <n-button size="small" :loading="projectsLoading" @click="loadUserProjects()">刷新</n-button>
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="project in userProjects"
+                :key="project.id"
+                class="rounded-md border border-[var(--border-color)] p-2 text-sm"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="truncate font-medium">{{ project.name }}</div>
+                    <div class="mt-1 text-xs text-[var(--text-secondary)]">
+                      节点 {{ flowNodeCount(project) }} · 连线 {{ flowEdgeCount(project) }} · {{ formatDateTime(project.updatedAt) }}
+                    </div>
+                  </div>
+                  <n-button size="small" @click="openProjectFlow(project)">查看流程</n-button>
+                </div>
+              </div>
+              <n-empty v-if="!userProjects.length && !projectsLoading" size="small" description="暂无画布流程" />
             </div>
           </div>
 
@@ -129,11 +155,65 @@
         </div>
       </n-drawer-content>
     </n-drawer>
+
+    <n-drawer v-model:show="projectFlowVisible" width="720">
+      <n-drawer-content :title="selectedProject?.name || '画布流程'" closable>
+        <div v-if="selectedProject" class="space-y-4">
+          <div class="grid gap-3 text-sm sm:grid-cols-3">
+            <div class="rounded-md bg-[var(--bg-tertiary)] p-3">
+              <div class="text-xs text-[var(--text-secondary)]">节点</div>
+              <div class="mt-1 text-lg font-semibold">{{ selectedFlowNodes.length }}</div>
+            </div>
+            <div class="rounded-md bg-[var(--bg-tertiary)] p-3">
+              <div class="text-xs text-[var(--text-secondary)]">连线</div>
+              <div class="mt-1 text-lg font-semibold">{{ selectedFlowEdges.length }}</div>
+            </div>
+            <div class="rounded-md bg-[var(--bg-tertiary)] p-3">
+              <div class="text-xs text-[var(--text-secondary)]">更新时间</div>
+              <div class="mt-1 text-sm font-medium">{{ formatDateTime(selectedProject.updatedAt) }}</div>
+            </div>
+          </div>
+
+          <section>
+            <h3 class="mb-2 font-medium">节点配置</h3>
+            <div class="space-y-2">
+              <div
+                v-for="node in selectedFlowNodes"
+                :key="node.id"
+                class="rounded-md border border-[var(--border-color)] p-3 text-sm"
+              >
+                <div class="flex flex-wrap items-center gap-2">
+                  <n-tag size="small">{{ node.type || 'node' }}</n-tag>
+                  <span class="font-medium">{{ nodeTitle(node) }}</span>
+                  <span class="text-xs text-[var(--text-secondary)]">{{ node.id }}</span>
+                </div>
+                <div class="mt-2 whitespace-pre-wrap text-[var(--text-secondary)]">{{ nodeSummary(node) }}</div>
+              </div>
+              <n-empty v-if="!selectedFlowNodes.length" size="small" description="暂无节点" />
+            </div>
+          </section>
+
+          <section>
+            <h3 class="mb-2 font-medium">连接关系</h3>
+            <div class="space-y-2">
+              <div
+                v-for="edge in selectedFlowEdges"
+                :key="edge.id"
+                class="rounded-md border border-[var(--border-color)] p-2 text-sm"
+              >
+                {{ edgeTitle(edge.source) }} → {{ edgeTitle(edge.target) }}
+              </div>
+              <n-empty v-if="!selectedFlowEdges.length" size="small" description="暂无连线" />
+            </div>
+          </section>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
   </AdminShell>
 </template>
 
 <script setup>
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NDataTable,
@@ -164,8 +244,12 @@ const detailVisible = ref(false)
 const selectedUser = ref(null)
 const selectedBalance = ref(null)
 const userGroups = ref([])
+const userProjects = ref([])
 const groupOptions = ref([])
 const loginLogs = ref([])
+const projectsLoading = ref(false)
+const projectFlowVisible = ref(false)
+const selectedProject = ref(null)
 
 const filters = reactive({
   keyword: '',
@@ -233,6 +317,75 @@ function formatDateTime(value) {
 
 function formatCoins(value) {
   return Number(value || 0).toFixed(2)
+}
+
+function textColorForBadge(color) {
+  const hex = String(color || '').replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111827' : '#ffffff'
+}
+
+function groupTagColor(group = {}) {
+  if (!group?.badgeColor) return undefined
+  return {
+    color: group.badgeColor,
+    borderColor: group.badgeColor,
+    textColor: textColorForBadge(group.badgeColor)
+  }
+}
+
+function canvasOf(project = {}) {
+  return project.canvasData || project.canvas_data || {}
+}
+
+function flowNodes(project = {}) {
+  const canvas = canvasOf(project)
+  return Array.isArray(canvas.nodes) ? canvas.nodes : []
+}
+
+function flowEdges(project = {}) {
+  const canvas = canvasOf(project)
+  return Array.isArray(canvas.edges) ? canvas.edges : []
+}
+
+function flowNodeCount(project) {
+  return flowNodes(project).length
+}
+
+function flowEdgeCount(project) {
+  return flowEdges(project).length
+}
+
+const selectedFlowNodes = computed(() => flowNodes(selectedProject.value || {}))
+const selectedFlowEdges = computed(() => flowEdges(selectedProject.value || {}))
+
+function nodeTitle(node = {}) {
+  return node.data?.label || node.data?.publicProps?.name || node.data?.name || node.type || node.id
+}
+
+function nodeSummary(node = {}) {
+  const data = node.data || {}
+  const parts = [
+    data.content,
+    data.prompt,
+    data.model ? `模型：${data.model}` : '',
+    data.size ? `尺寸：${data.size}` : '',
+    data.url ? `结果：${data.url}` : ''
+  ].filter(Boolean)
+  return parts.join('\n') || '-'
+}
+
+function edgeTitle(nodeId) {
+  const node = selectedFlowNodes.value.find(item => item.id === nodeId)
+  return node ? nodeTitle(node) : nodeId || '-'
+}
+
+function openProjectFlow(project) {
+  selectedProject.value = project
+  projectFlowVisible.value = true
 }
 
 function renderTag(value, options, type = 'default') {
@@ -350,9 +503,25 @@ async function openDetail(row) {
     banForm.ban_reason = data.user.banReason || ''
     Object.assign(groupForm, { group_id: null, grant_reason: '' })
     Object.assign(coinForm, { amount: 0, mode: 'increase', reason: '' })
+    userProjects.value = []
+    selectedProject.value = null
     detailVisible.value = true
+    await loadUserProjects(data.user.id)
   } catch (err) {
     window.$message?.error(err?.message || '加载用户详情失败')
+  }
+}
+
+async function loadUserProjects(userId = selectedUser.value?.id) {
+  if (!userId) return
+  projectsLoading.value = true
+  try {
+    const data = await adminUserApi.projects(userId, { pageSize: 100 })
+    userProjects.value = data.items || []
+  } catch (err) {
+    window.$message?.error(err?.message || '加载画布流程失败')
+  } finally {
+    projectsLoading.value = false
   }
 }
 

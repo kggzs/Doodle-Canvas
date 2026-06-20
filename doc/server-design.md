@@ -47,6 +47,7 @@ Doodle-Canvas 当前是一个**纯前端 SPA 应用**（Vue 3 + Vite），核心
 | **OpenAI** | `https://ai.kggzs.cn`                   | 标准 OpenAI 格式      | chat + image + video |
 | **阿里云万相**  | `https://dashscope.aliyuncs.com/api/v1` | 非标格式（messages 嵌套） | chat + image + video |
 | **豆包**     | `https://ark.cn-beijing.volces.com`     | Responses API 格式  | chat + image         |
+| **阶跃星辰**   | `https://api.stepfun.com/step_plan`     | OpenAI Chat + 图片生成/编辑 | chat + image         |
 
 前端通过 `serviceProviders` / `serviceApiKeys` / `serviceBaseUrls` 实现了 chat/image/video 三类服务的独立配置，但：
 
@@ -1364,7 +1365,7 @@ CREATE TABLE message_broadcasts (
 CREATE TABLE model_channels (
     id              CHAR(36)     PRIMARY KEY,           -- UUID
     name            VARCHAR(100) NOT NULL,               -- 渠道名称（如"阿里云万相-主","OpenAI-备用1"）
-    provider_type   ENUM('openai','aliyun','doubao','custom') NOT NULL, -- 适配器类型
+    provider_type   ENUM('openai','aliyun','doubao','stepfun','custom') NOT NULL, -- 适配器类型
     api_base_url    VARCHAR(500) NOT NULL,               -- API 基础地址
     api_key         TEXT         NOT NULL,               -- API Key（AES 加密存储）
     is_active       TINYINT(1)   DEFAULT 1,              -- 是否启用
@@ -3559,4 +3560,3 @@ CREATE TABLE migrate_imports (
 | v3.1 | 2026-06-17 | 文档完善：① 合并 v2.0/v3.0 并修正章节编号错乱；② 澄清 `users.user_group_id` 为冗余字段、计费以 `user_group_members` 为准；③ 新增 `system_settings` 系统设置表；④ 补全 SMTP/金币/OSS 内网/限流/内容审核等环境变量；⑤ 新增附录 A（统一响应格式与错误码）、附录 B（request\_id 链路追踪）、附录 C（localStorage 数据迁移）、附录 D（变更历史）；⑥ 修正实施计划表名（`balance_transactions`→`coin_transactions`）并细化阶段四至八 |
 
 > 本文档状态为「设计阶段」，所有 SQL 与接口均为设计稿，正式开发前以本文档为基线评审。
-

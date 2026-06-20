@@ -51,7 +51,17 @@
             </div>
             <div>
               <dt class="text-[var(--text-secondary)]">用户组</dt>
-              <dd class="mt-1">{{ groupNames }}</dd>
+              <dd class="mt-1 flex flex-wrap gap-2">
+                <n-tag
+                  v-for="group in currentUserGroups"
+                  :key="group.id || group.code || group.name"
+                  size="small"
+                  :color="groupTagColor(group)"
+                >
+                  {{ group.name }}
+                </n-tag>
+                <span v-if="!currentUserGroups.length">-</span>
+              </dd>
             </div>
           </dl>
         </div>
@@ -150,10 +160,9 @@ const directionOptions = [
 const typeOptionsWithAll = [{ label: '全部类型', value: null }, ...typeOptions]
 const directionOptionsWithAll = [{ label: '全部方向', value: null }, ...directionOptions]
 
-const groupNames = computed(() => {
+const currentUserGroups = computed(() => {
   const groups = currentUser.value?.userGroups || []
-  if (!groups.length) return '-'
-  return groups.map(group => group.name).filter(Boolean).join('、') || '-'
+  return groups.filter(group => group?.name)
 })
 
 const balanceCards = computed(() => [
@@ -194,6 +203,24 @@ function optionLabel(options, value) {
 
 function formatCoins(value) {
   return Number(value || 0).toFixed(2)
+}
+
+function textColorForBadge(color) {
+  const hex = String(color || '').replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111827' : '#ffffff'
+}
+
+function groupTagColor(group = {}) {
+  if (!group?.badgeColor) return undefined
+  return {
+    color: group.badgeColor,
+    borderColor: group.badgeColor,
+    textColor: textColorForBadge(group.badgeColor)
+  }
 }
 
 function formatSignedCoins(value) {

@@ -332,6 +332,61 @@ export const PROVIDERS = {
     }
   },
 
+  stepfun: {
+    label: '阶跃星辰 (StepFun)',
+    defaultBaseUrl: 'https://api.stepfun.com/step_plan',
+    endpoints: {
+      chat: '/v1/chat/completions',
+      image: '/v1/images/generations',
+      imageEdit: '/v1/images/edits',
+      video: '暂不支持',
+      videoQuery: '暂不支持',
+    },
+    requestAdapter: {
+      chat: (params) => {
+        const adapted = {
+          model: params.model,
+          messages: params.messages || []
+        }
+        if (params.temperature !== undefined) adapted.temperature = params.temperature
+        if (params.max_tokens !== undefined) adapted.max_tokens = params.max_tokens
+        if (params.stream !== undefined) adapted.stream = params.stream
+        if (params.tools) adapted.tools = params.tools
+        return adapted
+      },
+      image: (params) => {
+        const adapted = {
+          model: params.model,
+          prompt: params.prompt,
+          response_format: params.response_format || 'b64_json',
+          cfg_scale: params.cfg_scale,
+          steps: params.steps,
+          seed: params.seed,
+          text_mode: params.text_mode
+        }
+        if (params.size) adapted.size = params.size
+        if (params.n) adapted.n = params.n
+        if (params.image) adapted.image = params.image
+        return adapted
+      },
+    },
+    responseAdapter: {
+      chat: (response) => {
+        if (response.choices && response.choices.length > 0) {
+          return response.choices[0].message?.content || ''
+        }
+        return ''
+      },
+      image: (response) => {
+        const data = response.data || response
+        return (Array.isArray(data) ? data : [data]).map(item => ({
+          url: item.url || item.b64_json || '',
+          revisedPrompt: item.revised_prompt || ''
+        }))
+      },
+    }
+  },
+
   // 默认使用 OpenAI 格式
   default: 'openai'
 }

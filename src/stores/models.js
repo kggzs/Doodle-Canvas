@@ -11,6 +11,9 @@ import {
   SEEDREAM_SIZE_OPTIONS,
   SEEDREAM_4K_SIZE_OPTIONS,
   SEEDREAM_QUALITY_OPTIONS,
+  STEPFUN_SIZE_OPTIONS,
+  WAN_SIZE_OPTIONS,
+  WAN_PRO_SIZE_OPTIONS,
   SEEDANCE_RESOLUTION_OPTIONS,
   VIDEO_RATIO_LIST,
   VIDEO_RATIO_OPTIONS,
@@ -54,14 +57,126 @@ export const loadAllModels = async () => {
  * Get model config by name | 根据名称获取模型配置
  */
 export const getModelConfig = (modelKey) => {
+  const allModels = [...IMAGE_MODELS, ...VIDEO_MODELS, ...CHAT_MODELS]
+  const builtInModel = allModels.find(m => m.key === modelKey)
   const modelConfig = getModelConfigHook()
   if (modelConfig) {
-    return modelConfig.getImageModel(modelKey) || 
-           modelConfig.getVideoModel(modelKey) || 
+    const serverModel = modelConfig.getImageModel(modelKey) ||
+           modelConfig.getVideoModel(modelKey) ||
            modelConfig.getChatModel(modelKey)
+    if (serverModel && builtInModel) {
+      return {
+        ...builtInModel,
+        ...serverModel,
+        provider: serverModel.provider?.length ? serverModel.provider : builtInModel.provider,
+        sizes: serverModel.sizes || builtInModel.sizes,
+        qualities: serverModel.qualities || builtInModel.qualities,
+        defaultParams: {
+          ...(builtInModel.defaultParams || {}),
+          ...(serverModel.defaultParams || {})
+        }
+      }
+    }
+    if (serverModel) return serverModel
   }
-  const allModels = [...IMAGE_MODELS, ...VIDEO_MODELS, ...CHAT_MODELS]
-  return allModels.find(m => m.key === modelKey)
+  return builtInModel
+}
+
+const KNOWN_IMAGE_SIZE_OPTIONS = [
+  ...SEEDREAM_SIZE_OPTIONS,
+  ...SEEDREAM_4K_SIZE_OPTIONS,
+  ...STEPFUN_SIZE_OPTIONS,
+  ...WAN_SIZE_OPTIONS,
+  ...WAN_PRO_SIZE_OPTIONS
+]
+
+const GENERIC_IMAGE_SIZE_OPTIONS = [
+  { label: '1:1', key: '1024x1024' }
+]
+
+const isSizeLikeKey = (key) => {
+  return /^(\d+x\d+|\d+:\d+|[124]K)$/i.test(String(key || ''))
+}
+
+const toSizeOption = (value) => {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value === 'object') {
+    const key = value.key || value.value || value.size
+    if (!key) return null
+    return {
+      label: value.label || String(key),
+      key: String(key)
+    }
+  }
+  const key = String(value)
+  const known = KNOWN_IMAGE_SIZE_OPTIONS.find(option => option.key === key)
+  return known || { label: key, key }
+}
+
+const normalizeSizeOptions = (raw) => {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw.map(toSizeOption).filter(Boolean)
+  if (typeof raw === 'string') return [toSizeOption(raw)].filter(Boolean)
+  if (typeof raw === 'object') {
+    const nested = raw.options || raw.values || raw.enum || raw.enums || raw.items
+    if (nested) return normalizeSizeOptions(nested)
+    if (raw.key || raw.value || raw.size) return [toSizeOption(raw)].filter(Boolean)
+    return Object.keys(raw)
+      .filter(isSizeLikeKey)
+      .map(key => toSizeOption(key))
+      .filter(Boolean)
+  }
+  return []
+}
+
+const uniqueSizeOptions = (options) => {
+  const seen = new Set()
+  return options.filter(option => {
+    if (!option?.key || seen.has(option.key)) return false
+    seen.add(option.key)
+    return true
+  })
+}
+
+const modelProviders = (model = {}) => {
+  const providers = model.provider || model.providers || []
+  return Array.isArray(providers) ? providers : [providers].filter(Boolean)
+}
+
+const hasProvider = (model, provider) => modelProviders(model).includes(provider)
+
+const configuredSizeOptions = (model) => {
+  const sources = [
+    model?.sizes,
+    model?.defaultParams?.sizes,
+    model?.defaultParams?.sizeOptions,
+    model?.defaultParams?.size_options,
+    model?.defaultParams?.parameters?.sizes,
+    model?.defaultParams?.parameters?.sizeOptions,
+    model?.maxParams?.sizes,
+    model?.maxParams?.sizeOptions,
+    model?.maxParams?.size_options,
+    model?.maxParams?.parameters?.sizes,
+    model?.maxParams?.parameters?.sizeOptions,
+    model?.maxParams?.size,
+    model?.defaultParams?.size
+  ]
+
+  for (const source of sources) {
+    const options = normalizeSizeOptions(source)
+    if (options.length) return uniqueSizeOptions(options)
+  }
+  return []
+}
+
+const providerDefaultSizeOptions = (model) => {
+  if (hasProvider(model, 'stepfun')) return STEPFUN_SIZE_OPTIONS
+  if (hasProvider(model, 'aliyun')) {
+    return String(model?.key || '').includes('pro') ? WAN_PRO_SIZE_OPTIONS : WAN_SIZE_OPTIONS
+  }
+  if (hasProvider(model, 'doubao')) return SEEDREAM_SIZE_OPTIONS
+  if (hasProvider(model, 'openai') || hasProvider(model, 'custom')) return GENERIC_IMAGE_SIZE_OPTIONS
+  return []
 }
 
 /**
@@ -69,13 +184,20 @@ export const getModelConfig = (modelKey) => {
  * Returns options based on model's sizes array and quality
  */
 export const getModelSizeOptions = (modelKey, quality = 'standard') => {
-  const model = IMAGE_MODELS.find(m => m.key === modelKey)
+  const model = getModelConfig(modelKey)
   
   // If model has getSizesByQuality function, use it | 如果模型有 getSizesByQuality 函数，使用它
   if (model?.getSizesByQuality) {
     return model.getSizesByQuality(quality)
   }
-  
+
+  const configuredOptions = configuredSizeOptions(model)
+  if (configuredOptions.length > 1) return configuredOptions
+
+  const providerOptions = providerDefaultSizeOptions(model)
+  if (providerOptions.length) return providerOptions
+
+  if (configuredOptions.length === 1) return configuredOptions
   if (!model?.sizes) return SEEDREAM_SIZE_OPTIONS
   
   // Convert sizes array to dropdown options | 转换 sizes 数组为下拉选项
@@ -86,11 +208,34 @@ export const getModelSizeOptions = (modelKey, quality = 'standard') => {
   })
 }
 
+export const getModelDefaultSize = (modelKey, quality = 'standard') => {
+  const config = getModelConfig(modelKey)
+  const options = getModelSizeOptions(modelKey, quality)
+  const defaultSize = config?.defaultParams?.size
+  if (defaultSize && (!options.length || options.some(option => option.key === defaultSize))) {
+    return defaultSize
+  }
+  return options.find(option => option.key === '2048x2048')?.key
+    || options.find(option => option.key === '1024x1024')?.key
+    || options.find(option => option.key === '2K')?.key
+    || options[0]?.key
+    || defaultSize
+    || DEFAULT_IMAGE_SIZE
+}
+
+export const getValidModelSize = (modelKey, requestedSize, quality = 'standard') => {
+  const options = getModelSizeOptions(modelKey, quality)
+  if (requestedSize && (!options.length || options.some(option => option.key === requestedSize))) {
+    return requestedSize
+  }
+  return getModelDefaultSize(modelKey, quality)
+}
+
 /**
  * Get quality options for image model | 获取图片模型画质选项
  */
 export const getModelQualityOptions = (modelKey) => {
-  const model = IMAGE_MODELS.find(m => m.key === modelKey)
+  const model = getModelConfig(modelKey)
   return model?.qualities || []
 }
 
@@ -209,7 +354,7 @@ export {
 }
 
 // Export options | 导出选项
-export { SEEDREAM_SIZE_OPTIONS, SEEDREAM_4K_SIZE_OPTIONS, SEEDREAM_QUALITY_OPTIONS, SEEDANCE_RESOLUTION_OPTIONS, VIDEO_RATIO_OPTIONS, VIDEO_DURATION_OPTIONS }
+export { SEEDREAM_SIZE_OPTIONS, SEEDREAM_4K_SIZE_OPTIONS, SEEDREAM_QUALITY_OPTIONS, STEPFUN_SIZE_OPTIONS, SEEDANCE_RESOLUTION_OPTIONS, VIDEO_RATIO_OPTIONS, VIDEO_DURATION_OPTIONS }
 
 // Export state | 导出状态
 export { loading, error }

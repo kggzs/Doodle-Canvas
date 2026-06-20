@@ -42,18 +42,6 @@ const UserGroup = sequelize.define(
       defaultValue: false,
       field: 'is_system'
     },
-    discountRate: {
-      type: DataTypes.DECIMAL(4, 3),
-      allowNull: false,
-      defaultValue: 1,
-      field: 'discount_rate'
-    },
-    rechargeBonusRate: {
-      type: DataTypes.DECIMAL(4, 3),
-      allowNull: false,
-      defaultValue: 1,
-      field: 'recharge_bonus_rate'
-    },
     costMultiplier: {
       type: DataTypes.DECIMAL(4, 3),
       allowNull: false,
@@ -65,18 +53,6 @@ const UserGroup = sequelize.define(
       allowNull: false,
       defaultValue: 0,
       field: 'daily_generate_limit'
-    },
-    dailyCoinLimit: {
-      type: DataTypes.DECIMAL(12, 2),
-      allowNull: false,
-      defaultValue: 0,
-      field: 'daily_coin_limit'
-    },
-    monthlyCoinLimit: {
-      type: DataTypes.DECIMAL(12, 2),
-      allowNull: false,
-      defaultValue: 0,
-      field: 'monthly_coin_limit'
     },
     priority: {
       type: DataTypes.INTEGER,

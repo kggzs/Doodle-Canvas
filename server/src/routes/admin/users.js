@@ -18,6 +18,19 @@ const router = Router();
 const userStatuses = ['active', 'disabled', 'banned', 'pending_email'];
 const userRoles = ['user', 'admin'];
 const riskLevels = ['low', 'medium', 'high'];
+const dbIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function dbIdBody(name, label) {
+  return body(name).matches(dbIdPattern).withMessage(`${label}格式不正确`);
+}
+
+function optionalDbIdBody(name, label) {
+  return body(name).optional({ nullable: true }).matches(dbIdPattern).withMessage(`${label}格式不正确`);
+}
+
+function dbIdParam(name, label) {
+  return param(name).matches(dbIdPattern).withMessage(`${label}格式不正确`);
+}
 
 function validateRequest(req, res) {
   const errors = validationResult(req);
@@ -118,7 +131,7 @@ router.put(
     body('role').optional().isIn(userRoles).withMessage('role 不支持'),
     body('status').optional().isIn(userStatuses).withMessage('status 不支持'),
     body('avatar_url').optional({ nullable: true }).isString().withMessage('avatar_url 必须为字符串'),
-    body('user_group_id').optional({ nullable: true }).isUUID().withMessage('user_group_id 格式不正确'),
+    optionalDbIdBody('user_group_id', 'user_group_id '),
     body('risk_level').optional().isIn(riskLevels).withMessage('risk_level 不支持'),
     body('risk_tags').optional({ nullable: true }).isArray().withMessage('risk_tags 必须为数组'),
     body('violation_count').optional().isInt({ min: 0 }).withMessage('violation_count 需为非负整数').toInt(),
@@ -241,11 +254,34 @@ router.get(
   }
 );
 
+router.get(
+  '/:id/projects',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    query('page').optional().isInt({ min: 1 }).withMessage('页码需为正整数').toInt(),
+    query('pageSize').optional().isInt({ min: 1, max: 100 }).withMessage('每页条数需为 1-100').toInt()
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.getUserProjects(req.params.id, {
+        page: req.query.page,
+        pageSize: req.query.pageSize
+      });
+      return paginate(res, result);
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
 router.post(
   '/:id/groups',
   [
     param('id').isUUID().withMessage('用户 ID 格式不正确'),
-    body('group_id').isUUID().withMessage('group_id 格式不正确'),
+    dbIdBody('group_id', 'group_id '),
     body('expires_at').optional({ nullable: true }).isISO8601().withMessage('expires_at 必须为 ISO 时间'),
     body('grant_reason').optional({ nullable: true }).isLength({ max: 255 }).withMessage('grant_reason 不超过 255 字')
   ],
@@ -274,7 +310,7 @@ router.delete(
   '/:id/groups/:groupId',
   [
     param('id').isUUID().withMessage('用户 ID 格式不正确'),
-    param('groupId').isUUID().withMessage('用户组 ID 格式不正确')
+    dbIdParam('groupId', '用户组 ID ')
   ],
   async (req, res) => {
     const validErr = validateRequest(req, res);

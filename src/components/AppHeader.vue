@@ -9,30 +9,11 @@
     </div>
     
     <!-- Right section | 右侧区域 -->
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-3">
       <!-- Center slot | 中间插槽 -->
       <slot name="center"></slot>
-      
-      <!-- GitHub link | GitHub 链接 -->
-      <a 
-        :href="githubUrl"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-primary)] hover:text-[var(--accent-color)]"
-        title="GitHub"
-      >
-        <n-icon :size="20"><LogoGithub /></n-icon>
-      </a>
 
       <template v-if="showAuthNav">
-        <button
-          v-if="isAdmin"
-          @click="router.push('/admin/dashboard')"
-          class="hidden px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors md:block"
-        >
-          管理后台
-        </button>
-
         <button
           v-if="isLoggedIn"
           @click="router.push('/projects')"
@@ -70,20 +51,34 @@
           </button>
         </n-dropdown>
       </template>
-      
-      <!-- Theme toggle | 主题切换 -->
-      <button 
-        @click="toggleTheme"
-        class="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
-      >
-        <n-icon :size="20">
-          <SunnyOutline v-if="isDark" />
-          <MoonOutline v-else />
-        </n-icon>
-      </button>
-      
+
       <!-- Right slot | 右侧插槽 -->
       <slot name="right"></slot>
+
+      <div class="flex items-center gap-1">
+        <!-- GitHub link | GitHub 链接 -->
+        <a
+          :href="githubUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-primary)] hover:text-[var(--accent-color)]"
+          title="GitHub"
+        >
+          <n-icon :size="20"><LogoGithub /></n-icon>
+        </a>
+
+        <!-- Theme toggle | 主题切换 -->
+        <button
+          @click="toggleTheme"
+          class="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
+          title="切换主题"
+        >
+          <n-icon :size="20">
+            <SunnyOutline v-if="isDark" />
+            <MoonOutline v-else />
+          </n-icon>
+        </button>
+      </div>
     </div>
   </header>
 </template>
@@ -102,7 +97,7 @@ import {
   LogoGithub
 } from '@vicons/ionicons5'
 import { isDark, toggleTheme } from '../stores/theme'
-import { currentUser, isAdmin, isLoggedIn, logout } from '../stores/auth'
+import { currentUser, isLoggedIn, logout } from '../stores/auth'
 import { coinApi } from '@/api/backend'
 
 const BALANCE_CACHE_KEY = 'doodle-balance-cache'

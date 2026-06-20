@@ -58,9 +58,8 @@ router.post(
   '/rules',
   [
     body('model_id').isLength({ min: 1, max: 100 }).withMessage('model_id 不能为空'),
-    body('rule_type').optional().isIn(['fixed', 'param_tiered']).withMessage('rule_type 不支持'),
+    body('rule_type').optional().isIn(['fixed']).withMessage('rule_type 仅支持 fixed'),
     body('fixed_amount').optional().isFloat({ min: 0 }).withMessage('fixed_amount 不能小于 0'),
-    body('param_rules').optional({ nullable: true }).custom((value) => value === null || typeof value === 'object').withMessage('param_rules 必须为对象'),
     body('is_active').optional().isBoolean().withMessage('is_active 必须为布尔值').toBoolean()
   ],
   async (req, res) => {
@@ -80,9 +79,8 @@ router.put(
   '/rules/:id',
   [
     param('id').isUUID().withMessage('规则 ID 格式不正确'),
-    body('rule_type').optional().isIn(['fixed', 'param_tiered']).withMessage('rule_type 不支持'),
+    body('rule_type').optional().isIn(['fixed']).withMessage('rule_type 仅支持 fixed'),
     body('fixed_amount').optional().isFloat({ min: 0 }).withMessage('fixed_amount 不能小于 0'),
-    body('param_rules').optional({ nullable: true }).custom((value) => value === null || typeof value === 'object').withMessage('param_rules 必须为对象'),
     body('is_active').optional().isBoolean().withMessage('is_active 必须为布尔值').toBoolean()
   ],
   async (req, res) => {

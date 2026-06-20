@@ -12,6 +12,11 @@ import { UserGroupError } from '../../services/user-groups.js';
 import { logger } from '../../utils/logger.js';
 
 const router = Router();
+const dbIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function dbIdParam(name, label) {
+  return param(name).matches(dbIdPattern).withMessage(`${label}格式不正确`);
+}
 
 function validateRequest(req, res) {
   const errors = validationResult(req);
@@ -42,12 +47,8 @@ function groupPayload(bodyData) {
     code: bodyData.code,
     description: bodyData.description,
     isDefault: bodyData.is_default ?? bodyData.isDefault,
-    discountRate: bodyData.discount_rate ?? bodyData.discountRate,
-    rechargeBonusRate: bodyData.recharge_bonus_rate ?? bodyData.rechargeBonusRate,
     costMultiplier: bodyData.cost_multiplier ?? bodyData.costMultiplier,
     dailyGenerateLimit: bodyData.daily_generate_limit ?? bodyData.dailyGenerateLimit,
-    dailyCoinLimit: bodyData.daily_coin_limit ?? bodyData.dailyCoinLimit,
-    monthlyCoinLimit: bodyData.monthly_coin_limit ?? bodyData.monthlyCoinLimit,
     priority: bodyData.priority,
     badgeColor: bodyData.badge_color ?? bodyData.badgeColor,
     isActive: bodyData.is_active ?? bodyData.isActive
@@ -59,12 +60,8 @@ const groupValidators = [
   body('code').optional().isLength({ min: 1, max: 30 }).matches(/^[a-zA-Z0-9_-]+$/).withMessage('code 仅支持字母、数字、下划线和横线'),
   body('description').optional({ nullable: true }).isLength({ max: 255 }).withMessage('description 不超过 255 字'),
   body('is_default').optional().isBoolean().withMessage('is_default 必须为布尔值').toBoolean(),
-  body('discount_rate').optional().isDecimal({ decimal_digits: '0,3' }).withMessage('discount_rate 格式不正确'),
-  body('recharge_bonus_rate').optional().isDecimal({ decimal_digits: '0,3' }).withMessage('recharge_bonus_rate 格式不正确'),
   body('cost_multiplier').optional().isDecimal({ decimal_digits: '0,3' }).withMessage('cost_multiplier 格式不正确'),
   body('daily_generate_limit').optional().isInt({ min: 0 }).withMessage('daily_generate_limit 需为非负整数').toInt(),
-  body('daily_coin_limit').optional().isDecimal({ decimal_digits: '0,2' }).withMessage('daily_coin_limit 格式不正确'),
-  body('monthly_coin_limit').optional().isDecimal({ decimal_digits: '0,2' }).withMessage('monthly_coin_limit 格式不正确'),
   body('priority').optional().isInt({ min: 0 }).withMessage('priority 需为非负整数').toInt(),
   body('badge_color').optional({ nullable: true }).isLength({ max: 20 }).withMessage('badge_color 不超过 20 字'),
   body('is_active').optional().isBoolean().withMessage('is_active 必须为布尔值').toBoolean()
@@ -127,7 +124,7 @@ router.post(
 
 router.put(
   '/:id',
-  [param('id').isUUID().withMessage('用户组 ID 格式不正确'), ...groupValidators],
+  [dbIdParam('id', '用户组 ID '), ...groupValidators],
   async (req, res) => {
     const validErr = validateRequest(req, res);
     if (validErr) return validErr;
@@ -143,7 +140,7 @@ router.put(
 
 router.delete(
   '/:id',
-  [param('id').isUUID().withMessage('用户组 ID 格式不正确')],
+  [dbIdParam('id', '用户组 ID ')],
   async (req, res) => {
     const validErr = validateRequest(req, res);
     if (validErr) return validErr;

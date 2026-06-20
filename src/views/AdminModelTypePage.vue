@@ -54,14 +54,14 @@
             <n-form-item label="API 地址">
               <n-input
                 v-model:value="form.api_base_url"
-                placeholder="https://dashscope.aliyuncs.com"
+                :placeholder="apiBaseUrlPlaceholder"
                 :input-props="inputProps.apiBaseUrl"
               />
             </n-form-item>
             <n-form-item label="API 路径">
               <n-input
                 v-model:value="form.api_path"
-                :placeholder="typeMeta.pathPlaceholder"
+                :placeholder="apiPathPlaceholder"
                 :input-props="inputProps.apiPath"
               />
             </n-form-item>
@@ -85,14 +85,6 @@
             </n-form-item>
           </div>
 
-          <n-form-item label="参数阶梯计费 JSON">
-            <n-input
-              v-model:value="paramRulesText"
-              type="textarea"
-              :autosize="{ minRows: 4, maxRows: 8 }"
-              placeholder='{"size":{"1024x1024":1,"2048x2048":2},"default":1}'
-            />
-          </n-form-item>
           <n-form-item label="默认参数 JSON">
             <n-input
               v-model:value="defaultParamsText"
@@ -134,6 +126,7 @@ import {
 } from 'naive-ui'
 import AdminShell from '@/components/AdminShell.vue'
 import { adminBillingApi, adminChannelApi, adminModelApi } from '@/api/backend'
+import { getProviderConfig } from '@/config/providers'
 import { useModelStore } from '@/stores/pinia'
 
 const props = defineProps({
@@ -180,8 +173,15 @@ const providerOptions = [
   { label: 'OpenAI 兼容', value: 'openai' },
   { label: '阿里云/千问', value: 'aliyun' },
   { label: '豆包', value: 'doubao' },
+  { label: '阶跃星辰', value: 'stepfun' },
   { label: '自定义', value: 'custom' }
 ]
+const providerDefaultBaseUrls = {
+  aliyun: getProviderConfig('aliyun').defaultBaseUrl,
+  doubao: getProviderConfig('doubao').defaultBaseUrl,
+  stepfun: getProviderConfig('stepfun').defaultBaseUrl
+}
+const providerDefaultApiPathTypes = ['openai', 'aliyun', 'doubao', 'stepfun']
 const activeOptions = [
   { label: '全部状态', value: null },
   { label: '启用', value: true },
@@ -201,7 +201,6 @@ const editingBillingId = ref('')
 const editingChannelConfig = ref({})
 const channelOnlyMode = ref(false)
 const defaultParamsText = ref('')
-const paramRulesText = ref('')
 
 const filters = reactive({
   keyword: '',
@@ -246,6 +245,8 @@ const drawerTitle = computed(() => {
   if (channelOnlyMode.value) return `新增${typeMeta.value.shortName}线路`
   return editingId.value ? `编辑${typeMeta.value.shortName}` : `新增${typeMeta.value.shortName}`
 })
+const apiBaseUrlPlaceholder = computed(() => providerDefaultBaseUrls[form.provider_type] || 'https://api.example.com')
+const apiPathPlaceholder = computed(() => providerDefaultApiPath(form.provider_type) || typeMeta.value.pathPlaceholder)
 
 function providerLabel(value) {
   return providerOptions.find(item => item.value === value)?.label || value || '-'
@@ -277,11 +278,72 @@ function parseJsonText(text, label) {
   }
 }
 
+function formatApiError(err, fallback) {
+  const firstFieldError = Array.isArray(err?.errors) ? err.errors[0] : null
+  return firstFieldError?.msg || err?.message || fallback
+}
+
 function normalizeApiPath(value) {
   const path = String(value || '').trim()
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   return path.startsWith('/') ? path : `/${path}`
+}
+
+function providerDefaultApiPath(providerType) {
+  if (!providerDefaultApiPathTypes.includes(providerType)) return ''
+  const endpoint = getProviderConfig(providerType).endpoints?.[typeMeta.value.endpointKey] || ''
+  return endpoint && endpoint !== '暂不支持' ? endpoint : ''
+}
+
+function isKnownProviderDefaultApiPath(value) {
+  const normalized = normalizeApiPath(value)
+  if (!normalized) return false
+  return providerOptions.some((provider) => {
+    const endpoint = providerDefaultApiPath(provider.value)
+    return endpoint && normalizeApiPath(endpoint) === normalized
+  })
+}
+
+function applyProviderDefaultApiPath() {
+  const defaultApiPath = providerDefaultApiPath(form.provider_type)
+  if (!defaultApiPath) {
+    if (isKnownProviderDefaultApiPath(form.api_path)) {
+      form.api_path = ''
+    }
+    return
+  }
+  if (!form.api_path || isKnownProviderDefaultApiPath(form.api_path)) {
+    form.api_path = defaultApiPath
+  }
+}
+
+function normalizeBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '')
+}
+
+function isKnownProviderDefaultBaseUrl(value) {
+  const normalized = normalizeBaseUrl(value)
+  if (!normalized) return false
+  return Object.values(providerDefaultBaseUrls).some(defaultBaseUrl => normalizeBaseUrl(defaultBaseUrl) === normalized)
+}
+
+function applyProviderDefaultBaseUrl() {
+  const defaultBaseUrl = providerDefaultBaseUrls[form.provider_type]
+  if (!defaultBaseUrl) {
+    if (isKnownProviderDefaultBaseUrl(form.api_base_url)) {
+      form.api_base_url = ''
+    }
+    return
+  }
+  if (!form.api_base_url || isKnownProviderDefaultBaseUrl(form.api_base_url)) {
+    form.api_base_url = defaultBaseUrl
+  }
+}
+
+function applyProviderDefaults() {
+  applyProviderDefaultBaseUrl()
+  applyProviderDefaultApiPath()
 }
 
 function isValidApiPath(value) {
@@ -404,7 +466,7 @@ async function loadRows() {
     rows.value = await Promise.all((data.items || []).map(enrichModel))
     total.value = data.total || 0
   } catch (err) {
-    window.$message?.error(err?.message || '加载模型配置失败')
+    window.$message?.error(formatApiError(err, '加载模型配置失败'))
   } finally {
     loading.value = false
   }
@@ -433,8 +495,8 @@ function resetForm() {
     is_active: true,
     billing_active: true
   })
+  applyProviderDefaults()
   defaultParamsText.value = ''
-  paramRulesText.value = ''
 }
 
 function openCreate() {
@@ -461,7 +523,6 @@ function openEdit(row) {
     billing_active: row.billing ? !!row.billing.isActive : true
   })
   defaultParamsText.value = stringifyJson(row.defaultParams)
-  paramRulesText.value = stringifyJson(row.billing?.paramRules)
   drawerVisible.value = true
 }
 
@@ -482,19 +543,24 @@ function openAddChannel(row) {
     is_active: true,
     billing_active: row.billing ? !!row.billing.isActive : true
   })
+  applyProviderDefaults()
   defaultParamsText.value = stringifyJson(row.defaultParams)
-  paramRulesText.value = stringifyJson(row.billing?.paramRules)
   drawerVisible.value = true
 }
 
 function buildChannelConfig() {
   const current = editingChannelConfig.value || {}
+  const endpoints = {
+    ...(current.endpoints || {}),
+    [typeMeta.value.endpointKey]: normalizeApiPath(form.api_path)
+  }
+  const imageEditEndpoint = getProviderConfig(form.provider_type).endpoints?.imageEdit
+  if (props.modelType === 'image' && imageEditEndpoint && imageEditEndpoint !== '暂不支持' && !endpoints.imageEdit) {
+    endpoints.imageEdit = imageEditEndpoint
+  }
   return {
     ...current,
-    endpoints: {
-      ...(current.endpoints || {}),
-      [typeMeta.value.endpointKey]: normalizeApiPath(form.api_path)
-    }
+    endpoints
   }
 }
 
@@ -555,12 +621,11 @@ async function saveModel(channelId, defaultParams) {
   })
 }
 
-async function saveBilling(modelId, paramRules) {
+async function saveBilling(modelId) {
   const payload = {
     model_id: modelId,
-    rule_type: paramRules ? 'param_tiered' : 'fixed',
+    rule_type: 'fixed',
     fixed_amount: effectiveFixedAmount(form.fixed_amount),
-    param_rules: paramRules,
     is_active: form.billing_active
   }
   if (editingBillingId.value) return adminBillingApi.updateRule(editingBillingId.value, payload)
@@ -586,8 +651,6 @@ async function saveAll() {
   }
   const defaultParams = parseJsonText(defaultParamsText.value, '默认参数')
   if (defaultParams === undefined) return
-  const paramRules = parseJsonText(paramRulesText.value, '参数阶梯计费')
-  if (paramRules === undefined) return
 
   const channelConfig = buildChannelConfig()
 
@@ -595,13 +658,13 @@ async function saveAll() {
   try {
     const channel = await saveChannel(channelConfig)
     const model = await saveModel(channel.id, defaultParams)
-    await saveBilling(model.id, paramRules)
+    await saveBilling(model.id)
     window.$message?.success('模型配置已保存')
     drawerVisible.value = false
     await loadRows()
     await modelStore.loadPublicModels()
   } catch (err) {
-    window.$message?.error(err?.message || '保存模型配置失败')
+    window.$message?.error(formatApiError(err, '保存模型配置失败'))
   } finally {
     saving.value = false
   }
@@ -614,7 +677,7 @@ async function toggleStatus(row) {
     await loadRows()
     await modelStore.loadPublicModels()
   } catch (err) {
-    window.$message?.error(err?.message || '更新状态失败')
+    window.$message?.error(formatApiError(err, '更新状态失败'))
   }
 }
 
@@ -625,7 +688,7 @@ async function deleteModel(row) {
     await loadRows()
     await modelStore.loadPublicModels()
   } catch (err) {
-    window.$message?.error(err?.message || '删除模型失败')
+    window.$message?.error(formatApiError(err, '删除模型失败'))
   }
 }
 
@@ -633,6 +696,10 @@ watch(() => props.modelType, () => {
   page.value = 1
   resetForm()
   loadRows()
+})
+
+watch(() => form.provider_type, () => {
+  applyProviderDefaults()
 })
 
 onMounted(loadRows)

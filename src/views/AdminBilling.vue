@@ -37,9 +37,6 @@
             <n-select v-model:value="form.model_id" :options="modelOptions" placeholder="选择模型" filterable :disabled="!!editingId" />
           </n-form-item>
           <div class="grid gap-3 md:grid-cols-2">
-            <n-form-item label="规则类型">
-              <n-select v-model:value="form.rule_type" :options="ruleTypeOptions" />
-            </n-form-item>
             <n-form-item label="固定金额">
               <n-input-number v-model:value="form.fixed_amount" :min="0" :step="0.1" />
             </n-form-item>
@@ -47,14 +44,6 @@
               <n-switch v-model:value="form.is_active" />
             </n-form-item>
           </div>
-          <n-form-item label="参数阶梯 JSON">
-            <n-input
-              v-model:value="paramRulesText"
-              type="textarea"
-              :autosize="{ minRows: 7, maxRows: 14 }"
-              placeholder='{"size":{"1024x1024":1,"2048x2048":2},"default":1}'
-            />
-          </n-form-item>
         </n-form>
 
         <template #footer>
@@ -77,7 +66,6 @@ import {
   NDrawerContent,
   NForm,
   NFormItem,
-  NInput,
   NInputNumber,
   NPagination,
   NPopconfirm,
@@ -97,7 +85,6 @@ const page = ref(1)
 const pageSize = ref(20)
 const drawerVisible = ref(false)
 const editingId = ref('')
-const paramRulesText = ref('')
 
 const filters = reactive({
   model_id: null
@@ -105,25 +92,15 @@ const filters = reactive({
 
 const form = reactive({
   model_id: null,
-  rule_type: 'fixed',
   fixed_amount: 0,
   is_active: true
 })
-
-const ruleTypeOptions = [
-  { label: '固定价格', value: 'fixed' },
-  { label: '参数阶梯', value: 'param_tiered' }
-]
 
 const modelOptions = computed(() => models.value.map(item => ({
   label: `${item.displayName || item.modelKey} (${item.modelKey})`,
   value: item.id
 })))
 const modelOptionsWithAll = computed(() => [{ label: '全部模型', value: null }, ...modelOptions.value])
-
-function ruleTypeLabel(value) {
-  return ruleTypeOptions.find(item => item.value === value)?.label || value || '-'
-}
 
 function formatDateTime(value) {
   if (!value) return '-'
@@ -134,25 +111,6 @@ function formatCoins(value) {
   return Number(value || 0).toFixed(2)
 }
 
-function stringifyJson(value) {
-  if (!value) return ''
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
-}
-
-function parseJsonText(text) {
-  if (!text.trim()) return null
-  try {
-    return JSON.parse(text)
-  } catch {
-    window.$message?.error('参数阶梯 JSON 格式不正确')
-    return undefined
-  }
-}
-
 const columns = [
   {
     title: '模型',
@@ -160,14 +118,6 @@ const columns = [
     minWidth: 220,
     render(row) {
       return row.model?.displayName || row.model?.modelKey || row.modelId
-    }
-  },
-  {
-    title: '类型',
-    key: 'ruleType',
-    width: 120,
-    render(row) {
-      return h(NTag, { size: 'small' }, { default: () => ruleTypeLabel(row.ruleType) })
     }
   },
   {
@@ -241,11 +191,9 @@ function handlePageSizeChange() {
 function resetForm() {
   Object.assign(form, {
     model_id: null,
-    rule_type: 'fixed',
     fixed_amount: 0,
     is_active: true
   })
-  paramRulesText.value = ''
 }
 
 function openCreate() {
@@ -258,11 +206,9 @@ function openEdit(row) {
   editingId.value = row.id
   Object.assign(form, {
     model_id: row.modelId,
-    rule_type: row.ruleType,
     fixed_amount: Number(row.fixedAmount || 0),
     is_active: !!row.isActive
   })
-  paramRulesText.value = stringifyJson(row.paramRules)
   drawerVisible.value = true
 }
 
@@ -271,14 +217,11 @@ async function saveRule() {
     window.$message?.warning('请选择模型')
     return
   }
-  const paramRules = parseJsonText(paramRulesText.value)
-  if (paramRules === undefined) return
 
   const payload = {
     model_id: form.model_id,
-    rule_type: form.rule_type,
+    rule_type: 'fixed',
     fixed_amount: form.fixed_amount || 0,
-    param_rules: paramRules,
     is_active: form.is_active
   }
 

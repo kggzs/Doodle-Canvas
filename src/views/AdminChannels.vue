@@ -51,7 +51,7 @@
             </n-form-item>
           </div>
           <n-form-item label="Base URL">
-            <n-input v-model:value="form.api_base_url" placeholder="https://api.openai.com" />
+            <n-input v-model:value="form.api_base_url" :placeholder="apiBaseUrlPlaceholder" />
           </n-form-item>
           <n-form-item label="API Key">
             <n-input v-model:value="form.api_key" type="password" show-password-on="click" :placeholder="editingId ? '留空则不修改' : '请输入 API Key'" />
@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { h, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import {
   NButton,
   NDataTable,
@@ -106,14 +106,21 @@ import {
 } from 'naive-ui'
 import AdminShell from '@/components/AdminShell.vue'
 import { adminChannelApi } from '@/api/backend'
+import { getProviderConfig } from '@/config/providers'
 import { useModelStore } from '@/stores/pinia'
 
 const providerOptions = [
   { label: 'OpenAI 兼容', value: 'openai' },
   { label: '阿里云万相', value: 'aliyun' },
   { label: '豆包', value: 'doubao' },
+  { label: '阶跃星辰', value: 'stepfun' },
   { label: '自定义', value: 'custom' }
 ]
+const providerDefaultBaseUrls = {
+  aliyun: getProviderConfig('aliyun').defaultBaseUrl,
+  doubao: getProviderConfig('doubao').defaultBaseUrl,
+  stepfun: getProviderConfig('stepfun').defaultBaseUrl
+}
 const typeOptions = [
   { label: '问答模型', value: 'chat' },
   { label: '图片生成模型', value: 'image' },
@@ -156,6 +163,8 @@ const form = reactive({
   timeout_ms: 60000
 })
 
+const apiBaseUrlPlaceholder = computed(() => providerDefaultBaseUrls[form.provider_type] || 'https://api.example.com')
+
 function providerLabel(value) {
   return providerOptions.find(item => item.value === value)?.label || value
 }
@@ -167,6 +176,29 @@ function typeLabel(value) {
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString('zh-CN')
+}
+
+function normalizeBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '')
+}
+
+function isKnownProviderDefaultBaseUrl(value) {
+  const normalized = normalizeBaseUrl(value)
+  if (!normalized) return false
+  return Object.values(providerDefaultBaseUrls).some(defaultBaseUrl => normalizeBaseUrl(defaultBaseUrl) === normalized)
+}
+
+function applyProviderDefaultBaseUrl() {
+  const defaultBaseUrl = providerDefaultBaseUrls[form.provider_type]
+  if (!defaultBaseUrl) {
+    if (isKnownProviderDefaultBaseUrl(form.api_base_url)) {
+      form.api_base_url = ''
+    }
+    return
+  }
+  if (!form.api_base_url || isKnownProviderDefaultBaseUrl(form.api_base_url)) {
+    form.api_base_url = defaultBaseUrl
+  }
 }
 
 const columns = [
@@ -254,7 +286,7 @@ async function loadChannels() {
     channels.value = data.items || []
     total.value = data.total || 0
   } catch (err) {
-    window.$message?.error(err?.message || '加载渠道失败')
+    window.$message?.error(formatApiError(err, '加载渠道失败'))
   } finally {
     loading.value = false
   }
@@ -313,6 +345,11 @@ function parseConfig() {
   }
 }
 
+function formatApiError(err, fallback) {
+  const firstFieldError = Array.isArray(err?.errors) ? err.errors[0] : null
+  return firstFieldError?.msg || err?.message || fallback
+}
+
 async function refreshPublicModels() {
   try {
     await modelStore.loadPublicModels()
@@ -348,7 +385,7 @@ async function saveChannel() {
     await loadChannels()
     await refreshPublicModels()
   } catch (err) {
-    window.$message?.error(err?.message || '保存渠道失败')
+    window.$message?.error(formatApiError(err, '保存渠道失败'))
   } finally {
     saving.value = false
   }
@@ -359,7 +396,7 @@ async function testChannel(row) {
     const result = await adminChannelApi.test(row.id)
     window.$message?.[result.ok ? 'success' : 'warning'](`${result.message} (${result.latencyMs}ms)`)
   } catch (err) {
-    window.$message?.error(err?.message || '渠道测试失败')
+    window.$message?.error(formatApiError(err, '渠道测试失败'))
   }
 }
 
@@ -370,13 +407,17 @@ async function deleteChannel(row) {
     await loadChannels()
     await refreshPublicModels()
   } catch (err) {
-    window.$message?.error(err?.message || '删除失败')
+    window.$message?.error(formatApiError(err, '删除失败'))
   }
 }
 
 watch(activeType, () => {
   page.value = 1
   loadChannels()
+})
+
+watch(() => form.provider_type, () => {
+  applyProviderDefaultBaseUrl()
 })
 
 onMounted(loadChannels)

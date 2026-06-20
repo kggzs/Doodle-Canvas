@@ -14,7 +14,7 @@ import db from '../models/index.js';
 import * as CoinService from './coins.js';
 import * as UserGroupService from './user-groups.js';
 
-const { UserBalance, UserGroup, UserGroupMember } = db;
+const { Project, UserBalance, UserGroup, UserGroupMember } = db;
 
 const USER_STATUSES = ['active', 'disabled', 'banned', 'pending_email'];
 const USER_ROLES = ['user', 'admin'];
@@ -272,6 +272,28 @@ export async function getUserGroups(id) {
   return UserGroupService.listUserGroups(id);
 }
 
+export async function getUserProjects(id, params = {}) {
+  await requireUser(id, { paranoid: false });
+  const { page, pageSize, offset } = normalizePage(params.page, params.pageSize);
+
+  const { rows, count } = await Project.findAndCountAll({
+    where: { userId: id },
+    order: [
+      ['updatedAt', 'DESC'],
+      ['createdAt', 'DESC']
+    ],
+    limit: pageSize,
+    offset
+  });
+
+  return {
+    items: rows.map(item => (typeof item.toJSON === 'function' ? item.toJSON() : item)),
+    total: count,
+    page,
+    pageSize
+  };
+}
+
 export async function assignUserGroup(id, groupId, data = {}, operatorId = null) {
   return UserGroupService.assignGroup(id, groupId, data, operatorId);
 }
@@ -334,6 +356,7 @@ export default {
   getUserLoginLogs,
   softDeleteUser,
   getUserGroups,
+  getUserProjects,
   assignUserGroup,
   removeUserGroup,
   rechargeUser,

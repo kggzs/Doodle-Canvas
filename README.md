@@ -82,12 +82,13 @@
 | **OpenAI** | OpenAI 兼容 API | `https://ai.kggzs.cn` |
 | **阿里云万相** | 阿里云 DashScope API | `https://dashscope.aliyuncs.com/api/v1` |
 | **豆包** | 字节跳动豆包 API | `https://ark.cn-beijing.volces.com` |
+| **阶跃星辰** | StepFun Step Plan API | `https://api.stepfun.com/step_plan` |
 
 配置方式：
-1. 点击右上角设置图标 ⚙️
-2. 选择 API 渠道
-3. 填入 API Base URL 和 API Key
-4. 选择需要使用的模型
+1. 登录管理后台
+2. 在对应模型类型页面创建 image / video / chat 模型
+3. 创建渠道地址，填写 Provider、Base URL 和 API Key
+4. 在模型详情中绑定渠道并配置轮换策略与计费规则
 
 ## 🚀 快速开始
 
@@ -121,6 +122,10 @@ pnpm build
 # 或
 npm run build
 ```
+
+### 部署
+
+服务器部署流程见 [DEPLOYMENT.md](./DEPLOYMENT.md)。新服务器数据库只执行 `server/sql/init.sql`，该脚本是当前合并版结构，不包含测试业务数据。
 
 ##  自动执行工作流
 

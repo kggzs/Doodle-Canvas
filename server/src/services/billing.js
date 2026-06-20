@@ -2,17 +2,16 @@
 /**
  * 计费服务
  * - 按模型读取 billing_rules
- * - 应用用户组 cost_multiplier
+ * - 应用用户组 cost_multiplier：最终费用 = 模型价格 * 倍率
  * - 预扣生成费用，失败时退款
  */
-import { Op, fn, col } from 'sequelize';
+import { Op } from 'sequelize';
 
 import db from '../models/index.js';
 import * as CoinService from './coins.js';
 
 const {
   BillingRule,
-  CoinTransaction,
   GenerationRecord,
   ModelConfig,
   Project,
@@ -36,13 +35,6 @@ function toMoney(value) {
 
 function startOfToday() {
   const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function startOfMonth() {
-  const date = new Date();
-  date.setDate(1);
   date.setHours(0, 0, 0, 0);
   return date;
 }
@@ -89,22 +81,6 @@ async function resolveModel({ modelId, modelKey, modelType }) {
   return model;
 }
 
-function amountFromParamRules(rule, payload = {}) {
-  const paramRules = rule?.paramRules || {};
-  if (!paramRules || typeof paramRules !== 'object') return null;
-
-  for (const [paramName, tiers] of Object.entries(paramRules)) {
-    if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) continue;
-    const rawValue = payload[paramName];
-    if (rawValue === undefined || rawValue === null) continue;
-    const value = String(rawValue);
-    if (tiers[value] !== undefined) return toMoney(tiers[value]);
-  }
-
-  if (paramRules.default !== undefined) return toMoney(paramRules.default);
-  return null;
-}
-
 function defaultAmountForModelType(modelType) {
   const envKey = `DEFAULT_${String(modelType || '').toUpperCase()}_COST`;
   const configured = process.env[envKey] ?? process.env.DEFAULT_GENERATION_COST;
@@ -114,12 +90,7 @@ function defaultAmountForModelType(modelType) {
 
 function calculateBaseAmount(rule, payload = {}, modelType = null) {
   if (!rule || !rule.isActive) return defaultAmountForModelType(modelType);
-  let amount = null;
-  if (rule.ruleType === 'param_tiered') {
-    const tierAmount = amountFromParamRules(rule, payload);
-    if (tierAmount !== null) amount = tierAmount;
-  }
-  if (amount === null) amount = toMoney(rule.fixedAmount);
+  const amount = toMoney(rule.fixedAmount);
   const minimumAmount = defaultAmountForModelType(modelType);
   return modelType === 'image' && amount <= 0 ? minimumAmount : amount;
 }
@@ -223,13 +194,13 @@ export async function estimateCost({ userId, modelId, modelKey, modelType, paylo
       cost_multiplier: multiplier,
       group: groupSnapshot?.code || null,
       final_cost: finalCost,
-      rule_type: rule?.ruleType || 'default',
+      rule_type: rule ? 'fixed' : 'default',
       rule_id: rule?.id || null
     }
   };
 }
 
-export async function checkQuota({ userId, group, finalCost }) {
+export async function checkQuota({ userId, group }) {
   if (!group) return;
 
   if (Number(group.dailyGenerateLimit || 0) > 0) {
@@ -243,41 +214,6 @@ export async function checkQuota({ userId, group, finalCost }) {
     if (count >= Number(group.dailyGenerateLimit)) {
       throw new BillingError(40202, '已达到今日生成次数上限', {
         limit: Number(group.dailyGenerateLimit)
-      });
-    }
-  }
-
-  const coinLimitChecks = [
-    {
-      limit: Number(group.dailyCoinLimit || 0),
-      since: startOfToday(),
-      scope: 'daily'
-    },
-    {
-      limit: Number(group.monthlyCoinLimit || 0),
-      since: startOfMonth(),
-      scope: 'monthly'
-    }
-  ];
-
-  for (const check of coinLimitChecks) {
-    if (check.limit <= 0) continue;
-    const row = await CoinTransaction.findOne({
-      where: {
-        userId,
-        type: 'consume',
-        direction: 'out',
-        createdAt: { [Op.gte]: check.since }
-      },
-      attributes: [[fn('SUM', col('amount')), 'amount']],
-      raw: true
-    });
-    const consumed = Number(row?.amount || 0);
-    if (toMoney(consumed + finalCost) > check.limit) {
-      throw new BillingError(40202, check.scope === 'daily' ? '已达到今日金币消费上限' : '已达到本月金币消费上限', {
-        limit: check.limit,
-        consumed,
-        required: finalCost
       });
     }
   }
@@ -297,8 +233,7 @@ export async function chargeForGeneration({
     const estimate = await estimateCost({ userId, modelId, modelKey, modelType, payload });
     await checkQuota({
       userId,
-      group: estimate.group,
-      finalCost: estimate.finalCost
+      group: estimate.group
     });
 
     if (estimate.finalCost <= 0) {
@@ -434,9 +369,9 @@ export async function upsertRule(data = {}) {
   const model = await resolveModel({ modelId: data.modelId || data.model_id });
   const payload = {
     modelId: model.id,
-    ruleType: data.ruleType || data.rule_type || 'fixed',
+    ruleType: 'fixed',
     fixedAmount: toMoney(data.fixedAmount ?? data.fixed_amount ?? 0),
-    paramRules: data.paramRules ?? data.param_rules ?? null,
+    paramRules: null,
     isActive: data.isActive ?? data.is_active ?? true
   };
 
@@ -454,9 +389,9 @@ export async function updateRule(id, data = {}) {
   if (!rule) throw new BillingError(40402, '计费规则不存在');
 
   const payload = {};
-  if (data.ruleType !== undefined || data.rule_type !== undefined) payload.ruleType = data.ruleType || data.rule_type;
+  payload.ruleType = 'fixed';
+  payload.paramRules = null;
   if (data.fixedAmount !== undefined || data.fixed_amount !== undefined) payload.fixedAmount = toMoney(data.fixedAmount ?? data.fixed_amount);
-  if (data.paramRules !== undefined || data.param_rules !== undefined) payload.paramRules = data.paramRules ?? data.param_rules;
   if (data.isActive !== undefined || data.is_active !== undefined) payload.isActive = data.isActive ?? data.is_active;
 
   await rule.update(payload);
