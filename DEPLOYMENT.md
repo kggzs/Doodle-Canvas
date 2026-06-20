@@ -2,6 +2,16 @@
 
 本文按当前项目结构整理：前端执行 `npm run build` 输出到 `dist/`，后端 Express 同时提供 `/api`、`/storage` 和前端页面。Nginx 只做反向代理。
 
+如需 Docker 部署，项目根目录已提供 `Dockerfile`、`docker-compose.yml` 和 `DOCKER.md`：
+
+```bash
+cp .env.docker.example .env
+docker compose up -d --build
+curl http://127.0.0.1:3000/api/health
+```
+
+Docker 模式只启动应用容器，MySQL 和 Redis 使用宿主机已有服务；首次部署仍需先导入 `server/sql/init.sql`。
+
 ## 1. 服务器准备
 
 推荐环境：
@@ -204,3 +214,40 @@ curl http://127.0.0.1:3000/api/health
 ```
 
 若后续有新的迁移脚本，先备份数据库，再执行迁移；全新部署仍以 `server/sql/init.sql` 为准。
+
+## 11. 宝塔启动脚本排查
+
+如果宝塔 Node 项目管理提示：
+
+```text
+/www/server/nodejs/vhost/scripts/Doodle_Canvas_service.sh: 行 7: /bin/nohup: 无法执行：找不到需要的文件
+```
+
+说明宝塔生成的启动脚本写死了 `/bin/nohup`，但当前系统没有这个路径。优先使用本文第 6 节的 PM2 方式启动项目；如必须继续使用宝塔脚本，可在服务器执行：
+
+```bash
+command -v nohup
+ls -l /bin/nohup /usr/bin/nohup 2>/dev/null
+```
+
+如果输出显示 `nohup` 在 `/usr/bin/nohup`，补一个兼容链接：
+
+```bash
+ln -sf /usr/bin/nohup /bin/nohup
+```
+
+如果系统没有 `nohup`，安装 `coreutils`：
+
+```bash
+# Debian / Ubuntu
+apt-get update && apt-get install -y coreutils
+
+# CentOS / Rocky / AlmaLinux
+yum install -y coreutils
+```
+
+也可以直接修改宝塔生成的脚本，把 `/bin/nohup` 改成 `nohup`：
+
+```bash
+sed -i 's#/bin/nohup#nohup#g' /www/server/nodejs/vhost/scripts/Doodle_Canvas_service.sh
+```
