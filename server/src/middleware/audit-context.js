@@ -25,6 +25,10 @@ import { extractIpAndUa, parseIpLocation } from '../utils/ip-ua.js';
  */
 export function auditContextMiddleware(req, res, next) {
   const { ip, ua, parsedUa } = extractIpAndUa(req);
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const protocol = forwardedProto || req.protocol || 'http';
+  const host = forwardedHost || req.headers.host || '';
 
   // 解析 IP 地理位置（未接入库时返回 null，不阻断流程）
   const location = parseIpLocation(ip);
@@ -38,6 +42,7 @@ export function auditContextMiddleware(req, res, next) {
     uaDevice: parsedUa.device,
     uaIsBot: parsedUa.isBot,
     requestId: req.requestId || res.locals.requestId || null,
+    publicOrigin: host ? `${protocol}://${host}` : null,
     location
   };
 

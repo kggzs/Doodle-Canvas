@@ -47,6 +47,11 @@ export const projectApi = {
   remove: (id) => backend.delete(`/projects/${id}`)
 }
 
+export const recordApi = {
+  list: (params) => backend.get('/records', { params }),
+  detail: (id) => backend.get(`/records/${id}`)
+}
+
 export const fileApi = {
   uploadImage: (file) => {
     const formData = new FormData()
@@ -122,5 +127,6 @@ export default {
   adminModelApi,
   coinApi,
   fileApi,
+  recordApi,
   projectApi
 }

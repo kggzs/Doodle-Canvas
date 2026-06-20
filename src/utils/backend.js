@@ -227,6 +227,13 @@ function friendlyNetworkError(error) {
       request_id: null
     }
   }
+  if ([522, 523, 524, 525].includes(error.response?.status)) {
+    return {
+      code: 50401,
+      message: '请求处理时间较长，正在尝试找回生成结果',
+      request_id: null
+    }
+  }
   if (!error.response) {
     return {
       code: 50201,
@@ -277,10 +284,10 @@ backend.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 401 && !isPublicAuthRequest(originalRequest)) {
+  if (error.response?.status === 401 && !isPublicAuthRequest(originalRequest)) {
       authStorage.clear()
     }
-    return Promise.reject(body || friendlyNetworkError(error) || { message: '操作失败，请稍后再试' })
+    return Promise.reject(friendlyNetworkError(error) || body || { message: '操作失败，请稍后再试' })
   }
 )
 

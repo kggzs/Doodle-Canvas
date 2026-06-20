@@ -10,6 +10,7 @@ import {
   getVideoTaskStatus,
   streamChatCompletions
 } from '@/api'
+import { recordApi } from '@/api/backend'
 import { getModelConfig, getValidModelSize } from '@/stores/models'
 import { currentProjectId } from '@/stores/canvas'
 
@@ -147,6 +148,56 @@ export const useImageGeneration = () => {
   const images = ref([])
   const currentImage = ref(null)
 
+  const createClientRequestId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    return `img_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  }
+
+  const isRecoverableDisconnect = (err) => {
+    const code = Number(err?.code || 0)
+    const message = String(err?.message || '')
+    return [49901, 50201, 50401].includes(code)
+      || /取消|断开|超时|timeout|abort|canceled|network/i.test(message)
+  }
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const recoverImageResult = async (clientRequestId, originalError) => {
+    let sawRecord = false
+
+    for (let i = 0; i < 240; i++) {
+      const result = await recordApi.list({
+        type: 'image',
+        client_request_id: clientRequestId,
+        pageSize: 1
+      })
+      const record = result.items?.[0]
+
+      if (!record) {
+        if (i >= 5) throw originalError
+        await sleep(2000)
+        continue
+      }
+
+      sawRecord = true
+      if (record.status === 'completed') {
+        const recoveredImages = record.result?.images || []
+        if (recoveredImages.length) return recoveredImages
+        throw new Error('图片已生成，但未找到结果文件')
+      }
+
+      if (record.status === 'failed' || record.status === 'cancelled') {
+        throw new Error(record.errorMessage || '图片生成失败')
+      }
+
+      await sleep(sawRecord ? 2000 : 1000)
+    }
+
+    throw originalError
+  }
+
   /**
    * Generate image with fixed params | 固定参数生成图片
    * @param {Object} params - { model, prompt, size, n, image (optional ref image) }
@@ -155,10 +206,12 @@ export const useImageGeneration = () => {
     setLoading(true)
     images.value = []
     currentImage.value = null
+    let clientRequestId = ''
 
     try {
       const modelConfig = getModelConfig(params.model)
       const quality = params.quality || modelConfig?.defaultParams?.quality || 'standard'
+      clientRequestId = createClientRequestId()
 
       // Build request data | 构建请求数据
       const requestData = {
@@ -166,6 +219,8 @@ export const useImageGeneration = () => {
         prompt: params.prompt,
         size: getValidModelSize(params.model, params.size || modelConfig?.defaultParams?.size, quality),
         n: params.n || 1,
+        client_request_id: clientRequestId,
+        background: true,
         project_id: currentProjectId.value || undefined
       }
 
@@ -203,13 +258,29 @@ export const useImageGeneration = () => {
 
       // Call API | 调用 API
       const response = await generateImage(requestData)
-      const adaptedData = response.images || []
+      const adaptedData = response.images || (
+        response.status === 'pending'
+          ? await recoverImageResult(clientRequestId, new Error('图片生成超时'))
+          : []
+      )
 
       images.value = adaptedData
       currentImage.value = adaptedData[0] || null
       setSuccess()
       return adaptedData
     } catch (err) {
+      if (clientRequestId && isRecoverableDisconnect(err)) {
+        try {
+          const recoveredImages = await recoverImageResult(clientRequestId, err)
+          images.value = recoveredImages
+          currentImage.value = recoveredImages[0] || null
+          setSuccess()
+          return recoveredImages
+        } catch (recoverErr) {
+          setError(recoverErr)
+          throw recoverErr
+        }
+      }
       setError(err)
       throw err
     } finally {
@@ -269,6 +340,7 @@ export const useVideoGeneration = () => {
       // 其他模型：使用 size/seconds 格式
       if (params.first_frame_image) requestData.first_frame_image = params.first_frame_image
       if (params.last_frame_image) requestData.last_frame_image = params.last_frame_image
+      if (params.images?.length) requestData.images = params.images
       if (params.ratio) requestData.size = params.ratio
       if (params.dur) requestData.seconds = params.dur
     }
@@ -283,7 +355,7 @@ export const useVideoGeneration = () => {
       }
     }
 
-    const newTaskId = task.id || task.task_id || task.taskId
+    const newTaskId = task.taskId || task.task_id || task.video_id || task.videoId || task.id
     if (!newTaskId) {
       throw new Error('未获取到任务 ID')
     }

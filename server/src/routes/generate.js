@@ -55,6 +55,7 @@ router.post(
     body('size').optional({ nullable: true }).isString().withMessage('size 必须为字符串'),
     body('n').optional().isInt({ min: 1, max: 10 }).withMessage('n 需为 1-10').toInt(),
     body('image').optional({ nullable: true }).custom((value) => typeof value === 'string' || Array.isArray(value)).withMessage('image 必须为字符串或数组'),
+    body('background').optional({ nullable: true }).isBoolean().withMessage('background 必须为布尔值').toBoolean(),
     body('project_id').optional({ nullable: true }).isUUID().withMessage('project_id 格式不正确'),
     body('projectId').optional({ nullable: true }).isUUID().withMessage('projectId 格式不正确')
   ],
@@ -63,8 +64,10 @@ router.post(
     if (validErr) return validErr;
 
     try {
-      const result = await GenerationService.generateImage(req.body, req.userId, req.auditContext);
-      return success(res, result, '图片生成成功');
+      const result = req.body.background
+        ? await GenerationService.createImageTask(req.body, req.userId, req.auditContext)
+        : await GenerationService.generateImage(req.body, req.userId, req.auditContext);
+      return success(res, result, result.images ? '图片生成成功' : '图片任务已创建');
     } catch (err) {
       return handleServiceError(res, err, '图片生成');
     }

@@ -10,4 +10,4 @@ import backend from '@/utils/backend'
  * @param {Object} data - 原始生成参数
  * @returns {Promise<Object>} 后端归一化后的生成结果
  */
-export const generateImage = (data) => backend.post('/generate/image', data)
+export const generateImage = (data) => backend.post('/generate/image', data, { timeout: 0 })

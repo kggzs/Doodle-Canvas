@@ -11,7 +11,6 @@ import http from 'http';
 import https from 'https';
 import path from 'path';
 import { Op } from 'sequelize';
-import { fileURLToPath } from 'url';
 
 import db from '../models/index.js';
 import { redis } from '../config/redis.js';
@@ -68,7 +67,6 @@ const IMAGE_POLL_INTERVAL_MS = 3000;
 const HTTP_AGENT = new http.Agent({ family: 4 });
 const HTTPS_AGENT = new https.Agent({ family: 4 });
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 60000;
-const STORAGE_ROOT = fileURLToPath(new URL('../../storage/', import.meta.url));
 const STEPFUN_IMAGE_SIZES = ['1024x1024', '768x1360', '896x1184', '1360x768', '1184x896'];
 const AGNES_IMAGE_SIZES = ['1024x768', '1024x1024', '1344x768', '768x1344'];
 
@@ -207,7 +205,15 @@ function normalizeImageParams(params, model, providerType) {
 }
 
 function stripInternalParams(params = {}) {
-  const { project_id: _projectIdSnake, projectId: _projectIdCamel, ...rest } = params;
+  const {
+    project_id: _projectIdSnake,
+    projectId: _projectIdCamel,
+    client_request_id: _clientRequestIdSnake,
+    clientRequestId: _clientRequestIdCamel,
+    background: _background,
+    wait: _wait,
+    ...rest
+  } = params;
   return rest;
 }
 
@@ -638,17 +644,12 @@ function dataUrlToImagePart(value, index) {
 }
 
 async function localStorageUrlToImagePart(value, index) {
-  const pathname = new URL(String(value || ''), 'http://local').pathname;
-  if (!pathname.startsWith('/storage/')) return null;
-  const relativePath = decodeURIComponent(pathname.slice('/storage/'.length));
-  const resolvedPath = path.resolve(STORAGE_ROOT, relativePath);
-  if (!resolvedPath.startsWith(STORAGE_ROOT)) {
-    throw new GenerationError(42201, '参考图路径不合法');
-  }
-  const bytes = await readFile(resolvedPath);
-  const filename = path.basename(resolvedPath) || `reference-${index + 1}.png`;
+  const localFile = await localStorageFileFromUrl(value);
+  if (!localFile) return null;
+  const bytes = await readFile(localFile.absolutePath);
+  const filename = localFile.file.fileName || path.basename(localFile.absolutePath) || `reference-${index + 1}.png`;
   return {
-    blob: new Blob([bytes], { type: mimeTypeFromName(filename) }),
+    blob: new Blob([bytes], { type: localFile.file.mimeType || mimeTypeFromName(filename) }),
     filename
   };
 }
@@ -656,6 +657,82 @@ async function localStorageUrlToImagePart(value, index) {
 async function stepfunImagePart(value, index) {
   if (typeof value !== 'string') return null;
   return dataUrlToImagePart(value, index) || await localStorageUrlToImagePart(value, index);
+}
+
+function storagePathFromUrl(value) {
+  if (typeof value !== 'string' || !value) return null;
+  let parsed;
+  try {
+    parsed = new URL(value, 'http://local');
+  } catch {
+    return null;
+  }
+
+  if (!parsed.pathname.startsWith('/storage/')) return null;
+  return decodeURIComponent(parsed.pathname.slice('/storage/'.length));
+}
+
+function publicOriginFromContext(auditContext = {}) {
+  const candidates = [
+    process.env.STORAGE_PUBLIC_BASE_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.APP_PUBLIC_URL,
+    process.env.SITE_URL,
+    process.env.APP_URL,
+    auditContext.publicOrigin
+  ];
+  const value = candidates.find(Boolean);
+  return value ? String(value).replace(/\/+$/, '') : '';
+}
+
+function storageUrlToPublicUrl(value, auditContext = {}) {
+  const storagePath = storagePathFromUrl(value);
+  if (!storagePath) return null;
+  const origin = publicOriginFromContext(auditContext);
+  if (!origin) return null;
+  return `${origin}/storage/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+async function localStorageFileFromUrl(value) {
+  const storagePath = storagePathFromUrl(value);
+  if (!storagePath) return null;
+  try {
+    return await StorageService.getPublicFileByStoragePath(storagePath);
+  } catch (err) {
+    throw new GenerationError(err.code || 42201, '参考图文件不可用，请重新上传或重新生成图片');
+  }
+}
+
+async function localStorageUrlToDataUri(value) {
+  const localFile = await localStorageFileFromUrl(value);
+  if (!localFile) return null;
+  const mimeType = localFile.file.mimeType || mimeTypeFromName(localFile.file.fileName || localFile.absolutePath);
+  if (!String(mimeType).startsWith('image/')) {
+    throw new GenerationError(42201, '参考图必须是图片文件');
+  }
+  const bytes = await readFile(localFile.absolutePath);
+  return `data:${mimeType};base64,${bytes.toString('base64')}`;
+}
+
+async function agnesInputImage(value, options = {}) {
+  if (typeof value !== 'string' || !value) return value;
+  if (value.startsWith('data:')) return value;
+  if (value.startsWith('blob:') || value.startsWith('upload://')) {
+    throw new GenerationError(42201, '参考图是浏览器临时地址，请重新上传图片后再生成');
+  }
+  if (options.preferPublicUrl) {
+    const publicUrl = storageUrlToPublicUrl(value, options.auditContext);
+    if (publicUrl) return publicUrl;
+  }
+  return await localStorageUrlToDataUri(value) || value;
+}
+
+async function agnesInputImages(images = [], options = {}) {
+  const normalized = [];
+  for (const image of images) {
+    normalized.push(await agnesInputImage(image, options));
+  }
+  return normalized;
 }
 
 function appendFormValue(formData, key, value) {
@@ -699,6 +776,22 @@ async function adaptImageRequest(providerType, endpointKey, params) {
       headers: {}
     };
   }
+  if (providerType === 'agnes') {
+    const upstreamParams = stripInternalParams(params);
+    const images = Array.isArray(upstreamParams.image)
+      ? upstreamParams.image
+      : upstreamParams.image
+        ? [upstreamParams.image]
+        : [];
+    const normalizedImages = images.length ? await agnesInputImages(images) : [];
+    return {
+      data: adaptImagePayload(providerType, {
+        ...params,
+        image: normalizedImages.length ? normalizedImages : upstreamParams.image
+      }),
+      headers: {}
+    };
+  }
   return {
     data: adaptImagePayload(providerType, params),
     headers: providerType === 'aliyun' && params.async ? { 'X-DashScope-Async': 'enable' } : {}
@@ -737,7 +830,11 @@ function agnesSizeFromParams(params) {
   };
 }
 
-function adaptVideoPayload(providerType, params) {
+function uniqueImages(items = []) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+async function adaptVideoPayload(providerType, params, auditContext = {}) {
   const upstreamParams = stripInternalParams(params);
   const images = Array.isArray(upstreamParams.images) ? upstreamParams.images : [];
   const firstFrame = upstreamParams.first_frame_image || images[0];
@@ -767,9 +864,10 @@ function adaptVideoPayload(providerType, params) {
   }
 
   if (providerType === 'agnes') {
-    const referenceImages = images.length
-      ? images
-      : [firstFrame, lastFrame].filter(Boolean);
+    const referenceImages = uniqueImages([firstFrame, ...images, lastFrame]);
+    const normalizedImages = referenceImages.length
+      ? await agnesInputImages(referenceImages, { preferPublicUrl: true, auditContext })
+      : [];
     const frameRate = Number(upstreamParams.frame_rate || upstreamParams.frameRate || 24);
     const size = agnesSizeFromParams(upstreamParams);
     const payload = compactObject({
@@ -786,11 +884,11 @@ function adaptVideoPayload(providerType, params) {
       seed: upstreamParams.seed
     });
 
-    if (referenceImages.length === 1) {
-      payload.image = referenceImages[0];
-    } else if (referenceImages.length > 1) {
+    if (normalizedImages.length === 1) {
+      payload.image = normalizedImages[0];
+    } else if (normalizedImages.length > 1) {
       payload.extra_body = {
-        image: referenceImages,
+        image: normalizedImages,
         ...(upstreamParams.mode ? { mode: upstreamParams.mode } : {})
       };
     }
@@ -1188,19 +1286,7 @@ async function persistGeneratedFiles(items = [], { userId, generationId, type })
 // 公开业务方法
 // ============================
 
-export async function generateImage(payload, userId, auditContext = {}) {
-  const startedAt = Date.now();
-  const { model, channel } = await resolveModelAndChannel(payload.model, 'image');
-  const providerType = normalizeProvider(channel.providerType);
-  const params = normalizeImageParams(mergeModelParams(model, payload), model, providerType);
-  const record = await createGenerationRecord({
-    userId,
-    model,
-    channel,
-    type: 'image',
-    payload: params,
-    auditContext
-  });
+async function runImageGeneration({ startedAt, userId, model, channel, providerType, params, record, auditContext }) {
   let costInfo = null;
 
   try {
@@ -1255,6 +1341,51 @@ export async function generateImage(payload, userId, auditContext = {}) {
   }
 }
 
+async function prepareImageGeneration(payload, userId, auditContext = {}) {
+  const startedAt = Date.now();
+  const { model, channel } = await resolveModelAndChannel(payload.model, 'image');
+  const providerType = normalizeProvider(channel.providerType);
+  const params = normalizeImageParams(mergeModelParams(model, payload), model, providerType);
+  const record = await createGenerationRecord({
+    userId,
+    model,
+    channel,
+    type: 'image',
+    payload: params,
+    auditContext
+  });
+
+  return { startedAt, userId, model, channel, providerType, params, record, auditContext };
+}
+
+export async function generateImage(payload, userId, auditContext = {}) {
+  const context = await prepareImageGeneration(payload, userId, auditContext);
+  return runImageGeneration(context);
+}
+
+export async function createImageTask(payload, userId, auditContext = {}) {
+  const context = await prepareImageGeneration(payload, userId, auditContext);
+
+  setImmediate(() => {
+    runImageGeneration(context).catch((err) => {
+      logger.warn(`后台图片生成任务失败：${err.message}`, {
+        generation_id: context.record.id,
+        user_id: userId,
+        stack: err.stack
+      });
+    });
+  });
+
+  return {
+    id: context.record.id,
+    record_id: context.record.id,
+    status: 'pending',
+    model: context.model.modelKey,
+    user_id: userId,
+    channel_used: context.channel.name
+  };
+}
+
 export async function createVideoTask(payload, userId, auditContext = {}) {
   const startedAt = Date.now();
   const { model, channel } = await resolveModelAndChannel(payload.model, 'video');
@@ -1275,7 +1406,7 @@ export async function createVideoTask(payload, userId, auditContext = {}) {
     const response = await callUpstream({
       channel,
       endpointKey: 'video',
-      data: adaptVideoPayload(providerType, params),
+      data: await adaptVideoPayload(providerType, params, auditContext),
       headers: providerType === 'aliyun' ? { 'X-DashScope-Async': 'enable' } : {}
     });
 

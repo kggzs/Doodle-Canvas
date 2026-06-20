@@ -32,6 +32,11 @@ function buildWhere(params = {}) {
   if (params.type) where.type = params.type;
   if (params.status) where.status = params.status;
   if (params.reviewStatus) where.reviewStatus = params.reviewStatus;
+  if (params.clientRequestId) {
+    where.inputParams = {
+      [Op.like]: `%"client_request_id":"${params.clientRequestId}"%`
+    };
+  }
   if (params.keyword) {
     where[Op.or] = [
       { promptText: { [Op.like]: `%${params.keyword}%` } },

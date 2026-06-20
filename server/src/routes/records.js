@@ -41,6 +41,7 @@ router.get(
     query('type').optional().isIn(['image', 'video', 'chat']).withMessage('type 不支持'),
     query('status').optional().isIn(['pending', 'processing', 'completed', 'failed', 'cancelled']).withMessage('status 不支持'),
     query('review_status').optional().isIn(['pending', 'pass', 'review', 'reject', 'hidden']).withMessage('review_status 不支持'),
+    query('client_request_id').optional().isLength({ min: 1, max: 100 }).withMessage('client_request_id 格式不正确').trim(),
     query('keyword').optional().isString().trim()
   ],
   async (req, res) => {
@@ -54,6 +55,7 @@ router.get(
         type: req.query.type,
         status: req.query.status,
         reviewStatus: req.query.review_status,
+        clientRequestId: req.query.client_request_id,
         keyword: req.query.keyword
       });
       return paginate(res, result);

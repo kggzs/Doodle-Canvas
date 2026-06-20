@@ -101,11 +101,12 @@ app.use(auditContextMiddleware);
 // 记录客户端主动断开的 API 请求，避免前端超时后后端错误无处可查。
 app.use((req, res, next) => {
   if (!req.originalUrl?.startsWith('/api')) return next();
+  if (req.originalUrl?.startsWith('/api/generate/')) return next();
 
-  let finished = false;
   let logged = false;
+  const responseFinished = () => res.writableEnded || res.finished;
   const logClientAbort = () => {
-    if (finished || logged) return;
+    if (responseFinished() || logged) return;
     logged = true;
     recordError({
       requestId: res.locals?.requestId || null,
@@ -124,11 +125,10 @@ app.use((req, res, next) => {
     });
   };
 
-  res.on('finish', () => {
-    finished = true;
-  });
   req.on('aborted', logClientAbort);
-  res.on('close', logClientAbort);
+  res.on('close', () => {
+    if (!responseFinished()) logClientAbort();
+  });
   return next();
 });
 

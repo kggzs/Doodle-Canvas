@@ -48,6 +48,21 @@
           </n-dropdown>
         </div>
 
+        <!-- Prompt input | 提示词输入 -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-[var(--text-secondary)]">提示词</span>
+            <span v-if="connectedPrompt" class="text-[10px] text-green-600 dark:text-green-400">使用连线</span>
+          </div>
+          <textarea
+            v-model="localPrompt"
+            @input="handlePromptInput"
+            rows="3"
+            placeholder="输入视频提示词"
+            class="w-full resize-none rounded-lg border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-2 py-1.5 text-xs text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-color)]"
+          />
+        </div>
+
         <!-- Resolution selector (for wan models) | 分辨率选择（万相模型） -->
         <div v-if="isWanVideoModel" class="flex items-center justify-between">
           <span class="text-xs text-[var(--text-secondary)]">分辨率</span>
@@ -91,8 +106,8 @@
         <div
           class="flex items-center gap-2 text-xs text-[var(--text-secondary)] py-1 border-t border-[var(--border-color)]">
           <span class="px-2 py-0.5 rounded-full"
-            :class="connectedPrompt ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800'">
-            提示词 {{ connectedPrompt ? '✓' : '○' }}
+            :class="hasPrompt ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800'">
+            提示词 {{ hasPrompt ? '✓' : '○' }}
           </span>
           <span class="px-2 py-0.5 rounded-full"
             :class="imagesByRole.firstFrame ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800'">
@@ -165,6 +180,7 @@ import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes, edges }
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import { useModelStore } from '../../stores/pinia'
 import { getModelRatioOptions, getModelDurationOptions, getModelResolutionOptions, getModelConfig } from '../../stores/models'
+import { parseMentions } from '../../hooks/useNodeRef'
 
 // 使用 Pinia store 获取模型选项（根据渠道过滤）
 const modelStore = useModelStore()
@@ -193,6 +209,7 @@ const { loading, error, status, video: generatedVideo, progress, createVideoTask
 const showHandleMenu = ref(false)
 const isGenerating = ref(false)  // 任务创建中状态
 const localModel = ref(props.data?.model || modelStore.selectedVideoModel || '')
+const localPrompt = ref(props.data?.prompt || '')
 const localRatio = ref(props.data?.ratio || '16:9')
 const localDuration = ref(props.data?.dur || 5)
 const localResolution = ref(props.data?.resolution || '720P')
@@ -322,25 +339,87 @@ const handleDurationSelect = (key) => {
   updateNode(props.id, { dur: key })
 }
 
+// Handle prompt input | 处理提示词输入
+const handlePromptInput = () => {
+  updateNode(props.id, { prompt: localPrompt.value })
+}
+
+// Resolve image mentions inside prompt text | 解析提示词中的图片引用
+const resolvePromptMentionsForVideo = (content = '') => {
+  const mentions = parseMentions(content)
+  if (mentions.length === 0) {
+    return { resolvedContent: content, refImages: [] }
+  }
+
+  const imageMentions = []
+  for (const mention of mentions) {
+    const referencedNode = nodes.value.find(n => n.id === mention.nodeId)
+    if (referencedNode?.type === 'image' && referencedNode.data?.url) {
+      imageMentions.push({
+        order: mention.order,
+        nodeId: mention.nodeId,
+        imageData: referencedNode.data.url
+      })
+    }
+  }
+
+  if (imageMentions.length === 0) {
+    return { resolvedContent: content, refImages: [] }
+  }
+
+  imageMentions.sort((a, b) => a.order - b.order)
+  const labelByNodeId = new Map()
+  imageMentions.forEach((item, index) => {
+    if (!labelByNodeId.has(item.nodeId)) {
+      labelByNodeId.set(item.nodeId, `图${index + 1}`)
+    }
+  })
+
+  const resolvedContent = content.replace(/@\[([^\]|]+)(?:\|([^\]]+))?\]/g, (match, nodeId) => {
+    return labelByNodeId.get(nodeId) || match
+  })
+
+  return {
+    resolvedContent,
+    refImages: imageMentions.map(item => item.imageData)
+  }
+}
+
 // Get connected inputs by role | 根据角色获取连接的输入
 const getConnectedInputs = () => {
   const connectedEdges = edges.value.filter(e => e.target === props.id)
 
-  let prompt = ''
+  const prompts = []
   let first_frame_image = ''
   let last_frame_image = ''
   const images = [] // input_reference images | 参考图
+  const mentionImages = [] // Images referenced by @[nodeId] in prompts | 提示词 @ 引用图片
 
   for (const edge of connectedEdges) {
     const sourceNode = nodes.value.find(n => n.id === edge.source)
     if (!sourceNode) continue
 
     if (sourceNode.type === 'text') {
-      prompt = sourceNode.data?.content || ''
+      const content = sourceNode.data?.content || ''
+      if (content) {
+        const { resolvedContent, refImages } = resolvePromptMentionsForVideo(content)
+        mentionImages.push(...refImages)
+        prompts.push({
+          order: edge.data?.promptOrder || 1,
+          content: resolvedContent
+        })
+      }
     } else if (sourceNode.type === 'llmConfig') {
       // LLM node output as prompt | LLM 节点输出作为提示词
       const content = sourceNode.data?.outputContent || ''
-      if (content) prompt = content
+      if (content) {
+        const { resolvedContent, refImages } = resolvePromptMentionsForVideo(content)
+        mentionImages.push(...refImages)
+        prompts.push({
+          order: edge.data?.promptOrder || 1,
+          content: resolvedContent
+        })
+      }
     } else if (sourceNode.type === 'image' && sourceNode.data?.url) {
       const imageData = sourceNode.data.url
       const role = edge.data?.imageRole || 'first_frame_image'
@@ -355,12 +434,33 @@ const getConnectedInputs = () => {
     }
   }
 
-  return { prompt, first_frame_image, last_frame_image, images }
+  prompts.sort((a, b) => a.order - b.order)
+  const connectedPrompt = prompts.map(item => item.content).join('\n\n')
+  const localPromptSource = localPrompt.value || props.data?.prompt || ''
+  const localMentionResult = resolvePromptMentionsForVideo(localPromptSource)
+  const useLocalPrompt = !connectedPrompt && Boolean(localPromptSource)
+  const referenceImages = [
+    ...mentionImages,
+    ...(useLocalPrompt ? localMentionResult.refImages : []),
+    ...images
+  ]
+  if (!first_frame_image && referenceImages.length > 0) {
+    first_frame_image = referenceImages[0]
+  }
+
+  const prompt = connectedPrompt || localMentionResult.resolvedContent || ''
+
+  return { prompt, connectedPrompt, first_frame_image, last_frame_image, images: referenceImages }
 }
 
 // Computed connected prompt | 计算连接的提示词
 const connectedPrompt = computed(() => {
-  return getConnectedInputs().prompt
+  return getConnectedInputs().connectedPrompt
+})
+
+// Prompt availability | 是否已有提示词
+const hasPrompt = computed(() => {
+  return Boolean(getConnectedInputs().prompt)
 })
 
 // Created video node ID | 创建的视频节点 ID
@@ -542,6 +642,14 @@ onMounted(() => {
 watch(() => props.data?.model, (newModel) => {
   if (newModel && newModel !== localModel.value) {
     localModel.value = newModel
+  }
+})
+
+// Watch prompt changes from props | 监听 props 中提示词变化
+watch(() => props.data?.prompt, (newPrompt) => {
+  const value = newPrompt || ''
+  if (value !== localPrompt.value) {
+    localPrompt.value = value
   }
 })
 

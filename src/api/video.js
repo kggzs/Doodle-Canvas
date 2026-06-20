@@ -9,7 +9,7 @@ import backend from '@/utils/backend'
  * 创建视频任务
  * @param {Object} data - 原始生成参数
  */
-export const createVideoTask = (data) => backend.post('/generate/video', data)
+export const createVideoTask = (data) => backend.post('/generate/video', data, { timeout: 0 })
 
 /**
  * 查询视频任务状态
