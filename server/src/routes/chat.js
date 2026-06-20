@@ -51,7 +51,9 @@ const chatValidators = [
   body('messages').isArray({ min: 1 }).withMessage('messages 必须为非空数组'),
   body('messages.*.role').isIn(['system', 'user', 'assistant', 'tool']).withMessage('message.role 不支持'),
   body('temperature').optional({ nullable: true }).isFloat({ min: 0, max: 2 }).withMessage('temperature 需在 0-2 之间').toFloat(),
-  body('max_tokens').optional({ nullable: true }).isInt({ min: 1 }).withMessage('max_tokens 需为正整数').toInt()
+  body('max_tokens').optional({ nullable: true }).isInt({ min: 1 }).withMessage('max_tokens 需为正整数').toInt(),
+  body('project_id').optional({ nullable: true }).isUUID().withMessage('project_id 格式不正确'),
+  body('projectId').optional({ nullable: true }).isUUID().withMessage('projectId 格式不正确')
 ];
 
 router.use(authMiddleware);

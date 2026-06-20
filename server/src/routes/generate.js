@@ -54,7 +54,9 @@ router.post(
     body('prompt').optional({ nullable: true }).isString().withMessage('prompt 必须为字符串'),
     body('size').optional({ nullable: true }).isString().withMessage('size 必须为字符串'),
     body('n').optional().isInt({ min: 1, max: 10 }).withMessage('n 需为 1-10').toInt(),
-    body('image').optional({ nullable: true }).custom((value) => typeof value === 'string' || Array.isArray(value)).withMessage('image 必须为字符串或数组')
+    body('image').optional({ nullable: true }).custom((value) => typeof value === 'string' || Array.isArray(value)).withMessage('image 必须为字符串或数组'),
+    body('project_id').optional({ nullable: true }).isUUID().withMessage('project_id 格式不正确'),
+    body('projectId').optional({ nullable: true }).isUUID().withMessage('projectId 格式不正确')
   ],
   async (req, res) => {
     const validErr = validateRequest(req, res);
@@ -90,7 +92,9 @@ router.post(
     body('images').optional({ nullable: true }).isArray().withMessage('images 必须为数组'),
     body('resolution').optional({ nullable: true }).isString().withMessage('resolution 必须为字符串'),
     body('ratio').optional({ nullable: true }).isString().withMessage('ratio 必须为字符串'),
-    body('dur').optional({ nullable: true }).isInt({ min: 1, max: 60 }).withMessage('dur 需为 1-60').toInt()
+    body('dur').optional({ nullable: true }).isInt({ min: 1, max: 60 }).withMessage('dur 需为 1-60').toInt(),
+    body('project_id').optional({ nullable: true }).isUUID().withMessage('project_id 格式不正确'),
+    body('projectId').optional({ nullable: true }).isUUID().withMessage('projectId 格式不正确')
   ],
   async (req, res) => {
     const validErr = validateRequest(req, res);

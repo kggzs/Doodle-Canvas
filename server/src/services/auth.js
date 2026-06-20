@@ -15,8 +15,8 @@
  * 约定：
  * - Service 抛出包含 code 和 message 的 Error 对象，路由层捕获并映射
  * - bcrypt cost=12
- * - Access Token payload: { userId, username, role, jti }
- * - Refresh Token payload: { userId, jti }
+ * - Access Token payload: { token_type: 'access', userId, username, role, jti }
+ * - Refresh Token payload: { token_type: 'refresh', userId, jti }
  * - token_hash 存储 Refresh Token 的 SHA-256 哈希（不存原文）
  * - Redis 操作需处理连接失败情况（降级放行或仅记录日志）
  */
@@ -141,6 +141,7 @@ function hashToken(token) {
  */
 function signAccessToken(user) {
   const payload = {
+    token_type: 'access',
     userId: user.id,
     username: user.username,
     role: user.role,
@@ -156,6 +157,7 @@ function signAccessToken(user) {
  */
 function signRefreshToken(userId) {
   const payload = {
+    token_type: 'refresh',
     userId,
     jti: uuidv4()
   };
@@ -682,6 +684,9 @@ export async function refresh({ refreshToken, auditContext }) {
       throw new AuthError(40102, '刷新令牌已过期，请重新登录');
     }
     throw new AuthError(40103, '刷新令牌无效');
+  }
+  if (decoded?.token_type !== 'refresh') {
+    throw new AuthError(40103, '刷新令牌类型不正确');
   }
 
   // 2. 查询 refresh_tokens 表（token_hash 匹配 + 未过期 + 未撤销）

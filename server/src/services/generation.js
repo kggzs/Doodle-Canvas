@@ -19,7 +19,7 @@ import * as BillingService from './billing.js';
 import * as StorageService from './storage.js';
 import { recordError } from './error-logs.js';
 
-const { GenerationRecord, ModelConfig, ModelChannel, ModelChannelBinding } = db;
+const { GenerationRecord, ModelConfig, ModelChannel, ModelChannelBinding, Project } = db;
 
 const DEFAULT_ENDPOINTS = {
   openai: {
@@ -124,6 +124,20 @@ function mergeModelParams(model, payload = {}) {
 function stripInternalParams(params = {}) {
   const { project_id: _projectIdSnake, projectId: _projectIdCamel, ...rest } = params;
   return rest;
+}
+
+function extractProjectId(payload = {}) {
+  return payload.project_id || payload.projectId || null;
+}
+
+async function resolveOwnedProjectId(userId, payload = {}) {
+  const projectId = extractProjectId(payload);
+  if (!projectId) return null;
+  const project = await Project.findOne({
+    where: { id: projectId, userId },
+    attributes: ['id']
+  });
+  return project?.id || null;
 }
 
 function errorMessageFromUpstream(data, fallback) {
@@ -694,6 +708,7 @@ function extractPromptText(payload = {}, type = 'image') {
 }
 
 async function createGenerationRecord({ userId, model, channel, type, payload, auditContext = {} }) {
+  const projectId = await resolveOwnedProjectId(userId, payload);
   return GenerationRecord.create({
     userId,
     modelId: model.id,
@@ -708,7 +723,7 @@ async function createGenerationRecord({ userId, model, channel, type, payload, a
     uaOs: auditContext.uaOs || null,
     uaDevice: auditContext.uaDevice || null,
     deviceFingerprint: auditContext.deviceFingerprint || null,
-    projectId: payload.project_id || payload.projectId || null
+    projectId
   });
 }
 

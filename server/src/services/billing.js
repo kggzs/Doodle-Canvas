@@ -312,7 +312,7 @@ export async function chargeForGeneration({
     const project = await projectContext(userId, projectId);
     const contextMetadata = {
       generation_id: generationId,
-      project_id: project?.id || projectId || null,
+      project_id: project?.id || null,
       project_name: project?.name || null,
       model_id: estimate.model.id,
       model_key: estimate.model.modelKey,

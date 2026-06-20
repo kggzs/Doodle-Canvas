@@ -29,6 +29,8 @@ const SERVER_ROOT = path.resolve(__dirname, '../..');
 const DEFAULT_STORAGE_ROOT = path.resolve(SERVER_ROOT, 'storage');
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm']);
+const STORAGE_MAX_UPLOAD_BYTES = parseInt(process.env.STORAGE_MAX_UPLOAD_BYTES || `${20 * 1024 * 1024}`, 10);
+const STORAGE_REMOTE_MAX_BYTES = parseInt(process.env.STORAGE_REMOTE_MAX_BYTES || `${100 * 1024 * 1024}`, 10);
 const EXT_BY_MIME = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -38,8 +40,37 @@ const EXT_BY_MIME = {
   'video/webm': '.webm'
 };
 const REMOTE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
-const HTTP_AGENT = new http.Agent({ family: 4 });
-const HTTPS_AGENT = new https.Agent({ family: 4 });
+const safeAgentLookup = (hostname, options, callback) => {
+  const directIpVersion = net.isIP(hostname);
+  if (directIpVersion) {
+    if (isPrivateIp(hostname)) {
+      callback(new StorageError(42201, '远程文件 URL 指向受限地址'));
+      return;
+    }
+    if (options?.all) {
+      callback(null, [{ address: hostname, family: directIpVersion }]);
+      return;
+    }
+    callback(null, hostname, directIpVersion);
+    return;
+  }
+
+  dns.lookup(hostname, { ...options, verbatim: false })
+    .then((result) => {
+      const addresses = Array.isArray(result) ? result : [result];
+      if (!addresses.length || addresses.some((item) => isPrivateIp(item.address))) {
+        throw new StorageError(42201, '远程文件 URL 指向受限地址');
+      }
+      if (options?.all) {
+        callback(null, addresses);
+        return;
+      }
+      callback(null, addresses[0].address, addresses[0].family);
+    })
+    .catch((err) => callback(err));
+};
+const HTTP_AGENT = new http.Agent({ family: 4, lookup: safeAgentLookup });
+const HTTPS_AGENT = new https.Agent({ family: 4, lookup: safeAgentLookup });
 const REMOTE_HEADERS = {
   Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,video/*,*/*;q=0.8',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
@@ -57,7 +88,7 @@ export class StorageError extends Error {
 export const uploadImageMiddleware = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: parseInt(process.env.STORAGE_MAX_UPLOAD_BYTES || `${20 * 1024 * 1024}`, 10)
+    fileSize: STORAGE_MAX_UPLOAD_BYTES
   },
   fileFilter(req, file, cb) {
     if (!IMAGE_MIME_TYPES.has(file.mimetype)) {
@@ -114,8 +145,8 @@ function guessExt(mimeType, fallbackName = '') {
   return ext || '.bin';
 }
 
-function sniffMimeType(buffer, fallback = 'application/octet-stream') {
-  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return fallback;
+function detectMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return null;
   if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
     return 'image/png';
   }
@@ -131,7 +162,46 @@ function sniffMimeType(buffer, fallback = 'application/octet-stream') {
   if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
     return 'video/mp4';
   }
-  return fallback;
+  if (buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) {
+    return 'video/webm';
+  }
+  return null;
+}
+
+function sniffMimeType(buffer, fallback = 'application/octet-stream') {
+  return detectMimeType(buffer) || fallback;
+}
+
+function maxBytesForType(type) {
+  return type === 'upload' || type === 'thumbnail'
+    ? STORAGE_MAX_UPLOAD_BYTES
+    : STORAGE_REMOTE_MAX_BYTES;
+}
+
+function validateBufferForStorage(buffer, requestedMimeType, type) {
+  const limit = maxBytesForType(type);
+  if (buffer.length > limit) {
+    throw new StorageError(42201, `文件大小超过限制（最大 ${Math.round(limit / 1024 / 1024)}MB）`);
+  }
+
+  const detectedMimeType = detectMimeType(buffer);
+  const normalizedRequested = String(requestedMimeType || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+
+  if (type === 'upload' || type === 'thumbnail' || type === 'generated_image') {
+    if (!detectedMimeType || !IMAGE_MIME_TYPES.has(detectedMimeType)) {
+      throw new StorageError(42201, '文件内容不是受支持的图片格式');
+    }
+    return detectedMimeType;
+  }
+
+  if (type === 'generated_video') {
+    if (!detectedMimeType || !VIDEO_MIME_TYPES.has(detectedMimeType)) {
+      throw new StorageError(42201, '文件内容不是受支持的视频格式');
+    }
+    return detectedMimeType;
+  }
+
+  return detectedMimeType || normalizedRequested;
 }
 
 function assertMimeMatchesType(mimeType, type) {
@@ -248,7 +318,8 @@ async function downloadRemoteFile(url) {
       httpAgent: HTTP_AGENT,
       httpsAgent: HTTPS_AGENT,
       timeout: parseInt(process.env.STORAGE_REMOTE_DOWNLOAD_TIMEOUT_MS || '60000', 10),
-      maxContentLength: parseInt(process.env.STORAGE_REMOTE_MAX_BYTES || `${100 * 1024 * 1024}`, 10),
+      maxContentLength: STORAGE_REMOTE_MAX_BYTES,
+      maxBodyLength: STORAGE_REMOTE_MAX_BYTES,
       maxRedirects: 0,
       headers: REMOTE_HEADERS,
       validateStatus: () => true
@@ -288,6 +359,7 @@ export async function saveBuffer({
   if (!userId) {
     throw new StorageError(40101, '缺少用户信息');
   }
+  const safeMimeType = validateBufferForStorage(buffer, mimeType, type);
 
   const { year, month } = nowParts();
   const dirType = type === 'upload' ? 'uploads' : type.replace(/^generated_/, 'generated/');
@@ -295,13 +367,13 @@ export async function saveBuffer({
   const absoluteDir = path.join(getStorageRoot(), relativeDir);
   await ensureDir(absoluteDir);
 
-  const ext = guessExt(mimeType, originalName);
+  const ext = guessExt(safeMimeType, originalName);
   const fileName = `${crypto.randomUUID()}${ext}`;
   const storagePath = path.posix.join(relativeDir, fileName);
   const absolutePath = path.join(getStorageRoot(), storagePath);
   await fs.writeFile(absolutePath, buffer);
 
-  const imageMeta = await getImageMetadata(buffer, mimeType);
+  const imageMeta = await getImageMetadata(buffer, safeMimeType);
   return File.create({
     userId,
     generationId,
@@ -310,7 +382,7 @@ export async function saveBuffer({
     storagePath,
     fileUrl: buildFileUrl(storagePath),
     fileSize: buffer.length,
-    mimeType,
+    mimeType: safeMimeType,
     sha256: sha256(buffer),
     ...imageMeta
   });

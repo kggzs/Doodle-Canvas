@@ -601,7 +601,7 @@ const handleGenerate = async (mode = 'auto') => {
     // Replace mode: find any connected image node | 替换模式：查找任意连接的图片节点
     imageNodeId = findConnectedOutputImageNode(false)
     if (imageNodeId) {
-      updateNode(imageNodeId, { loading: true, url: '' })
+      updateNode(imageNodeId, { loading: true, error: null, url: '' })
     }
   } else if (mode === 'new') {
     // New mode: always create new node | 新建模式：始终创建新节点
@@ -610,7 +610,7 @@ const handleGenerate = async (mode = 'auto') => {
     // Auto mode: check for empty connected node first | 自动模式：先检查空白连接节点
     imageNodeId = findConnectedOutputImageNode(true)
     if (imageNodeId) {
-      updateNode(imageNodeId, { loading: true })
+      updateNode(imageNodeId, { loading: true, error: null })
     }
   }
   
@@ -674,6 +674,7 @@ const handleGenerate = async (mode = 'auto') => {
       updateNode(imageNodeId, {
         url: result[0].url,
         loading: false,
+        error: null,
         label: genLabel,
         model: localModel.value,
         updatedAt: Date.now()

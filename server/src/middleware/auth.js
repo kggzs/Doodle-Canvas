@@ -69,6 +69,10 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function isExpectedTokenType(payload, expectedType) {
+  return payload?.token_type === expectedType;
+}
+
 /**
  * 检查 Token 是否在 Redis 黑名单中
  * 同时检查 jti 维度与 tokenHash 维度，任一命中即视为已吊销
@@ -181,6 +185,9 @@ async function requiredAuth(req, res, next) {
     }
     return error(res, 40101, '认证令牌无效', 401);
   }
+  if (!isExpectedTokenType(payload, 'access')) {
+    return error(res, 40101, '认证令牌类型不正确', 401);
+  }
 
   // 3. 检查 Redis 黑名单
   const blacklisted = await isTokenBlacklisted(token, payload);
@@ -232,6 +239,11 @@ async function optionalAuth(req, res, next) {
     payload = jwt.verify(token, jwtConfig.secret);
   } catch {
     // 可选鉴权下 Token 无效不报错，仅置空
+    req.user = null;
+    req.userId = null;
+    return next();
+  }
+  if (!isExpectedTokenType(payload, 'access')) {
     req.user = null;
     req.userId = null;
     return next();
@@ -290,6 +302,9 @@ async function refreshRequiredAuth(req, res, next) {
       return error(res, 40102, '刷新令牌已过期，请重新登录', 401);
     }
     return error(res, 40101, '刷新令牌无效', 401);
+  }
+  if (!isExpectedTokenType(payload, 'refresh')) {
+    return error(res, 40101, '刷新令牌类型不正确', 401);
   }
 
   // 3. 检查 refresh_tokens 表中是否有效（未过期、未撤销）
