@@ -1,14 +1,90 @@
-新增一个  通用产品全套电商图  工作流
-初始一级节点
-    -- 文本节点 A：产品信息:Soundcore by Anker P20i True Wireless Earbuds, 10mm Drivers with Big Bass, Bluetooth 5.3, 30H Long Playtime, Water-Resistant, 2 Mics for AI Clear Calls, 22 Preset EQs, Customization via App Powerful Bass: soundcore P20i true wireless earbuds have oversized 10mm drivers that deliver powerful sound with boosted bass so you can lose yourself in your favorite songs. Personalized Listening Experience: Use the soundcore app to customize the controls and choose from 22 EQ presets. With "Find My Earbuds", a lost earbud can emit noise to help you locate it. Long Playtime, Fast Charging: Get 10 hours of battery life on a single charge with a case that extends it to 30 hours. If P20i true wireless earbuds are low on power, a quick 10-minute charge will give you 2 hours of playtime. Portable On-the-Go Design: soundcore P20i true wireless earbuds and the charging case are compact and lightweight with a lanyard attached. It's small enough to slip in your pocket, or clip on your bag or keys–so you never worry about space. AI-Enhanced Clear Calls: 2 built-in mics and an AI algorithm work together to pick up your voice so that you never have to shout over the phone.
-    -- 图片节点 B：传产品图片
-    -- 文本节点 C：根据产品特性，生成一个适合展示该产品且时尚富有高级感的模特图，彩色人像，背景是白底，人物居中，欧美人优先
-    -- 文本节点 D：侧面展示图：根据产品图和产品信息，生成左侧侧面45度的展示图，高清展示侧面的产品形状和细节，保持产品不变形
-    -- 文本节点 E：俯瞰展示图：根据产品图和产品信息，生成从上往下俯瞰的产品展示图，高清展示俯瞰角度的产品形状和细节，保持产品不变形
-    
-    
-AB+C = 生成模特图
-    
-AB+D = 生成侧面展示图
+# 工作流模板说明
 
-AB+E = 生成俯瞰展示图
+> 更新时间：2026-06-20
+> 相关代码：`src/config/workflows.js`、`src/hooks/useWorkflowOrchestrator.js`
+
+## 工作流入口
+
+用户在画布中可以：
+
+- 手动添加文本、图片配置、视频配置、LLM 配置等节点。
+- 使用预设工作流模板一次性生成节点结构。
+- 开启自动执行后，由 `useWorkflowOrchestrator` 根据输入意图创建并执行节点链路。
+
+生成请求最终都走后端：
+
+- 图片：`POST /api/generate/image`
+- 视频：`POST /api/generate/video`
+- 问答/润色：`POST /api/chat/completions` 或流式接口
+
+## 已支持的主要模板
+
+| 模板 | 用途 | 典型节点 |
+| --- | --- | --- |
+| 文生图 | 根据提示词生成图片 | 文本 -> 图片配置 -> 图片 |
+| 文生图生视频 | 先出图，再用首帧生成视频 | 文本 -> 图片配置 -> 图片 -> 视频配置 -> 视频 |
+| 分镜工作流 | 按分镜描述生成多张图 | 角色/场景文本 + 多个图片配置 |
+| 多角度分镜 | 正视、侧视、后视、俯视 | 产品/角色图 + 多角度提示词 |
+| 通用产品全套电商图 | 模特图、侧面图、俯瞰图等 | 产品信息 + 产品图 + 多个图片配置 |
+| 短剧角色设计 | 角色一致性图像生成 | 角色描述 + 参考图 + 分镜提示 |
+| 多时段场景背景 | 同一场景的不同时间/天气 | 基础场景 + 变体提示 |
+| 儿童绘本生成 | 角色、剧情拆分、插画 | LLM 拆分 + 多图生成 |
+
+## 通用产品全套电商图
+
+该模板用于上传产品图后，围绕同一产品生成多类商业展示图。
+
+初始节点：
+
+- 文本节点 A：产品信息。
+- 图片节点 B：上传产品图片。
+- 文本节点 C：模特图提示词。
+- 文本节点 D：左侧 45 度侧面展示图提示词。
+- 文本节点 E：俯瞰展示图提示词。
+
+执行关系：
+
+```text
+A + B + C -> 生成模特图
+A + B + D -> 生成侧面展示图
+A + B + E -> 生成俯瞰展示图
+```
+
+推荐产品信息结构：
+
+```text
+品牌 / 型号：
+核心卖点：
+材质 / 颜色：
+使用场景：
+目标人群：
+必须保持不变的外观特征：
+```
+
+## 自动执行流程
+
+自动执行的大致流程：
+
+1. 收集用户输入、当前节点和参考图。
+2. 使用问答模型分析意图。
+3. 选择工作流类型。
+4. 创建文本、配置和结果节点。
+5. 按依赖顺序执行配置节点。
+6. 等待输出节点就绪。
+7. 保存项目画布到服务端。
+
+## 节点连接语义
+
+| 边类型 | 用途 |
+| --- | --- |
+| `PromptOrderEdge` | 控制提示词/步骤顺序 |
+| `ImageOrderEdge` | 控制图片生成顺序 |
+| `ImageRoleEdge` | 将参考图片连接到配置节点 |
+
+## 工作流维护建议
+
+- 新增模板优先放在 `src/config/workflows.js`。
+- 模板只描述节点和连接，不直接写第三方 API Key 或上游地址。
+- 默认模型只作为前端展示建议，真实可用模型以 `/api/models` 为准。
+- 需要多图参考时，确保图片节点 URL 是服务端 `/storage/*` 或公网可访问 URL。
+- 模板提示词要明确“保持产品/角色不变”的约束，降低多图一致性问题。
