@@ -21,8 +21,12 @@
 
 html, body, #app {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+}
+
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Light mode variables | 浅色模式变量 */

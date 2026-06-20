@@ -2,16 +2,6 @@
 
 本文按当前项目结构整理：前端执行 `npm run build` 输出到 `dist/`，后端 Express 同时提供 `/api`、`/storage` 和前端页面。Nginx 只做反向代理。
 
-如需 Docker 部署，项目根目录已提供 `Dockerfile`、`docker-compose.yml` 和 `DOCKER.md`：
-
-```bash
-cp .env.docker.example .env
-docker compose up -d --build
-curl http://127.0.0.1:3000/api/health
-```
-
-Docker 模式只启动应用容器，MySQL 和 Redis 使用宿主机已有服务；首次部署仍需先导入 `server/sql/init.sql`。
-
 ## 1. 服务器准备
 
 推荐环境：

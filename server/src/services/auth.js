@@ -174,8 +174,8 @@ function getRefreshTokenExpiresMs(refreshToken) {
   if (decoded && decoded.exp) {
     return decoded.exp * 1000;
   }
-  // 兜底：默认 7 天
-  return Date.now() + 7 * 24 * 60 * 60 * 1000;
+  // 兜底：默认 10 年
+  return Date.now() + 3650 * 24 * 60 * 60 * 1000;
 }
 
 /**
@@ -548,7 +548,7 @@ export async function login({ emailOrUsername, password, auditContext }) {
     });
   }
 
-  // 8. 生成 JWT（Access 15min + Refresh 7d），创建 refresh_tokens 记录
+  // 8. 生成 JWT（Access 15min + 长期 Refresh），创建 refresh_tokens 记录
   const accessToken = signAccessToken(user);
   const refreshToken = signRefreshToken(user.id);
   const deviceInfo = buildDeviceInfo(auditContext);

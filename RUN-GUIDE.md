@@ -194,20 +194,3 @@ npm install -g pnpm
 - **豆包**（Volcengine Ark / Seedream）
 
 生成请求会统一走后端 `/api/generate/*` 与 `/api/chat/*`，前端不会保存或发送第三方 API Key。
-
----
-
-## Docker 部署（可选）
-
-```bash
-# 1. 先构建前端
-npm run build
-
-# 2. 构建 Docker 镜像
-docker build -t huobao-canvas .
-
-# 3. 运行容器
-docker run -d -p 8080:80 huobao-canvas
-```
-
-访问 **http://localhost:8080/**。

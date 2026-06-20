@@ -3,7 +3,7 @@
  * 只调用后端代理，API Key / Base URL 均由管理端配置。
  */
 
-import backend, { authStorage } from '@/utils/backend'
+import backend, { authStorage, ensureFreshAccessToken } from '@/utils/backend'
 
 // 对话补全
 export const chatCompletions = (data) => backend.post('/chat/completions', data)
@@ -12,18 +12,24 @@ export const chatCompletions = (data) => backend.post('/chat/completions', data)
 export const streamChatCompletions = async function* (data, signal) {
   let response
   try {
-    try {
-      response = await fetch('/api/chat/completions/stream', {
+    const createStreamRequest = async ({ forceRefresh = false } = {}) => {
+      const token = await ensureFreshAccessToken({ force: forceRefresh })
+      return fetch('/api/chat/completions/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authStorage.getAccessToken()
-            ? { Authorization: `Bearer ${authStorage.getAccessToken()}` }
-            : {})
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ ...data, stream: true }),
         signal
       })
+    }
+
+    try {
+      response = await createStreamRequest()
+      if (response.status === 401 && authStorage.hasUsableRefreshToken()) {
+        response = await createStreamRequest({ forceRefresh: true })
+      }
     } catch (err) {
       if (err?.name === 'AbortError') throw err
       throw new Error('网络连接异常，请稍后再试')

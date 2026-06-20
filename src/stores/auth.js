@@ -7,7 +7,7 @@ import backend, { authStorage } from '@/utils/backend'
 export const currentUser = ref(authStorage.getUser())
 export const accessToken = ref(authStorage.getAccessToken())
 export const refreshToken = ref(authStorage.getRefreshToken())
-export const isLoggedIn = computed(() => !!accessToken.value && !!currentUser.value)
+export const isLoggedIn = computed(() => !!currentUser.value && (!!accessToken.value || !!refreshToken.value))
 export const isAdmin = computed(() => currentUser.value?.role === 'admin')
 
 window.addEventListener('doodle-auth-cleared', () => {
@@ -16,14 +16,23 @@ window.addEventListener('doodle-auth-cleared', () => {
   currentUser.value = null
 })
 
+window.addEventListener('doodle-auth-updated', (event) => {
+  const session = event.detail || {}
+  accessToken.value = session.accessToken || authStorage.getAccessToken()
+  refreshToken.value = session.refreshToken || authStorage.getRefreshToken()
+  currentUser.value = session.user || authStorage.getUser()
+})
+
 export function setAuthSession(session = {}) {
   const nextAccessToken = session.accessToken || session.access_token || ''
   const nextRefreshToken = session.refreshToken || session.refresh_token || ''
   const user = session.user || null
 
-  authStorage.setAccessToken(nextAccessToken)
-  authStorage.setRefreshToken(nextRefreshToken)
-  authStorage.setUser(user)
+  authStorage.setSession({
+    accessToken: nextAccessToken,
+    refreshToken: nextRefreshToken,
+    user
+  }, { emit: false })
   accessToken.value = nextAccessToken
   refreshToken.value = nextRefreshToken
   currentUser.value = user

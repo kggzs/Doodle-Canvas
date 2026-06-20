@@ -1,6 +1,6 @@
 <template>
   <!-- Canvas page | 画布页面 -->
-  <div class="h-screen w-screen flex flex-col bg-[var(--bg-primary)]">
+  <div class="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg-primary)]">
     <!-- Header | 顶部导航 -->
     <AppHeader class="bg-[var(--bg-secondary)]">
       <template #left>
