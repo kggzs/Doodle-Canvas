@@ -174,14 +174,16 @@ const providerOptions = [
   { label: '阿里云/千问', value: 'aliyun' },
   { label: '豆包', value: 'doubao' },
   { label: '阶跃星辰', value: 'stepfun' },
+  { label: 'Agnes AI', value: 'agnes' },
   { label: '自定义', value: 'custom' }
 ]
 const providerDefaultBaseUrls = {
   aliyun: getProviderConfig('aliyun').defaultBaseUrl,
   doubao: getProviderConfig('doubao').defaultBaseUrl,
-  stepfun: getProviderConfig('stepfun').defaultBaseUrl
+  stepfun: getProviderConfig('stepfun').defaultBaseUrl,
+  agnes: getProviderConfig('agnes').defaultBaseUrl
 }
-const providerDefaultApiPathTypes = ['openai', 'aliyun', 'doubao', 'stepfun']
+const providerDefaultApiPathTypes = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes']
 const activeOptions = [
   { label: '全部状态', value: null },
   { label: '启用', value: true },

@@ -49,7 +49,7 @@ const frontendDistPath = path.resolve(__dirname, FRONTEND_DIST_DIR);
 const frontendIndexPath = path.join(frontendDistPath, 'index.html');
 
 // 解析 CORS 白名单（逗号分隔）
-const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);

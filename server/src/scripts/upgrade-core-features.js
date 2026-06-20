@@ -46,7 +46,7 @@ async function tableExists(table) {
 async function run() {
   await connection.query(`
     ALTER TABLE \`model_channels\`
-    MODIFY COLUMN \`provider_type\` ENUM('openai','aliyun','doubao','stepfun','custom') NOT NULL COMMENT '适配器类型'
+    MODIFY COLUMN \`provider_type\` ENUM('openai','aliyun','doubao','stepfun','agnes','custom') NOT NULL COMMENT '适配器类型'
   `);
   await addColumn('model_channels', 'model_type', "`model_type` ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型' AFTER `provider_type`");
   await connection.query(`

@@ -74,7 +74,7 @@ const HTTPS_AGENT = new https.Agent({ family: 4, lookup: safeAgentLookup });
 const REMOTE_HEADERS = {
   Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,video/*,*/*;q=0.8',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-  Referer: process.env.FRONTEND_BASE || 'http://localhost:5173/'
+  Referer: process.env.FRONTEND_BASE || 'http://localhost:3000/'
 };
 
 export class StorageError extends Error {

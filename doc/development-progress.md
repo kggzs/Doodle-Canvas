@@ -119,7 +119,7 @@
 - `npm run build`：通过，Vite 成功构建前端产物。
 - 数据库初始化：已在本机 `canvas` 库执行 `server/sql/init.sql`。
 - 数据库升级：纯 SQL 版升级脚本因当前数据库不支持 `ADD COLUMN IF NOT EXISTS` 语法未执行成功；随后执行兼容版 `node src/scripts/upgrade-core-features.js`，通过。
-- 浏览器登录验证：通过 in-app Browser 访问 `http://127.0.0.1:5173/huobao-canvas/login`，使用测试管理员登录后成功进入 `/admin/users`。
+- 浏览器登录验证：通过 in-app Browser 访问 `http://127.0.0.1:3000/huobao-canvas/login`，使用测试管理员登录后成功进入 `/admin/users`。
 - 后台页面验证：`/admin/users`、`/admin/user-groups`、`/admin/coins`、`/admin/channels`、`/admin/models` 均可打开，页面包含管理后台壳、导航和关键控件，浏览器控制台无 error。
 - 退出与路由守卫：点击「退出」后跳转登录页；未登录访问 `/admin/users` 会重定向到 `/login?redirect=/admin/users`。
 - 登录回归复测：用户侧曾看到 `POST /api/auth/login 500`，定位为后端 3000 端口未监听，重启后 `/api/health` 正常；随后发现登录 200 后停留登录页，修复 `src/stores/auth.js` 的非响应式 token 状态后，浏览器闭环通过：退出 -> 访问后台触发守卫 -> 登录 -> 自动回到 `/admin/users`。

@@ -48,6 +48,12 @@ const DEFAULT_ENDPOINTS = {
     image: '/v1/images/generations',
     imageEdit: '/v1/images/edits'
   },
+  agnes: {
+    chat: '/v1/chat/completions',
+    image: '/v1/images/generations',
+    video: '/v1/videos',
+    videoQuery: '/agnesapi?video_id={taskId}'
+  },
   custom: {
     chat: '/v1/chat/completions',
     image: '/v1/images/generations',
@@ -64,6 +70,7 @@ const HTTPS_AGENT = new https.Agent({ family: 4 });
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 60000;
 const STORAGE_ROOT = fileURLToPath(new URL('../../storage/', import.meta.url));
 const STEPFUN_IMAGE_SIZES = ['1024x1024', '768x1360', '896x1184', '1360x768', '1184x896'];
+const AGNES_IMAGE_SIZES = ['1024x768', '1024x1024', '1344x768', '768x1344'];
 
 export class GenerationError extends Error {
   constructor(code, message, extra = {}) {
@@ -181,6 +188,7 @@ function configuredImageSizes(model) {
 
 function providerImageSizes(providerType, model) {
   if (providerType === 'stepfun') return STEPFUN_IMAGE_SIZES;
+  if (providerType === 'agnes') return AGNES_IMAGE_SIZES;
   const configured = configuredImageSizes(model);
   if (configured.length) return configured;
   return [];
@@ -569,6 +577,28 @@ function adaptImagePayload(providerType, params) {
     });
   }
 
+  if (providerType === 'agnes') {
+    const images = Array.isArray(upstreamParams.image)
+      ? upstreamParams.image
+      : upstreamParams.image
+        ? [upstreamParams.image]
+        : [];
+    const extraBody = {
+      ...(upstreamParams.extra_body || upstreamParams.extraBody || {}),
+      response_format: upstreamParams.response_format || upstreamParams.responseFormat || 'url'
+    };
+    if (images.length) extraBody.image = images;
+
+    return compactObject({
+      model: upstreamParams.model,
+      prompt: upstreamParams.prompt,
+      size: upstreamParams.size || '1024x768',
+      n: upstreamParams.n,
+      return_base64: upstreamParams.return_base64,
+      extra_body: extraBody
+    });
+  }
+
   return compactObject({
     ...upstreamParams,
     model: upstreamParams.model,
@@ -675,6 +705,38 @@ async function adaptImageRequest(providerType, endpointKey, params) {
   };
 }
 
+function agnesFramesFromSeconds(seconds, frameRate = 24) {
+  const rawSeconds = Number(seconds || 5);
+  const rawFrameRate = Number(frameRate || 24);
+  const frameCount = Math.round((rawSeconds * rawFrameRate - 1) / 8) * 8 + 1;
+  return Math.min(Math.max(frameCount, 9), 441);
+}
+
+function agnesSizeFromParams(params) {
+  const width = Number(params.width);
+  const height = Number(params.height);
+  if (width > 0 && height > 0) return { width, height };
+
+  const resolution = String(params.resolution || '').toLowerCase();
+  const longSide = resolution === '1080p' ? 1920 : resolution === '480p' ? 854 : 1280;
+  const ratio = String(params.size || params.ratio || '16x9').replace(':', 'x');
+  const [rawW, rawH] = ratio.split('x').map((item) => Number(item));
+  const ratioW = rawW > 0 ? rawW : 16;
+  const ratioH = rawH > 0 ? rawH : 9;
+
+  if (ratioW >= ratioH) {
+    return {
+      width: longSide,
+      height: Math.round(longSide * ratioH / ratioW / 8) * 8
+    };
+  }
+
+  return {
+    width: Math.round(longSide * ratioW / ratioH / 8) * 8,
+    height: longSide
+  };
+}
+
 function adaptVideoPayload(providerType, params) {
   const upstreamParams = stripInternalParams(params);
   const images = Array.isArray(upstreamParams.images) ? upstreamParams.images : [];
@@ -702,6 +764,38 @@ function adaptVideoPayload(providerType, params) {
         seed: upstreamParams.seed
       })
     };
+  }
+
+  if (providerType === 'agnes') {
+    const referenceImages = images.length
+      ? images
+      : [firstFrame, lastFrame].filter(Boolean);
+    const frameRate = Number(upstreamParams.frame_rate || upstreamParams.frameRate || 24);
+    const size = agnesSizeFromParams(upstreamParams);
+    const payload = compactObject({
+      model: upstreamParams.model,
+      prompt: upstreamParams.prompt || '',
+      width: size.width,
+      height: size.height,
+      num_frames: upstreamParams.num_frames
+        || upstreamParams.numFrames
+        || agnesFramesFromSeconds(upstreamParams.seconds || upstreamParams.duration || upstreamParams.dur, frameRate),
+      frame_rate: frameRate,
+      num_inference_steps: upstreamParams.num_inference_steps || upstreamParams.numInferenceSteps,
+      negative_prompt: upstreamParams.negative_prompt || upstreamParams.negativePrompt,
+      seed: upstreamParams.seed
+    });
+
+    if (referenceImages.length === 1) {
+      payload.image = referenceImages[0];
+    } else if (referenceImages.length > 1) {
+      payload.extra_body = {
+        image: referenceImages,
+        ...(upstreamParams.mode ? { mode: upstreamParams.mode } : {})
+      };
+    }
+
+    return payload;
   }
 
   return compactObject({
@@ -796,6 +890,21 @@ function adaptVideoCreateResponse(providerType, responseData) {
     }
   }
 
+  if (providerType === 'agnes') {
+    const videoUrl = responseData.remixed_from_video_id || responseData.video_url || responseData.url;
+    if (videoUrl && responseData.status === 'completed') {
+      return { status: 'completed', url: videoUrl, taskId: null };
+    }
+
+    const taskId = responseData.video_id || responseData.task_id || responseData.id;
+    if (taskId) {
+      return {
+        status: responseData.status === 'in_progress' ? 'running' : 'pending',
+        taskId
+      };
+    }
+  }
+
   const url = responseData.data?.url
     || responseData.data?.[0]?.url
     || responseData.url
@@ -827,6 +936,32 @@ function adaptVideoStatusResponse(providerType, responseData) {
     return {
       status: taskStatus === 'RUNNING' ? 'running' : 'pending',
       taskStatus
+    };
+  }
+
+  if (providerType === 'agnes') {
+    if (responseData.status === 'failed' || responseData.error) {
+      return {
+        status: 'failed',
+        error: responseData.error?.message || responseData.message || '视频生成失败'
+      };
+    }
+
+    const url = responseData.remixed_from_video_id
+      || responseData.video_url
+      || responseData.data?.url
+      || responseData.url;
+    if (responseData.status === 'completed' || url) {
+      return {
+        status: 'completed',
+        url
+      };
+    }
+
+    return {
+      status: responseData.status === 'in_progress' ? 'running' : 'pending',
+      taskStatus: responseData.status,
+      progress: responseData.progress
     };
   }
 

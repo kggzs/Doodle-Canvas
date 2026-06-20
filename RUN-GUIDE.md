@@ -65,18 +65,13 @@ pnpm dev
 npm run dev
 ```
 
-启动成功后，终端会输出：
+启动命令会先构建前端，再启动后端单服务。启动成功后访问：
 
 ```
-VITE v5.4.21  ready in xxx ms
-
-➜  Local:   http://localhost:5173/
-➜  Network: use --host to expose
+http://localhost:3000/
 ```
 
-在浏览器中打开 **http://localhost:5173/** 即可访问。
-
-> 如果 5173 端口被占用，Vite 会自动尝试下一个可用端口（如 5174）。
+前端页面、后台页面和 `/api` 接口都由同一个 `3000` 端口提供。
 
 ---
 
@@ -84,7 +79,7 @@ VITE v5.4.21  ready in xxx ms
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm dev` / `npm run dev` | 启动 Vite 开发服务器（热更新） |
+| `pnpm dev` / `npm run dev` | 构建前端并启动 3000 单服务 |
 | `pnpm build` / `npm run build` | 生产环境构建，输出到 `dist/` 目录 |
 | `npm run start` | 启动后端服务，并托管已构建的前端页面 |
 | `npm run server:dev` | 启动后端开发服务 |
@@ -154,20 +149,16 @@ npm install --include=dev --no-audit
 
 ### 2. 端口被占用
 
-Vite 会自动切换到下一个可用端口。如需指定端口：
+项目默认只使用 3000 端口。如需检查占用：
 
 ```bash
-npx vite --port 3000
+netstat -ano | findstr :3000
 ```
 
-或在 `vite.config.js` 中配置：
+如需修改端口，在 `server/.env` 中调整：
 
-```js
-export default defineConfig({
-  server: {
-    port: 3000
-  }
-})
+```env
+PORT=3000
 ```
 
 ### 3. npm audit 报错（使用 npmmirror 镜像时）

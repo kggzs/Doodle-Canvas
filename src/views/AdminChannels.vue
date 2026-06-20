@@ -114,12 +114,19 @@ const providerOptions = [
   { label: '阿里云万相', value: 'aliyun' },
   { label: '豆包', value: 'doubao' },
   { label: '阶跃星辰', value: 'stepfun' },
+  { label: 'Agnes AI', value: 'agnes' },
   { label: '自定义', value: 'custom' }
 ]
 const providerDefaultBaseUrls = {
   aliyun: getProviderConfig('aliyun').defaultBaseUrl,
   doubao: getProviderConfig('doubao').defaultBaseUrl,
-  stepfun: getProviderConfig('stepfun').defaultBaseUrl
+  stepfun: getProviderConfig('stepfun').defaultBaseUrl,
+  agnes: getProviderConfig('agnes').defaultBaseUrl
+}
+const endpointKeysByType = {
+  chat: ['chat'],
+  image: ['image', 'imageEdit', 'imageQuery'],
+  video: ['video', 'videoQuery']
 }
 const typeOptions = [
   { label: '问答模型', value: 'chat' },
@@ -199,6 +206,79 @@ function applyProviderDefaultBaseUrl() {
   if (!form.api_base_url || isKnownProviderDefaultBaseUrl(form.api_base_url)) {
     form.api_base_url = defaultBaseUrl
   }
+}
+
+function normalizeApiPath(value) {
+  const path = String(value || '').trim()
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path.replace(/\/+$/, '')
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+function providerDefaultEndpoints(providerType, modelType = form.model_type) {
+  if (providerType === 'custom') return {}
+  const endpoints = getProviderConfig(providerType).endpoints || {}
+  return Object.fromEntries(
+    (endpointKeysByType[modelType] || [])
+      .map(key => [key, endpoints[key]])
+      .filter(([, value]) => value && value !== '暂不支持')
+  )
+}
+
+function isKnownProviderDefaultEndpoint(value) {
+  const normalized = normalizeApiPath(value)
+  if (!normalized) return false
+  return providerOptions.some((provider) =>
+    Object.values(providerDefaultEndpoints(provider.value, form.model_type))
+      .some(endpoint => normalizeApiPath(endpoint) === normalized)
+  )
+}
+
+function parseConfigTextSilently() {
+  if (!configText.value.trim()) return {}
+  try {
+    return JSON.parse(configText.value)
+  } catch {
+    return null
+  }
+}
+
+function applyProviderDefaultConfig() {
+  const defaultEndpoints = providerDefaultEndpoints(form.provider_type)
+  const current = parseConfigTextSilently()
+  if (!current) return
+
+  const nextEndpoints = { ...(current.endpoints || {}) }
+  if (Object.keys(defaultEndpoints).length) {
+    for (const [key, endpoint] of Object.entries(defaultEndpoints)) {
+      if (!nextEndpoints[key] || isKnownProviderDefaultEndpoint(nextEndpoints[key])) {
+        nextEndpoints[key] = endpoint
+      }
+    }
+  } else {
+    for (const key of Object.keys(nextEndpoints)) {
+      if (isKnownProviderDefaultEndpoint(nextEndpoints[key])) {
+        delete nextEndpoints[key]
+      }
+    }
+  }
+
+  const nextConfig = { ...current }
+  if (Object.keys(nextEndpoints).length) {
+    nextConfig.endpoints = nextEndpoints
+  } else {
+    delete nextConfig.endpoints
+  }
+
+  const nextText = Object.keys(nextConfig).length ? JSON.stringify(nextConfig, null, 2) : ''
+  if (nextText !== configText.value) {
+    configText.value = nextText
+  }
+}
+
+function applyProviderDefaults() {
+  applyProviderDefaultBaseUrl()
+  applyProviderDefaultConfig()
 }
 
 const columns = [
@@ -310,6 +390,7 @@ function resetForm() {
     timeout_ms: 60000
   })
   configText.value = ''
+  applyProviderDefaults()
 }
 
 function openCreate() {
@@ -417,7 +498,11 @@ watch(activeType, () => {
 })
 
 watch(() => form.provider_type, () => {
-  applyProviderDefaultBaseUrl()
+  applyProviderDefaults()
+})
+
+watch(() => form.model_type, () => {
+  applyProviderDefaultConfig()
 })
 
 onMounted(loadChannels)

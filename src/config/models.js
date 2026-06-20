@@ -54,6 +54,14 @@ export const STEPFUN_SIZE_OPTIONS = [
     { label: '4:3', key: '1184x896' },
 ]
 
+// Agnes image size options | Agnes 图片尺寸选项
+export const AGNES_IMAGE_SIZE_OPTIONS = [
+    { label: '4:3', key: '1024x768' },
+    { label: '1:1', key: '1024x1024' },
+    { label: '16:9', key: '1344x768' },
+    { label: '9:16', key: '768x1344' }
+]
+
 // Wan (阿里云万相) image size options | 万相图片尺寸选项
 // wan2.7 使用分辨率规格(1K/2K/4K),不再使用像素值
 export const WAN_SIZE_OPTIONS = [
@@ -110,6 +118,17 @@ export const IMAGE_MODELS = [
             watermark: false
         }
     },
+    {
+        label: 'Agnes Image 2.1 Flash',
+        key: 'agnes-image-2.1-flash',
+        provider: ['agnes'],
+        sizes: AGNES_IMAGE_SIZE_OPTIONS.map(s => s.key),
+        defaultParams: {
+            size: '1024x768',
+            n: 1,
+            response_format: 'url'
+        }
+    },
 ]
 
 // Video ratio options | 视频比例选项
@@ -150,6 +169,14 @@ export const WAN_VIDEO_DURATION_OPTIONS = [
     { label: '13 秒', key: 13 },
     { label: '14 秒', key: 14 },
     { label: '15 秒', key: 15 }
+]
+
+// Agnes Video duration options | Agnes 视频时长选项
+export const AGNES_VIDEO_DURATION_OPTIONS = [
+    { label: '约 3 秒', key: 3 },
+    { label: '约 5 秒', key: 5 },
+    { label: '约 10 秒', key: 10 },
+    { label: '约 18 秒', key: 18 }
 ]
 
 // Video generation models | 视频生成模型
@@ -209,6 +236,22 @@ export const VIDEO_MODELS = [
             watermark: true,
             prompt_extend: true
         }
+    },
+    {
+        label: 'Agnes Video V2.0',
+        key: 'agnes-video-v2.0',
+        provider: ['agnes'],
+        type: 'i2v',
+        ratios: VIDEO_RATIO_LIST.map(r => r.key),
+        durs: AGNES_VIDEO_DURATION_OPTIONS,
+        defaultParams: {
+            ratio: '16x9',
+            duration: 5,
+            width: 1152,
+            height: 768,
+            num_frames: 121,
+            frame_rate: 24
+        }
     }
 ]
 
@@ -219,7 +262,8 @@ export const CHAT_MODELS = [
     { label: 'GPT-5.2', key: 'gpt-5.2', provider: ['openai'] },
     { label: 'DeepSeek Chat', key: 'deepseek-chat', provider: ['openai'] },
     { label: 'Gemini 3 Pro', key: 'gemini-3-pro', provider: ['openai'] },
-    { label: 'DeepSeek V4 Flash (豆包)', key: 'deepseek-v4-flash-260425', provider: ['doubao'] }
+    { label: 'DeepSeek V4 Flash (豆包)', key: 'deepseek-v4-flash-260425', provider: ['doubao'] },
+    { label: 'Agnes 2.0 Flash', key: 'agnes-2.0-flash', provider: ['agnes'] }
 ]
 
 // Image size options | 图片尺寸选项

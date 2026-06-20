@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run serve",
     "build": "vite build",
     "serve": "npm run build && npm run start",
     "start": "npm --prefix server start",

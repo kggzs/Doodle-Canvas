@@ -387,6 +387,88 @@ export const PROVIDERS = {
     }
   },
 
+  agnes: {
+    label: 'Agnes AI',
+    defaultBaseUrl: 'https://apihub.agnes-ai.com',
+    endpoints: {
+      chat: '/v1/chat/completions',
+      image: '/v1/images/generations',
+      video: '/v1/videos',
+      videoQuery: '/agnesapi?video_id={taskId}'
+    },
+    requestAdapter: {
+      chat: (params) => {
+        const adapted = {
+          model: params.model,
+          messages: params.messages || []
+        }
+        if (params.temperature !== undefined) adapted.temperature = params.temperature
+        if (params.max_tokens !== undefined) adapted.max_tokens = params.max_tokens
+        if (params.stream !== undefined) adapted.stream = params.stream
+        if (params.tools) adapted.tools = params.tools
+        if (params.chat_template_kwargs) adapted.chat_template_kwargs = params.chat_template_kwargs
+        return adapted
+      },
+      image: (params) => {
+        const images = Array.isArray(params.image)
+          ? params.image
+          : params.image
+            ? [params.image]
+            : []
+        const adapted = {
+          model: params.model,
+          prompt: params.prompt,
+          size: params.size || '1024x768',
+          extra_body: {
+            response_format: params.response_format || 'url'
+          }
+        }
+        if (images.length) adapted.extra_body.image = images
+        if (params.return_base64 !== undefined) adapted.return_base64 = params.return_base64
+        return adapted
+      },
+      video: (params) => {
+        const images = Array.isArray(params.images) ? params.images : []
+        const firstFrame = params.first_frame_image || images[0]
+        const referenceImages = images.length > 1 ? images : firstFrame ? [firstFrame] : []
+        const adapted = {
+          model: params.model,
+          prompt: params.prompt || '',
+          width: params.width || 1152,
+          height: params.height || 768,
+          num_frames: params.num_frames || 121,
+          frame_rate: params.frame_rate || 24
+        }
+        if (referenceImages.length === 1) adapted.image = referenceImages[0]
+        if (referenceImages.length > 1) adapted.extra_body = { image: referenceImages }
+        if (params.negative_prompt) adapted.negative_prompt = params.negative_prompt
+        if (params.seed !== undefined) adapted.seed = params.seed
+        return adapted
+      }
+    },
+    responseAdapter: {
+      chat: (response) => {
+        if (response.choices && response.choices.length > 0) {
+          return response.choices[0].message?.content || ''
+        }
+        return ''
+      },
+      image: (response) => {
+        const data = response.data || response
+        return (Array.isArray(data) ? data : [data]).map(item => ({
+          url: item.url || item.b64_json || '',
+          revisedPrompt: item.revised_prompt || ''
+        }))
+      },
+      video: (response) => ({
+        url: response.remixed_from_video_id || response.video_url || response.url || '',
+        taskId: response.video_id || response.task_id || response.id || '',
+        status: response.status,
+        ...response
+      })
+    }
+  },
+
   // 默认使用 OpenAI 格式
   default: 'openai'
 }

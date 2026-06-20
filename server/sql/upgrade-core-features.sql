@@ -9,7 +9,7 @@
 USE `canvas`;
 
 ALTER TABLE `model_channels`
-  MODIFY COLUMN `provider_type` ENUM('openai','aliyun','doubao','stepfun','custom') NOT NULL COMMENT '适配器类型';
+  MODIFY COLUMN `provider_type` ENUM('openai','aliyun','doubao','stepfun','agnes','custom') NOT NULL COMMENT '适配器类型';
 
 ALTER TABLE `model_channels`
   ADD COLUMN IF NOT EXISTS `model_type` ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型' AFTER `provider_type`;

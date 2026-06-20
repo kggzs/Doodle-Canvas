@@ -37,7 +37,7 @@ const ModelChannel = sequelize.define(
       comment: '渠道名称'
     },
     providerType: {
-      type: DataTypes.ENUM('openai', 'aliyun', 'doubao', 'stepfun', 'custom'),
+      type: DataTypes.ENUM('openai', 'aliyun', 'doubao', 'stepfun', 'agnes', 'custom'),
       allowNull: false,
       field: 'provider_type',
       comment: '适配器类型'

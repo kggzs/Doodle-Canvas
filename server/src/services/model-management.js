@@ -15,7 +15,7 @@ import { logger } from '../utils/logger.js';
 
 const { GenerationRecord, ModelChannel, ModelConfig, ModelChannelBinding } = db;
 
-const PROVIDER_TYPES = ['openai', 'aliyun', 'doubao', 'stepfun', 'custom'];
+const PROVIDER_TYPES = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes', 'custom'];
 const MODEL_TYPES = ['image', 'video', 'chat'];
 const ROTATION_STRATEGIES = ['round_robin', 'weighted_random', 'priority', 'failover'];
 

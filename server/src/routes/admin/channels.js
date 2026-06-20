@@ -13,7 +13,7 @@ import { logger } from '../../utils/logger.js';
 
 const router = Router();
 
-const providerTypes = ['openai', 'aliyun', 'doubao', 'stepfun', 'custom'];
+const providerTypes = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes', 'custom'];
 const modelTypes = ['image', 'video', 'chat'];
 
 function validateRequest(req, res) {
