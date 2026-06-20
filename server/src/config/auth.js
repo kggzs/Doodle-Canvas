@@ -1,24 +1,21 @@
 // -*- coding: utf-8 -*-
 /**
  * JWT 认证配置
- * 从环境变量读取密钥与过期时间
+ * 从环境变量读取密钥与过期时间；缺少密钥时由 runtime-env 自动生成并持久化。
  */
-
-const DEFAULT_JWT_SECRET = 'dev_jwt_secret_change_me_in_production';
+import './runtime-env.js';
 
 function resolveJwtSecret() {
-  const secret = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
-  if (process.env.NODE_ENV === 'production') {
-    if (!process.env.JWT_SECRET || secret === DEFAULT_JWT_SECRET || Buffer.byteLength(secret, 'utf8') < 32) {
-      throw new Error('生产环境必须配置长度不少于 32 字节的 JWT_SECRET');
-    }
+  const secret = process.env.JWT_SECRET || '';
+  if (Buffer.byteLength(secret, 'utf8') < 32) {
+    throw new Error('JWT_SECRET 为空或长度不足，自动生成失败');
   }
   return secret;
 }
 
 /**
  * JWT 配置对象
- * - secret：签名密钥（生产环境必须从环境变量注入）
+ * - secret：签名密钥
  * - accessExpires：Access Token 过期时间，默认 15 分钟
  * - refreshExpires：Refresh Token 过期时间，默认 7 天
  */

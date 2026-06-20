@@ -2,13 +2,13 @@
 /**
  * AES-256-GCM 加解密工具
  * 用于 API Key 等敏感信息的加密存储
- * - 密钥从环境变量读取，生产环境必须显式配置
+ * - 密钥从环境变量读取；缺少时由 runtime-env 自动生成并持久化
  * - 每次加密生成随机 IV，避免 GCM IV 复用
  * - decrypt 兼容旧数据：无 iv 字段时使用历史 AES_IV 解密
  */
 import crypto from 'crypto';
+import '../config/runtime-env.js';
 
-const DEFAULT_SECRET_KEY = 'dev_aes_secret_key_32bytes_change_me';
 const DEFAULT_LEGACY_IV = 'dev_aes_iv_16byte';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
@@ -22,18 +22,15 @@ function normalizeBuffer(raw, length) {
 
 /**
  * 校验密钥长度是否符合 AES-256 要求。
- * 开发环境为兼容旧配置会补齐/截断，生产环境必须精确配置 32 字节。
+ * 自动生成的 AES_SECRET_KEY 会保持 32 字节；手动配置时也必须满足该长度。
  */
 function getKey() {
-  const raw = process.env.AES_SECRET_KEY || DEFAULT_SECRET_KEY;
+  const raw = process.env.AES_SECRET_KEY || '';
   const key = Buffer.from(raw, 'utf8');
-  if (NODE_ENV === 'production') {
-    if (!process.env.AES_SECRET_KEY || raw === DEFAULT_SECRET_KEY || key.length !== 32) {
-      throw new Error('生产环境必须配置 32 字节 AES_SECRET_KEY');
-    }
-    return key;
+  if (key.length !== 32) {
+    throw new Error('AES_SECRET_KEY 为空或长度不是 32 字节，自动生成失败');
   }
-  return key.length === 32 ? key : normalizeBuffer(raw, 32);
+  return key;
 }
 
 /**

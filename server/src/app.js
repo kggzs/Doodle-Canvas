@@ -8,6 +8,7 @@
  * - 启动时测试 MySQL 与 Redis 连接（失败不崩溃）
  */
 import 'dotenv/config';
+import { runtimeEnv } from './config/runtime-env.js';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -241,6 +242,9 @@ app.use((err, req, res, next) => {
 async function startServer() {
   logger.info(`环境：${NODE_ENV}，端口：${PORT}`);
   logger.info(`CORS 白名单：${corsOrigins.join(', ')}`);
+  if (runtimeEnv.generatedKeys.length > 0) {
+    logger.info(`已自动生成运行密钥：${runtimeEnv.generatedKeys.join(', ')}，保存至 ${runtimeEnv.generatedEnvFile}`);
+  }
 
   // 测试数据库与 Redis 连接（失败不崩溃）
   await testMysql();
