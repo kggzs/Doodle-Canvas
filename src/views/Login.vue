@@ -25,7 +25,6 @@
 
         <div class="mt-4 flex items-center justify-between text-sm">
           <button class="text-[var(--accent-color)] hover:underline" @click="router.push('/register')">注册新账号</button>
-          <button class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" @click="router.push('/admin/login')">管理员登录</button>
         </div>
       </section>
     </main>
