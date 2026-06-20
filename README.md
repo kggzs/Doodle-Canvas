@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./public/favicon.svg" alt="Doodle Canvas" width="120" height="120"/>
+  <img src="./public/vite.svg" alt="Doodle Canvas" width="120" height="120"/>
 </p>
 
 <h1 align="center">🎨 Doodle Canvas</h1>
