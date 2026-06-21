@@ -322,33 +322,8 @@ async function markFailure(channel) {
   await channel.update({ lastFailAt: new Date() });
 }
 
-async function selectBinding(bindings, modelId) {
-  if (bindings.length === 1) return bindings[0];
-
-  const strategy = bindings[0].rotationStrategy || 'round_robin';
-
-  if (strategy === 'weighted_random') {
-    const totalWeight = bindings.reduce((sum, item) => sum + Math.max(item.rotationWeight || 1, 1), 0);
-    let cursor = Math.random() * totalWeight;
-    for (const binding of bindings) {
-      cursor -= Math.max(binding.rotationWeight || 1, 1);
-      if (cursor <= 0) return binding;
-    }
-    return bindings[0];
-  }
-
-  if (strategy === 'priority' || strategy === 'failover') {
-    return bindings[0];
-  }
-
-  try {
-    const counter = await redis.incr(`model:round-robin:${modelId}`);
-    await redis.expire(`model:round-robin:${modelId}`, 86400);
-    return bindings[(counter - 1) % bindings.length];
-  } catch (err) {
-    logger.warn(`Redis 轮询计数失败，退回本地随机：${err.message}`);
-    return bindings[Math.floor(Math.random() * bindings.length)];
-  }
+async function selectBinding(bindings) {
+  return bindings[0];
 }
 
 async function resolveModelAndChannel(modelKey, modelType) {
@@ -356,16 +331,32 @@ async function resolveModelAndChannel(modelKey, modelType) {
     throw new GenerationError(42201, 'model 不能为空');
   }
 
-  const model = await ModelConfig.findOne({
+  const modelWhere = { isActive: true, modelType };
+  const modelOrder = [
+    ['sortOrder', 'ASC'],
+    ['updatedAt', 'DESC']
+  ];
+
+  let model = await ModelConfig.findOne({
     where: {
-      isActive: true,
-      modelType,
-      [Op.or]: [
-        { id: modelKey },
-        { modelKey }
-      ]
-    }
+      ...modelWhere,
+      id: modelKey
+    },
+    order: modelOrder
   });
+
+  if (!model) {
+    model = await ModelConfig.findOne({
+      where: {
+        ...modelWhere,
+        [Op.or]: [
+          { modelKey },
+          { displayName: modelKey }
+        ]
+      },
+      order: modelOrder
+    });
+  }
 
   if (!model) {
     throw new GenerationError(50301, '模型未启用或不存在');
@@ -399,7 +390,7 @@ async function resolveModelAndChannel(modelKey, modelType) {
     throw new GenerationError(50301, '模型暂无可用渠道，请先在管理端绑定启用的渠道');
   }
 
-  const binding = await selectBinding(bindings, model.id);
+  const binding = await selectBinding(bindings);
   return {
     model,
     binding,

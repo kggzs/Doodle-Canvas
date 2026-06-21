@@ -3,7 +3,7 @@
  * ModelChannelBinding 模型（模型-渠道绑定表）
  * 对应数据库表：model_channel_bindings
  * - 一个模型可绑定多个渠道地址
- * - 每条绑定独立配置轮换权重与策略
+ * - 生成时按渠道优先级选择第一条可用线路，rotation 字段仅为历史兼容
  */
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
@@ -36,7 +36,7 @@ const ModelChannelBinding = sequelize.define(
     rotationStrategy: {
       type: DataTypes.ENUM('round_robin', 'weighted_random', 'priority', 'failover'),
       allowNull: false,
-      defaultValue: 'round_robin',
+      defaultValue: 'priority',
       field: 'rotation_strategy'
     },
     isActive: {

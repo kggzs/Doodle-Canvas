@@ -43,7 +43,53 @@ async function tableExists(table) {
   return Number(rows[0]?.count || 0) > 0;
 }
 
+async function hasIndex(table, indexName) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) AS count
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [dbName, table, indexName]
+  );
+  return Number(rows[0]?.count || 0) > 0;
+}
+
+async function uniqueIndexesOnColumn(table, column) {
+  const [rows] = await connection.query(
+    `SELECT DISTINCT INDEX_NAME AS indexName
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+       AND NON_UNIQUE = 0
+       AND INDEX_NAME <> 'PRIMARY'`,
+    [dbName, table, column]
+  );
+  return rows.map(row => row.indexName);
+}
+
+async function dropIndex(table, indexName) {
+  if (!(await hasIndex(table, indexName))) return;
+  await connection.query(`ALTER TABLE \`${table}\` DROP INDEX \`${indexName}\``);
+  console.log(`dropped ${table}.${indexName}`);
+}
+
+async function addIndex(table, indexName, ddl) {
+  if (await hasIndex(table, indexName)) return;
+  await connection.query(`ALTER TABLE \`${table}\` ADD INDEX ${ddl}`);
+  console.log(`added ${table}.${indexName}`);
+}
+
 async function run() {
+  for (const indexName of await uniqueIndexesOnColumn('models', 'model_key')) {
+    await dropIndex('models', indexName);
+  }
+  await addIndex('models', 'idx_model_key', '`idx_model_key` (`model_key`)');
+  await connection.query(`
+    ALTER TABLE \`model_channel_bindings\`
+    MODIFY COLUMN \`rotation_strategy\` ENUM('round_robin','weighted_random','priority','failover')
+    NOT NULL DEFAULT 'priority'
+  `);
+
   await connection.query(`
     ALTER TABLE \`model_channels\`
     MODIFY COLUMN \`provider_type\` ENUM('openai','aliyun','doubao','stepfun','agnes','custom') NOT NULL COMMENT '适配器类型'

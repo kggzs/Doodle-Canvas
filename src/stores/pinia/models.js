@@ -70,16 +70,28 @@ const setStoredJson = (key, value) => {
   }
 }
 
-const mapServerModel = (model, type) => ({
-  label: model.displayName || model.display_name || model.modelKey || model.model_key,
-  key: model.modelKey || model.model_key,
-  provider: model.providers || [],
-  defaultParams: model.defaultParams || model.default_params || {},
-  maxParams: model.maxParams || model.max_params || {},
-  description: model.description || '',
-  isServer: true,
-  modelType: model.modelType || model.model_type || type
-})
+const mapServerModel = (model, type) => {
+  const actualModelKey = model.modelKey || model.model_key || ''
+  const id = model.id || model.model_id || actualModelKey
+  return {
+    id,
+    label: model.displayName || model.display_name || actualModelKey || id,
+    key: id,
+    modelKey: actualModelKey,
+    provider: model.providers || [],
+    availableChannels: model.availableChannels || model.available_channels || 0,
+    defaultParams: model.defaultParams || model.default_params || {},
+    maxParams: model.maxParams || model.max_params || {},
+    description: model.description || '',
+    isServer: true,
+    modelType: model.modelType || model.model_type || type
+  }
+}
+
+const matchesModelIdentifier = (model, value) => {
+  if (!model || !value) return false
+  return [model.key, model.id, model.modelKey, model.label].filter(Boolean).includes(value)
+}
 
 export const useModelStore = defineStore('model', () => {
   // 旧版按 provider 存储自定义模型，保留当前 provider 仅用于读取历史自定义模型。
@@ -156,20 +168,16 @@ export const useModelStore = defineStore('model', () => {
   // ============ 校验选中的模型是否有效 ============
 
   // 校验选中的模型是否在当前模型列表中,不存在则重置为默认值
-  const validateSelectedModels = () => {
-    const allImageKeys = allImageModels.value.map(m => m.key)
-    const allVideoKeys = allVideoModels.value.map(m => m.key)
-    const allChatKeys = allChatModels.value.map(m => m.key)
+  const normalizeSelectedModel = (selectedRef, models) => {
+    const current = selectedRef.value
+    const matched = models.find(model => matchesModelIdentifier(model, current))
+    selectedRef.value = matched?.key || models[0]?.key || ''
+  }
 
-    if (!selectedImageModel.value || !allImageKeys.includes(selectedImageModel.value)) {
-      selectedImageModel.value = allImageKeys[0] || ''
-    }
-    if (!selectedVideoModel.value || !allVideoKeys.includes(selectedVideoModel.value)) {
-      selectedVideoModel.value = allVideoKeys[0] || ''
-    }
-    if (!selectedChatModel.value || !allChatKeys.includes(selectedChatModel.value)) {
-      selectedChatModel.value = allChatKeys[0] || ''
-    }
+  const validateSelectedModels = () => {
+    normalizeSelectedModel(selectedImageModel, allImageModels.value)
+    normalizeSelectedModel(selectedVideoModel, allVideoModels.value)
+    normalizeSelectedModel(selectedChatModel, allChatModels.value)
   }
 
   // 初始化时校验一次
@@ -257,9 +265,9 @@ export const useModelStore = defineStore('model', () => {
 
   // ============ Methods: Get Model Config ============
 
-  const getChatModel = (key) => allChatModels.value.find(m => m.key === key)
-  const getImageModel = (key) => allImageModels.value.find(m => m.key === key)
-  const getVideoModel = (key) => allVideoModels.value.find(m => m.key === key)
+  const getChatModel = (key) => allChatModels.value.find(m => matchesModelIdentifier(m, key))
+  const getImageModel = (key) => allImageModels.value.find(m => matchesModelIdentifier(m, key))
+  const getVideoModel = (key) => allVideoModels.value.find(m => matchesModelIdentifier(m, key))
 
   const loadPublicModels = async () => {
     if (serverModelsLoading.value) return serverModels.value

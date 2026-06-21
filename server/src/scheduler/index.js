@@ -2,7 +2,7 @@
 /**
  * 调度器入口
  * 后续 Task 将实现：
- * - rotation.js        渠道轮换（round_robin/weighted_random/priority/failover）
+ * - channel-health.js  渠道健康检查与优先线路状态维护
  * - circuit-breaker.js 熔断器（CLOSED/OPEN/半开状态机）
  * - health-check.js    渠道健康检查
  * 当前为占位文件

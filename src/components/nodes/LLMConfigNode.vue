@@ -414,7 +414,7 @@ const handleSelect = (item) => {
   const nodeY = currentNode?.position?.y || 0
 
   const defaultData = {
-    imageConfig: { model: 'doubao-seedream-4-5-251128', size: '2048x2048', label: '文生图' },
+    imageConfig: { model: modelStore.selectedImageModel || modelStore.allImageModels[0]?.key || 'doubao-seedream-4-5-251128', size: '2048x2048', label: '文生图' },
     videoConfig: { label: '视频生成' },
     text: { content: '', label: '文本输入' }
   }

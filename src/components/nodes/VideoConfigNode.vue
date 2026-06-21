@@ -257,7 +257,10 @@ const imagesByRole = computed(() => {
 const currentModelConfig = computed(() => getModelConfig(localModel.value))
 
 // 判断是否为阿里云万相视频模型
-const isWanVideoModel = computed(() => localModel.value && localModel.value.startsWith('wan2.7'))
+const isWanVideoModel = computed(() => {
+  const actualModelKey = currentModelConfig.value?.modelKey || localModel.value
+  return actualModelKey && actualModelKey.startsWith('wan2.7')
+})
 
 // Resolution options based on model | 基于模型的分辨率选项
 const resolutionOptions = computed(() => {
@@ -563,7 +566,7 @@ const handleGenerate = async () => {
         url: url,
         loading: false,
         label: '视频生成',
-        model: localModel.value,
+        model: displayModelName.value,
         recordId,
         fileId,
         fileName,
@@ -579,7 +582,7 @@ const handleGenerate = async () => {
         recordId,
         loading: true,
         label: '视频生成中...',
-        model: localModel.value,
+        model: displayModelName.value,
         updatedAt: Date.now()
       })
       window.$message?.success('视频任务已创建')

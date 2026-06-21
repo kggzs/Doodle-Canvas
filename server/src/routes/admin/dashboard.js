@@ -13,8 +13,11 @@ import { logger } from '../../utils/logger.js';
 const router = Router();
 const {
   CoinTransaction,
+  ErrorLog,
   File,
   GenerationRecord,
+  ModelChannel,
+  ModelChannelBinding,
   ModelConfig,
   User
 } = db;
@@ -94,19 +97,36 @@ router.get('/overview', async (req, res) => {
       newUsersToday,
       totalGenerations,
       generationsToday,
+      generationsYesterday,
+      completedGenerationsToday,
+      processingGenerationsToday,
+      pendingGenerationsToday,
       failedGenerationsToday,
+      cancelledGenerationsToday,
       activeFiles,
       deletedFiles,
       storageStats,
       consumedToday,
-      incomeToday
+      incomeToday,
+      refundedToday,
+      activeModels,
+      activeChannels,
+      activeBindings,
+      circuitOpenChannels,
+      errorsToday,
+      unresolvedErrors
     ] = await Promise.all([
       User.count(),
       User.count({ where: { status: 'active' } }),
       User.count({ where: { createdAt: todayRange } }),
       GenerationRecord.count(),
       GenerationRecord.count({ where: { createdAt: todayRange } }),
+      GenerationRecord.count({ where: { createdAt: { [Op.gte]: addDays(todayStart, -1), [Op.lt]: todayStart } } }),
+      GenerationRecord.count({ where: { createdAt: todayRange, status: 'completed' } }),
+      GenerationRecord.count({ where: { createdAt: todayRange, status: 'processing' } }),
+      GenerationRecord.count({ where: { createdAt: todayRange, status: 'pending' } }),
       GenerationRecord.count({ where: { createdAt: todayRange, status: 'failed' } }),
+      GenerationRecord.count({ where: { createdAt: todayRange, status: 'cancelled' } }),
       File.count({ where: { status: 'active' } }),
       File.count({ where: { status: 'deleted' } }),
       fileStorageStats(),
@@ -115,28 +135,63 @@ router.get('/overview', async (req, res) => {
         type: { [Op.in]: ['recharge', 'recharge_bonus', 'redeem', 'gift', 'register_gift'] },
         direction: 'in',
         createdAt: todayRange
-      })
+      }),
+      sumCoins({ type: 'refund', direction: 'in', createdAt: todayRange }),
+      ModelConfig.count({ where: { isActive: true } }),
+      ModelChannel.count({ where: { isActive: true } }),
+      ModelChannelBinding.count({ where: { isActive: true } }),
+      ModelChannel.count({ where: { circuitOpen: true } }),
+      ErrorLog.count({ where: { createdAt: todayRange } }),
+      ErrorLog.count({ where: { isResolved: false } })
     ]);
+
+    const successRateToday = generationsToday > 0
+      ? Math.round((completedGenerationsToday / generationsToday) * 1000) / 10
+      : 0;
+    const generationChange = generationsYesterday > 0
+      ? Math.round(((generationsToday - generationsYesterday) / generationsYesterday) * 1000) / 10
+      : generationsToday > 0 ? 100 : 0;
 
     return success(res, {
       users: {
         total: totalUsers,
         active: activeUsers,
-        new_today: newUsersToday
+        inactive: Math.max(totalUsers - activeUsers, 0),
+        new_today: newUsersToday,
+        active_rate: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 1000) / 10 : 0
       },
       generations: {
         total: totalGenerations,
         today: generationsToday,
-        failed_today: failedGenerationsToday
+        yesterday: generationsYesterday,
+        change_percent: generationChange,
+        completed_today: completedGenerationsToday,
+        processing_today: processingGenerationsToday,
+        pending_today: pendingGenerationsToday,
+        failed_today: failedGenerationsToday,
+        cancelled_today: cancelledGenerationsToday,
+        success_rate_today: successRateToday
       },
       coins: {
         consumed_today: consumedToday,
-        income_today: incomeToday
+        income_today: incomeToday,
+        refunded_today: refundedToday,
+        net_today: incomeToday + refundedToday - consumedToday
       },
       files: {
         active: activeFiles,
         deleted: deletedFiles,
         storage: storageStats
+      },
+      models: {
+        active: activeModels,
+        active_channels: activeChannels,
+        active_bindings: activeBindings,
+        circuit_open_channels: circuitOpenChannels
+      },
+      errors: {
+        today: errorsToday,
+        unresolved: unresolvedErrors
       }
     }, '获取仪表盘概况成功');
   } catch (err) {
@@ -152,9 +207,10 @@ router.get('/trend', async (req, res) => {
     const items = await Promise.all(days.map(async (day) => {
       const nextDay = addDays(day, 1);
       const range = { [Op.gte]: day, [Op.lt]: nextDay };
-      const [newUsers, generations, failedGenerations, consumedCoins] = await Promise.all([
+      const [newUsers, generations, completedGenerations, failedGenerations, consumedCoins] = await Promise.all([
         User.count({ where: { createdAt: range } }),
         GenerationRecord.count({ where: { createdAt: range } }),
+        GenerationRecord.count({ where: { createdAt: range, status: 'completed' } }),
         GenerationRecord.count({ where: { createdAt: range, status: 'failed' } }),
         sumCoins({ type: 'consume', direction: 'out', createdAt: range })
       ]);
@@ -163,6 +219,7 @@ router.get('/trend', async (req, res) => {
         date: dayLabel(day),
         new_users: newUsers,
         generations,
+        completed_generations: completedGenerations,
         failed_generations: failedGenerations,
         consumed_coins: consumedCoins
       };
@@ -180,6 +237,9 @@ router.get('/model-stats', async (req, res) => {
       attributes: [
         'modelId',
         [fn('COUNT', col('GenerationRecord.id')), 'total'],
+        [literal("SUM(CASE WHEN `GenerationRecord`.`status` = 'completed' THEN 1 ELSE 0 END)"), 'completedCount'],
+        [literal("SUM(CASE WHEN `GenerationRecord`.`status` = 'failed' THEN 1 ELSE 0 END)"), 'failedCount'],
+        [fn('AVG', col('duration_ms')), 'avgDurationMs'],
         [fn('SUM', col('cost_amount')), 'costAmount']
       ],
       include: [
@@ -199,6 +259,9 @@ router.get('/model-stats', async (req, res) => {
       model_id: row.modelId,
       model: row.model,
       total: toNumber(row.get('total')),
+      completed_count: toNumber(row.get('completedCount')),
+      failed_count: toNumber(row.get('failedCount')),
+      avg_duration_ms: toNumber(row.get('avgDurationMs')),
       cost_amount: toNumber(row.get('costAmount'))
     }));
 

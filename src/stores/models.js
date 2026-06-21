@@ -65,15 +65,16 @@ export const getModelConfig = (modelKey) => {
     const serverModel = modelConfig.getImageModel(modelKey) ||
            modelConfig.getVideoModel(modelKey) ||
            modelConfig.getChatModel(modelKey)
-    if (serverModel && builtInModel) {
+    const matchingBuiltInModel = builtInModel || allModels.find(m => m.key === serverModel?.modelKey)
+    if (serverModel && matchingBuiltInModel) {
       return {
-        ...builtInModel,
+        ...matchingBuiltInModel,
         ...serverModel,
-        provider: serverModel.provider?.length ? serverModel.provider : builtInModel.provider,
-        sizes: serverModel.sizes || builtInModel.sizes,
-        qualities: serverModel.qualities || builtInModel.qualities,
+        provider: serverModel.provider?.length ? serverModel.provider : matchingBuiltInModel.provider,
+        sizes: serverModel.sizes || matchingBuiltInModel.sizes,
+        qualities: serverModel.qualities || matchingBuiltInModel.qualities,
         defaultParams: {
-          ...(builtInModel.defaultParams || {}),
+          ...(matchingBuiltInModel.defaultParams || {}),
           ...(serverModel.defaultParams || {})
         }
       }
@@ -174,7 +175,7 @@ const configuredSizeOptions = (model) => {
 const providerDefaultSizeOptions = (model) => {
   if (hasProvider(model, 'stepfun')) return STEPFUN_SIZE_OPTIONS
   if (hasProvider(model, 'aliyun')) {
-    return String(model?.key || '').includes('pro') ? WAN_PRO_SIZE_OPTIONS : WAN_SIZE_OPTIONS
+    return String(model?.modelKey || model?.key || '').includes('pro') ? WAN_PRO_SIZE_OPTIONS : WAN_SIZE_OPTIONS
   }
   if (hasProvider(model, 'doubao')) return SEEDREAM_SIZE_OPTIONS
   if (hasProvider(model, 'agnes')) return AGNES_IMAGE_SIZE_OPTIONS
@@ -247,7 +248,9 @@ export const getModelQualityOptions = (modelKey) => {
  * Returns options based on model's ratios array
  */
 export const getModelRatioOptions = (modelKey) => {
-  const model = VIDEO_MODELS.find(m => m.key === modelKey)
+  const config = getModelConfig(modelKey)
+  const actualModelKey = config?.modelKey || modelKey
+  const model = VIDEO_MODELS.find(m => m.key === actualModelKey)
   if (!model?.ratios) return VIDEO_RATIO_OPTIONS
   
   // Convert ratios array to dropdown options | 转换 ratios 数组为下拉选项
@@ -262,7 +265,9 @@ export const getModelRatioOptions = (modelKey) => {
  * Returns options based on model's durs array
  */
 export const getModelDurationOptions = (modelKey) => {
-  const model = VIDEO_MODELS.find(m => m.key === modelKey)
+  const config = getModelConfig(modelKey)
+  const actualModelKey = config?.modelKey || modelKey
+  const model = VIDEO_MODELS.find(m => m.key === actualModelKey)
   if (!model?.durs) return VIDEO_DURATION_OPTIONS
 
   // durs is already in { label, key } format | durs 已经是 { label, key } 格式
@@ -274,7 +279,9 @@ export const getModelDurationOptions = (modelKey) => {
  * Returns options based on model's resolutions array
  */
 export const getModelResolutionOptions = (modelKey) => {
-  const model = VIDEO_MODELS.find(m => m.key === modelKey)
+  const config = getModelConfig(modelKey)
+  const actualModelKey = config?.modelKey || modelKey
+  const model = VIDEO_MODELS.find(m => m.key === actualModelKey)
   if (!model?.resolutions) return SEEDANCE_RESOLUTION_OPTIONS
 
   return model.resolutions.map(res => {

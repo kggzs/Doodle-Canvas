@@ -211,6 +211,7 @@ export const useImageGeneration = () => {
     try {
       const modelConfig = getModelConfig(params.model)
       const quality = params.quality || modelConfig?.defaultParams?.quality || 'standard'
+      const actualModelKey = modelConfig?.modelKey || params.model
       clientRequestId = createClientRequestId()
 
       // Build request data | 构建请求数据
@@ -230,7 +231,7 @@ export const useImageGeneration = () => {
       }
 
       // 万相模型不支持 quality/style 参数，仅传万相专用参数
-      const isWanModel = params.model && params.model.startsWith('wan')
+      const isWanModel = actualModelKey && actualModelKey.startsWith('wan')
       if (!isWanModel) {
         if (quality) requestData.quality = quality
         if (params.style) requestData.style = params.style
@@ -375,9 +376,10 @@ export const useVideoGeneration = () => {
    */
   const createVideoTaskOnly = async (params) => {
     const modelConfig = getModelConfig(params.model)
+    const actualModelKey = modelConfig?.modelKey || params.model
 
     // 判断是否为阿里云万相模型
-    const isAliyunWan = params.model && params.model.startsWith('wan2.7')
+    const isAliyunWan = actualModelKey && actualModelKey.startsWith('wan2.7')
 
     // Build request data | 构建请求数据
     const requestData = {

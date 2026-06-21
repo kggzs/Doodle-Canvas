@@ -33,9 +33,8 @@ const ModelConfig = sequelize.define(
     modelKey: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
       field: 'model_key',
-      comment: '模型标识'
+      comment: '实际调用模型名称'
     },
     displayName: {
       type: DataTypes.STRING(100),

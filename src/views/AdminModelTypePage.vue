@@ -1,6 +1,6 @@
 <template>
   <AdminShell>
-    <section class="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:flex-row md:items-center">
+    <section class="admin-toolbar mb-4 flex flex-col gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:flex-row md:items-center">
       <div>
         <h1 class="text-lg font-semibold">{{ typeMeta.title }}</h1>
         <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ typeMeta.description }}</p>
@@ -12,7 +12,7 @@
       <n-button type="primary" @click="openCreate">新增{{ typeMeta.shortName }}</n-button>
     </section>
 
-    <section class="overflow-hidden rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)]">
+    <section class="admin-panel overflow-hidden rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)]">
       <n-data-table
         :columns="columns"
         :data="rows"
@@ -270,6 +270,18 @@ function endpointFromChannel(channel) {
   return endpoints[typeMeta.value.endpointKey] || ''
 }
 
+function endpointFromBinding(binding) {
+  return endpointFromChannel(binding?.channel)
+}
+
+function routeList(row) {
+  return Array.isArray(row.bindings) && row.bindings.length
+    ? row.bindings
+    : row.channel
+      ? [{ id: row.channel.id, channel: row.channel }]
+      : []
+}
+
 function parseJsonText(text, label) {
   if (!text.trim()) return null
   try {
@@ -386,29 +398,46 @@ const columns = computed(() => [
   { title: '用户显示名称', key: 'displayName', minWidth: 180 },
   { title: '调用模型名称', key: 'modelKey', minWidth: 190, ellipsis: { tooltip: true } },
   {
-    title: 'Provider',
-    key: 'provider',
-    width: 120,
+    title: '线路配置',
+    key: 'routes',
+    minWidth: 460,
     render(row) {
-      return h(NTag, { size: 'small' }, { default: () => providerLabel(row.channel?.providerType) })
+      const routes = routeList(row)
+      if (!routes.length) return '-'
+      return h('div', { class: 'space-y-2 py-1' }, routes.map((binding, index) => {
+        const channel = binding.channel || {}
+        return h('div', {
+          key: binding.id || channel.id || index,
+          class: 'rounded-md border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-2.5 py-2'
+        }, [
+          h('div', { class: 'flex flex-wrap items-center gap-2' }, [
+            h('span', { class: 'text-xs font-semibold text-[var(--text-primary)]' }, channel.name || `线路 ${index + 1}`),
+            h(NTag, { size: 'small', type: index === 0 ? 'success' : 'default' }, { default: () => index === 0 ? '当前优先' : `备用 ${index}` }),
+            h(NTag, { size: 'small' }, { default: () => providerLabel(channel.providerType) })
+          ]),
+          h('div', { class: 'mt-1 grid gap-1 text-xs text-[var(--text-secondary)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' }, [
+            h('span', { class: 'truncate', title: channel.apiBaseUrl || '-' }, `地址：${channel.apiBaseUrl || '-'}`),
+            h('span', { class: 'truncate', title: endpointFromBinding(binding) || '-' }, `路径：${endpointFromBinding(binding) || '-'}`)
+          ])
+        ])
+      }))
     }
   },
-  { title: 'API 地址', key: 'apiBaseUrl', minWidth: 220, render: row => row.channel?.apiBaseUrl || '-' },
-  { title: 'API 路径', key: 'apiPath', minWidth: 240, ellipsis: { tooltip: true }, render: row => endpointFromChannel(row.channel) || '-' },
   {
     title: '密钥状态',
     key: 'apiKeyStatus',
     width: 110,
     render(row) {
-      const configured = row.channel?.apiKeyConfigured
-      const valid = row.channel?.apiKeyValid
-      if (!configured) {
+      const channels = routeList(row).map(item => item.channel).filter(Boolean)
+      const configured = channels.length && channels.every(channel => channel.apiKeyConfigured)
+      const valid = channels.length && channels.every(channel => channel.apiKeyValid)
+      if (!channels.length || !configured) {
         return h(NTag, { size: 'small', type: 'error' }, { default: () => '未保存' })
       }
       return h(
         NTag,
         { size: 'small', type: valid ? 'success' : 'error' },
-        { default: () => valid ? '可解密' : '需重存' }
+        { default: () => valid ? '全部可用' : '需重存' }
       )
     }
   },
@@ -417,7 +446,7 @@ const columns = computed(() => [
     key: 'channelCount',
     width: 90,
     render(row) {
-      return `${row.bindings?.length || 0}`
+      return `${routeList(row).length}`
     }
   },
   {
@@ -609,7 +638,7 @@ async function saveModel(channelId, defaultParams) {
       await adminModelApi.addBinding(editingId.value, {
         channel_id: channelId,
         rotation_weight: 1,
-        rotation_strategy: 'round_robin',
+        rotation_strategy: 'priority',
         is_active: true
       })
     }
@@ -619,7 +648,7 @@ async function saveModel(channelId, defaultParams) {
     ...payload,
     channel_id: channelId,
     rotation_weight: 1,
-    rotation_strategy: 'round_robin'
+    rotation_strategy: 'priority'
   })
 }
 

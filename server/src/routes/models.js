@@ -66,7 +66,7 @@ router.get(
 
 router.get(
   '/:idOrKey',
-  [param('idOrKey').isLength({ min: 1, max: 100 }).withMessage('模型 ID 或标识格式不正确')],
+  [param('idOrKey').isLength({ min: 1, max: 100 }).withMessage('模型 ID 或名称格式不正确')],
   async (req, res) => {
     const validErr = validateRequest(req, res);
     if (validErr) return validErr;

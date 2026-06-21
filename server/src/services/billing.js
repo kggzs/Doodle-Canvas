@@ -65,17 +65,50 @@ async function withUserBillingLock(userId, fn) {
 }
 
 async function resolveModel({ modelId, modelKey, modelType }) {
-  const where = {};
+  const typeWhere = modelType ? { modelType } : {};
+  let model = null;
+
   if (modelId) {
-    where[Op.or] = [{ id: modelId }, { modelKey: modelId }];
+    model = await ModelConfig.findOne({
+      where: {
+        ...typeWhere,
+        id: modelId
+      }
+    });
+
+    if (!model) {
+      model = await ModelConfig.findOne({
+        where: {
+          ...typeWhere,
+          [Op.or]: [
+            { modelKey: modelId },
+            { displayName: modelId }
+          ]
+        },
+        order: [
+          ['sortOrder', 'ASC'],
+          ['updatedAt', 'DESC']
+        ]
+      });
+    }
   } else if (modelKey) {
-    where.modelKey = modelKey;
+    model = await ModelConfig.findOne({
+      where: {
+        ...typeWhere,
+        [Op.or]: [
+          { modelKey },
+          { displayName: modelKey }
+        ]
+      },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['updatedAt', 'DESC']
+      ]
+    });
   } else {
     throw new BillingError(42201, 'model 不能为空');
   }
-  if (modelType) where.modelType = modelType;
 
-  const model = await ModelConfig.findOne({ where });
   if (!model) {
     throw new BillingError(40402, '模型不存在');
   }

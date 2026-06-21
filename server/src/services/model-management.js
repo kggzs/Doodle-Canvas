@@ -4,6 +4,7 @@
  * - 管理 model_channels / models / model_channel_bindings
  * - API Key 仅加密存储，接口响应不返回明文或密文
  * - 用户侧模型列表只返回已启用且至少存在一个可用渠道的模型
+ * - modelKey 是实际上游调用模型名，允许重复；用户侧以模型 id 精确定位配置
  */
 import axios from 'axios';
 import { Op, Sequelize } from 'sequelize';
@@ -380,7 +381,7 @@ export async function createModelConfig(data) {
           modelId: model.id,
           channelId: data.channelId,
           rotationWeight: data.rotationWeight ?? 1,
-          rotationStrategy: data.rotationStrategy ?? 'round_robin',
+          rotationStrategy: data.rotationStrategy ?? 'priority',
           isActive: true
         }, { transaction });
       }
@@ -389,7 +390,7 @@ export async function createModelConfig(data) {
     });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
-      throw new ModelManagementError(40931, '模型标识已存在');
+      throw new ModelManagementError(40931, '调用模型名称允许重复，但数据库仍存在旧唯一索引，请运行核心升级脚本后重试');
     }
     throw err;
   }
@@ -425,7 +426,7 @@ export async function updateModelConfig(id, data) {
     return model;
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
-      throw new ModelManagementError(40931, '模型标识已存在');
+      throw new ModelManagementError(40931, '调用模型名称允许重复，但数据库仍存在旧唯一索引，请运行核心升级脚本后重试');
     }
     throw err;
   }
@@ -509,7 +510,7 @@ export async function addModelBinding(modelId, data) {
       modelId,
       channelId: data.channelId,
       rotationWeight: data.rotationWeight ?? 1,
-      rotationStrategy: data.rotationStrategy ?? 'round_robin',
+      rotationStrategy: data.rotationStrategy ?? 'priority',
       isActive: normalizeBoolean(data.isActive) ?? true
     });
     return binding;
@@ -608,35 +609,51 @@ export async function listPublicModels(type = null) {
 }
 
 export async function getPublicModel(idOrKey) {
-  const model = await ModelConfig.findOne({
+  const publicModelInclude = () => [
+    {
+      model: ModelChannel,
+      as: 'channels',
+      attributes: ['id', 'providerType', 'modelType'],
+      where: {
+        isActive: true,
+        circuitOpen: false,
+        [Op.and]: Sequelize.where(
+          Sequelize.col('channels.model_type'),
+          Sequelize.col('ModelConfig.model_type')
+        )
+      },
+      through: {
+        attributes: ['id', 'rotationWeight', 'rotationStrategy'],
+        where: { isActive: true }
+      },
+      required: true
+    }
+  ];
+
+  let model = await ModelConfig.findOne({
     where: {
       isActive: true,
-      [Op.or]: [
-        { id: idOrKey },
-        { modelKey: idOrKey }
-      ]
+      id: idOrKey
     },
-    include: [
-      {
-        model: ModelChannel,
-        as: 'channels',
-        attributes: ['id', 'providerType', 'modelType'],
-        where: {
-          isActive: true,
-          circuitOpen: false,
-          [Op.and]: Sequelize.where(
-            Sequelize.col('channels.model_type'),
-            Sequelize.col('ModelConfig.model_type')
-          )
-        },
-        through: {
-          attributes: ['id', 'rotationWeight', 'rotationStrategy'],
-          where: { isActive: true }
-        },
-        required: true
-      }
-    ]
+    include: publicModelInclude()
   });
+
+  if (!model) {
+    model = await ModelConfig.findOne({
+      where: {
+        isActive: true,
+        [Op.or]: [
+          { modelKey: idOrKey },
+          { displayName: idOrKey }
+        ]
+      },
+      include: publicModelInclude(),
+      order: [
+        ['sortOrder', 'ASC'],
+        ['updatedAt', 'DESC']
+      ]
+    });
+  }
 
   if (!model) {
     throw new ModelManagementError(40402, '模型不存在或暂不可用');

@@ -5,7 +5,7 @@
     </n-tabs>
 
     <section class="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:flex-row md:items-center">
-      <n-input v-model:value="filters.keyword" class="md:max-w-xs" placeholder="搜索模型标识或名称" clearable @keydown.enter="loadModels" />
+      <n-input v-model:value="filters.keyword" class="md:max-w-xs" placeholder="搜索调用模型名称或显示名称" clearable @keydown.enter="loadModels" />
       <n-select v-model:value="filters.is_active" class="md:max-w-[160px]" :options="activeOptionsWithAll" placeholder="状态" clearable />
       <div class="flex-1"></div>
       <n-button :loading="loading" @click="loadModels">刷新</n-button>
@@ -41,10 +41,10 @@
           <n-tab-pane name="base" tab="基础配置">
             <n-form :model="form" label-placement="top">
               <div class="grid grid-cols-2 gap-3">
-                <n-form-item label="模型标识">
+                <n-form-item label="调用模型名称">
                   <n-input v-model:value="form.model_key" placeholder="gpt-4o / wan2.7-image-pro" />
                 </n-form-item>
-                <n-form-item label="展示名称">
+                <n-form-item label="用户显示模型名称">
                   <n-input v-model:value="form.display_name" placeholder="GPT-4o" />
                 </n-form-item>
                 <n-form-item label="模型类型">
@@ -74,10 +74,8 @@
 
           <n-tab-pane name="bindings" tab="渠道绑定" :disabled="!editingId">
             <div class="mb-3 rounded-md border border-[var(--border-color)] p-3">
-              <div class="grid gap-3 md:grid-cols-[1fr_120px_170px_100px_auto]">
+              <div class="grid gap-3 md:grid-cols-[1fr_100px_auto]">
                 <n-select v-model:value="bindingForm.channel_id" :options="channelOptions" placeholder="选择渠道" filterable />
-                <n-input-number v-model:value="bindingForm.rotation_weight" :min="1" :max="10" placeholder="权重" />
-                <n-select v-model:value="bindingForm.rotation_strategy" :options="rotationOptions" />
                 <n-switch v-model:value="bindingForm.is_active" />
                 <n-button type="primary" :disabled="!bindingForm.channel_id" @click="addBinding">添加绑定</n-button>
               </div>
@@ -138,13 +136,6 @@ const activeOptionsWithAll = [
   { label: '启用', value: true },
   { label: '停用', value: false }
 ]
-const rotationOptions = [
-  { label: '轮询', value: 'round_robin' },
-  { label: '加权随机', value: 'weighted_random' },
-  { label: '优先级', value: 'priority' },
-  { label: '故障转移', value: 'failover' }
-]
-
 const models = ref([])
 const channels = ref([])
 const bindings = ref([])
@@ -179,7 +170,7 @@ const form = reactive({
 const bindingForm = reactive({
   channel_id: null,
   rotation_weight: 1,
-  rotation_strategy: 'round_robin',
+  rotation_strategy: 'priority',
   is_active: true
 })
 
@@ -194,18 +185,14 @@ function typeLabel(value) {
   return typeOptions.find(item => item.value === value)?.label || value
 }
 
-function rotationLabel(value) {
-  return rotationOptions.find(item => item.value === value)?.label || value
-}
-
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString('zh-CN')
 }
 
 const columns = [
-  { title: '模型标识', key: 'modelKey', minWidth: 190, ellipsis: { tooltip: true } },
-  { title: '展示名称', key: 'displayName', minWidth: 160 },
+  { title: '调用模型名称', key: 'modelKey', minWidth: 190, ellipsis: { tooltip: true } },
+  { title: '用户显示名称', key: 'displayName', minWidth: 160 },
   {
     title: '类型',
     key: 'modelType',
@@ -264,15 +251,6 @@ const bindingColumns = [
     width: 110,
     render(row) {
       return row.channel?.providerType || '-'
-    }
-  },
-  { title: '权重', key: 'rotationWeight', width: 80 },
-  {
-    title: '策略',
-    key: 'rotationStrategy',
-    width: 120,
-    render(row) {
-      return rotationLabel(row.rotationStrategy)
     }
   },
   {
@@ -391,7 +369,7 @@ async function saveModel() {
   const maxParams = parseJsonText(maxParamsText.value, '参数限制')
   if (maxParams === undefined) return
   if (!form.model_key || !form.display_name || !form.model_type) {
-    window.$message?.warning('请填写模型标识、展示名称和类型')
+    window.$message?.warning('请填写调用模型名称、用户显示模型名称和类型')
     return
   }
 
