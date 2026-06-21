@@ -174,8 +174,8 @@ function getRefreshTokenExpiresMs(refreshToken) {
   if (decoded && decoded.exp) {
     return decoded.exp * 1000;
   }
-  // 兜底：默认 10 年
-  return Date.now() + 3650 * 24 * 60 * 60 * 1000;
+  // 兜底：默认 30 天，保持与 jwtConfig.refreshExpires 的默认值一致。
+  return Date.now() + 30 * 24 * 60 * 60 * 1000;
 }
 
 /**

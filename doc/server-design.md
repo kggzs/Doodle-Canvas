@@ -42,7 +42,7 @@ server/src
 | 项目 | 说明 |
 | --- | --- |
 | Access Token | JWT，默认 15 分钟 |
-| Refresh Token | JWT，哈希后写入 `refresh_tokens` |
+| Refresh Token | JWT，默认 30 天，哈希后写入 `refresh_tokens` |
 | Token 类型 | payload 包含 `token_type: access/refresh` |
 | 登出 | 撤销 refresh token，access token 加入黑名单 |
 | 刷新 | 验证 refresh token 后轮换新 refresh token |
@@ -143,4 +143,3 @@ flowchart LR
 - 是否公开。
 
 用户只能访问自己的项目。删除项目时会把关联生成记录的 `projectId` 置空，再删除项目记录。
-

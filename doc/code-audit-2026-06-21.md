@@ -8,7 +8,7 @@
 
 项目整体安全基线较完整：认证链路使用 JWT 类型校验、Refresh Token 哈希存储与轮换；上传与远程转存具备 MIME 嗅探、大小限制、路径归一化与 SSRF 防护；模型渠道 API Key 采用 AES-256-GCM 加密存储；管理端路由统一挂载登录与 admin 角色中间件。
 
-当前主要风险集中在会话存储、文件访问授权、生产密钥管理、异步生成任务可靠性与生产级可观测性。未发现明显 SQL 注入、任意文件读取、服务端命令执行或第三方 API Key 明文返回问题。
+当前主要风险集中在会话存储、文件访问授权、异步生成任务可靠性与生产级可观测性。未发现明显 SQL 注入、任意文件读取、服务端命令执行或第三方 API Key 明文返回问题。
 
 ## 已验证结果
 
@@ -21,7 +21,7 @@
 
 ## 主要风险
 
-### 高风险：Refresh Token 存储在 localStorage 且默认有效期过长
+### 高风险：Refresh Token 存储在 localStorage
 
 位置：
 - `src/utils/backend.js:7`
@@ -29,11 +29,14 @@
 - `src/utils/backend.js:81`
 - `server/src/config/auth.js:25`
 
-前端将 access token、refresh token 与用户信息存储在 `localStorage`，后端默认 Refresh Token 有效期为 `3650d`。一旦前端出现 XSS、浏览器扩展污染或同机恶意脚本，长期 refresh token 会显著放大账号接管窗口。
+前端将 access token、refresh token 与用户信息存储在 `localStorage`。一旦前端出现 XSS、浏览器扩展污染或同机恶意脚本，refresh token 会放大账号接管窗口。
+
+修复状态：
+- 已将后端默认 Refresh Token 有效期从 `3650d` 调整为 `30d`。
+- localStorage 存储形态暂未改动，后续仍建议迁移到 HttpOnly Cookie。
 
 建议：
 - 生产环境将 Refresh Token 改为 `HttpOnly + Secure + SameSite` Cookie。
-- 将默认刷新令牌有效期缩短到 7-30 天，并保留当前的刷新轮换策略。
 - 前端保留 access token 时优先使用内存态；必要时配合页面刷新后的静默刷新。
 - 对异常登录设备增加会话撤销与强制下线入口。
 
@@ -52,7 +55,7 @@
 - 管理端文件预览与用户文件下载分开处理，避免所有 active 文件天然公开。
 - 对生成结果返回的文件 URL 标记可见性，便于前端区分分享与私有使用。
 
-### 中风险：生产密钥会自动生成到 `.runtime.env`
+### 已接受风险：生产密钥会自动生成到 `.runtime.env`
 
 位置：
 - `server/src/config/runtime-env.js:91`
@@ -60,12 +63,11 @@
 - `server/src/config/runtime-env.js:114`
 - `server/src/app.js:245`
 
-缺少 `JWT_SECRET` 或 `AES_SECRET_KEY` 时，服务会自动生成并写入 `server/.runtime.env`。这提升了本地体验，但生产环境如果没有明确托管密钥，文件丢失会导致历史 JWT 失效、渠道 API Key 无法解密，也不利于多实例一致性。
+缺少 `JWT_SECRET` 或 `AES_SECRET_KEY` 时，服务会自动生成并写入 `server/.runtime.env`。当前部署选择保留该行为，降低手工配置门槛。需要注意：文件丢失会导致历史 JWT 失效、渠道 API Key 无法解密，也不利于多实例一致性。
 
 建议：
-- 生产环境要求显式配置 `JWT_SECRET` 与 `AES_SECRET_KEY`，启动时缺失直接失败。
-- 将 `.runtime.env` 作为开发兜底，不作为生产密钥来源。
-- 用平台 Secret Manager、Docker/K8s Secret 或 PM2 ecosystem 环境变量管理。
+- 将 `server/.runtime.env` 纳入服务器备份，但不要提交到版本库。
+- 单机部署可继续使用自动生成；多实例部署需复制同一份 `.runtime.env` 或改用统一环境变量。
 - 记录密钥轮换流程，API Key 加密密钥轮换要有迁移脚本。
 
 ### 中风险：后台图片生成使用 `setImmediate`，缺少持久队列与并发控制
@@ -105,8 +107,8 @@
 数据库和 Redis 连接测试失败时只记录警告，不阻断服务启动。开发环境可接受，但生产负载均衡健康检查可能认为服务可用，实际业务接口会持续失败。
 
 建议：
-- 增加 `/api/ready`，检查 MySQL、Redis、存储目录可写性。
-- 生产环境配置 `STARTUP_DEPENDENCY_MODE=fail-fast`，关键依赖失败直接退出。
+- 已增加 `/api/ready`，检查 MySQL、Redis、存储目录可写性。
+- 可按部署习惯决定是否增加 `STARTUP_DEPENDENCY_MODE=fail-fast`。
 - 保留 `/api/health` 作为进程存活检查，避免与业务就绪混淆。
 
 ### 低到中风险：管理端渠道连通性测试可请求任意渠道地址
@@ -117,8 +119,10 @@
 
 `testChannel` 会请求管理员配置的 `apiBaseUrl`，没有复用存储模块的私网地址拦截。虽然接口仅 admin 可用，但在多管理员、低信任后台或账号被盗场景下，可能被用于探测内网服务。
 
+修复状态：
+- 已让渠道连通性测试复用远程 URL 安全校验，阻止私网、回环、链路本地等受限地址。
+
 建议：
-- 对渠道 Base URL 也做协议、主机、私网地址校验。
 - 生产环境提供上游域名 allowlist。
 - 测试渠道时避免把真实 API Key 发往未验证的地址。
 
@@ -149,10 +153,8 @@
 
 | 优先级 | 事项 |
 | --- | --- |
-| P0 | 缩短 Refresh Token 默认有效期，规划 HttpOnly Cookie 迁移 |
+| P0 | 规划 Refresh Token HttpOnly Cookie 迁移 |
 | P0 | 明确文件公开/私有策略，为私有文件增加鉴权或签名 URL |
-| P1 | 生产环境显式密钥配置与 fail-fast 启动策略 |
 | P1 | 引入生成任务队列与并发控制 |
-| P2 | 收紧生产 CSP 和渠道 URL 校验 |
+| P2 | 收紧生产 CSP 和渠道 URL allowlist |
 | P2 | 增加自动化测试与 CI 检查 |
-

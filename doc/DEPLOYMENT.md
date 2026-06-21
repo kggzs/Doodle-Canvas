@@ -87,10 +87,8 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
-JWT_SECRET=replace-with-long-random-secret-at-least-32-bytes
 JWT_ACCESS_EXPIRES=15m
 JWT_REFRESH_EXPIRES=30d
-AES_SECRET_KEY=replace-with-exactly-32-byte-value
 
 CORS_ORIGINS=https://your-domain.example
 FRONTEND_BASE=/
@@ -102,9 +100,9 @@ RATE_LIMIT_GLOBAL=600
 
 安全要求：
 
-- 生产环境不要依赖自动生成的 `.runtime.env`。
-- `AES_SECRET_KEY` 必须正好 32 字节。
-- `JWT_SECRET` 至少 32 字节。
+- 不手动配置密钥时，服务会自动生成 `server/.runtime.env`。
+- 必须备份 `server/.runtime.env`；文件丢失会导致旧 JWT 失效、已保存渠道 API Key 无法解密。
+- 多实例部署必须共享同一组 `JWT_SECRET` / `AES_SECRET_KEY`，可复制 `.runtime.env` 或改用环境变量。
 - `server/.env`、`server/.runtime.env`、`server/storage/` 不应提交到版本库。
 
 ## 构建与启动
@@ -153,6 +151,7 @@ server {
 
 ```bash
 curl http://127.0.0.1:3000/api/health
+curl http://127.0.0.1:3000/api/ready
 pm2 logs doodle-canvas
 ```
 
@@ -161,8 +160,8 @@ pm2 logs doodle-canvas
 | 检查 | 预期 |
 | --- | --- |
 | `/api/health` | 返回 `status: ok` |
+| `/api/ready` | MySQL、Redis、存储目录均为 `ok` |
 | MySQL 日志 | 连接成功 |
 | Redis 日志 | 连接成功 |
 | `/admin` | 管理后台可访问 |
 | 上传图片 | `server/storage/` 或挂载目录生成文件 |
-

@@ -17,12 +17,12 @@ function resolveJwtSecret() {
  * JWT 配置对象
  * - secret：签名密钥
  * - accessExpires：Access Token 过期时间，默认 15 分钟
- * - refreshExpires：Refresh Token 过期时间，默认 10 年
+ * - refreshExpires：Refresh Token 过期时间，默认 30 天
  */
 export const jwtConfig = {
   secret: resolveJwtSecret(),
   accessExpires: process.env.JWT_ACCESS_EXPIRES || '15m',
-  refreshExpires: process.env.JWT_REFRESH_EXPIRES || '3650d'
+  refreshExpires: process.env.JWT_REFRESH_EXPIRES || '30d'
 };
 
 export default jwtConfig;

@@ -54,16 +54,16 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 ```
 
-生产环境建议显式配置：
+生产环境建议配置：
 
 ```env
 NODE_ENV=production
-JWT_SECRET=至少32字节的随机密钥
-AES_SECRET_KEY=正好32字节的随机密钥
 CORS_ORIGINS=https://your-domain.example
 STORAGE_ROOT=/data/doodle-canvas/storage
 STORAGE_BASE_URL=/storage
 ```
+
+如果不配置 `JWT_SECRET` 和 `AES_SECRET_KEY`，后端会自动生成到 `server/.runtime.env`。请备份这个文件，不要提交到版本库。
 
 ## 启动方式
 
@@ -134,4 +134,3 @@ npm audit --omit=dev --registry=https://registry.npmjs.org
 ### 前端构建后后端找不到页面
 
 确认 `npm run build` 已生成 `dist/`，并且 `SERVE_FRONTEND` 未设置为 `false`。
-

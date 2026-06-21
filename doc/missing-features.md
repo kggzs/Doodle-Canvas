@@ -8,9 +8,8 @@
 | --- | --- | --- |
 | P0 | 私有文件鉴权 | 当前 `/storage/*` 对 active 文件按链接公开访问 |
 | P0 | Refresh Token Cookie 化 | 从 localStorage 迁移到 HttpOnly Secure Cookie |
-| P1 | 生产密钥强制配置 | 生产缺少 `JWT_SECRET` / `AES_SECRET_KEY` 时 fail-fast |
 | P1 | CSP 生产白名单 | 收紧 `connectSrc`、`imgSrc`、`mediaSrc` |
-| P2 | 渠道 URL allowlist | 防止管理端渠道测试访问内网地址 |
+| P2 | 渠道 URL allowlist | 在已拦截私网地址基础上，进一步限制生产可用上游域名 |
 
 ## 生成与任务系统
 
@@ -47,4 +46,3 @@
 | P2 | 文件空间管理 | 用户侧文件列表、批量删除、容量统计 |
 | P2 | 模型价格展示增强 | 按用户组展示折扣、剩余额度 |
 | P3 | 多租户隔离 | 团队、空间、角色权限模型 |
-

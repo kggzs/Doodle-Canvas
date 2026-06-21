@@ -61,4 +61,17 @@ export async function testConnection() {
   }
 }
 
+/**
+ * 静默检查数据库连接，用于 readiness 探针，避免频繁探针刷日志。
+ * @returns {Promise<boolean>} 是否连接成功
+ */
+export async function checkConnection() {
+  try {
+    await sequelize.authenticate();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default sequelize;

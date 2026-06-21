@@ -12,6 +12,7 @@ import db from '../models/index.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { safeJsonParse } from '../utils/helpers.js';
 import { logger } from '../utils/logger.js';
+import { assertSafeRemoteUrl, SAFE_HTTP_AGENT, SAFE_HTTPS_AGENT } from './storage.js';
 
 const { GenerationRecord, ModelChannel, ModelConfig, ModelChannelBinding } = db;
 
@@ -278,8 +279,11 @@ export async function testChannel(id) {
   const startedAt = Date.now();
 
   try {
+    const safeBaseUrl = await assertSafeRemoteUrl(channel.apiBaseUrl);
     const apiKey = decryptApiKey(channel.apiKey);
-    const response = await axios.get(channel.apiBaseUrl, {
+    const response = await axios.get(safeBaseUrl, {
+      httpAgent: SAFE_HTTP_AGENT,
+      httpsAgent: SAFE_HTTPS_AGENT,
       timeout: Math.min(channel.timeoutMs || 10000, 10000),
       headers: {
         Authorization: `Bearer ${apiKey}`

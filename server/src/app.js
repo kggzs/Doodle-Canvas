@@ -23,9 +23,9 @@ import { requestIdMiddleware } from './middleware/requestId.js';
 import { auditContextMiddleware } from './middleware/audit-context.js';
 import { globalRateLimitMiddleware } from './middleware/rateLimit.js';
 import routes from './routes/index.js';
-import { getPublicFileByStoragePath, StorageError } from './services/storage.js';
-import { testConnection as testMysql } from './config/database.js';
-import { testConnection as testRedis } from './config/redis.js';
+import { getPublicFileByStoragePath, getStorageRoot, StorageError } from './services/storage.js';
+import { checkConnection as checkMysql, testConnection as testMysql } from './config/database.js';
+import { checkConnection as checkRedis, testConnection as testRedis } from './config/redis.js';
 import { recordError } from './services/error-logs.js';
 
 // 当前模块路径（ES Modules 下替代 __dirname）
@@ -164,6 +164,44 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     env: NODE_ENV
   }, '服务运行中');
+});
+
+// 就绪检查：用于负载均衡/部署系统判断业务依赖是否可用。
+app.get('/api/ready', async (req, res) => {
+  const storageRoot = getStorageRoot();
+  let storageOk = false;
+  try {
+    fs.mkdirSync(storageRoot, { recursive: true });
+    fs.accessSync(storageRoot, fs.constants.W_OK);
+    storageOk = true;
+  } catch {
+    storageOk = false;
+  }
+
+  const [mysqlOk, redisOk] = await Promise.all([
+    checkMysql(),
+    checkRedis()
+  ]);
+  const ready = mysqlOk && redisOk && storageOk;
+  const data = {
+    status: ready ? 'ready' : 'not_ready',
+    timestamp: new Date().toISOString(),
+    dependencies: {
+      mysql: mysqlOk ? 'ok' : 'unavailable',
+      redis: redisOk ? 'ok' : 'unavailable',
+      storage: storageOk ? 'ok' : 'unavailable'
+    }
+  };
+
+  if (!ready) {
+    return res.status(503).json({
+      code: 50301,
+      message: '服务依赖未就绪',
+      data,
+      request_id: res.locals?.requestId || null
+    });
+  }
+  return success(res, data, '服务已就绪');
 });
 
 // 业务路由

@@ -116,7 +116,7 @@ copy server\.env.example server\.env
 | `DB_USER` | 数据库用户 |
 | `DB_PASS` | 数据库密码 |
 
-> 💡 开发环境缺少 `JWT_SECRET` 和 `AES_SECRET_KEY` 时，后端会自动生成到 `server/.runtime.env`；生产环境建议显式配置强密钥。
+> 💡 缺少 `JWT_SECRET` 和 `AES_SECRET_KEY` 时，后端会自动生成到 `server/.runtime.env`；请备份该文件且不要提交到版本库。
 
 </details>
 

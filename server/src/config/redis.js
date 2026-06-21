@@ -71,4 +71,16 @@ export async function testConnection() {
   }
 }
 
+/**
+ * 静默检查 Redis 连接，用于 readiness 探针，避免频繁探针刷日志。
+ * @returns {Promise<boolean>} 是否连接成功
+ */
+export async function checkConnection() {
+  try {
+    return await redis.ping() === 'PONG';
+  } catch {
+    return false;
+  }
+}
+
 export default redis;

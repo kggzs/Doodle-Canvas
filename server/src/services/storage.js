@@ -69,8 +69,8 @@ const safeAgentLookup = (hostname, options, callback) => {
     })
     .catch((err) => callback(err));
 };
-const HTTP_AGENT = new http.Agent({ family: 4, lookup: safeAgentLookup });
-const HTTPS_AGENT = new https.Agent({ family: 4, lookup: safeAgentLookup });
+export const SAFE_HTTP_AGENT = new http.Agent({ family: 4, lookup: safeAgentLookup });
+export const SAFE_HTTPS_AGENT = new https.Agent({ family: 4, lookup: safeAgentLookup });
 const REMOTE_HEADERS = {
   Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,video/*,*/*;q=0.8',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
@@ -280,7 +280,7 @@ function isPrivateIp(ip) {
   return true;
 }
 
-async function assertSafeRemoteUrl(rawUrl) {
+export async function assertSafeRemoteUrl(rawUrl) {
   let parsed;
   try {
     parsed = new URL(rawUrl);
@@ -315,8 +315,8 @@ async function downloadRemoteFile(url) {
     currentUrl = await assertSafeRemoteUrl(currentUrl);
     const response = await axios.get(currentUrl, {
       responseType: 'arraybuffer',
-      httpAgent: HTTP_AGENT,
-      httpsAgent: HTTPS_AGENT,
+      httpAgent: SAFE_HTTP_AGENT,
+      httpsAgent: SAFE_HTTPS_AGENT,
       timeout: parseInt(process.env.STORAGE_REMOTE_DOWNLOAD_TIMEOUT_MS || '60000', 10),
       maxContentLength: STORAGE_REMOTE_MAX_BYTES,
       maxBodyLength: STORAGE_REMOTE_MAX_BYTES,
