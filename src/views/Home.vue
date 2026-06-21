@@ -10,7 +10,7 @@
       <!-- Welcome section | 欢迎区域 -->
       <section class="text-center mb-12">
         <div class="flex items-center justify-center gap-4 mb-8">
-          <img src="../assets/logo.png" alt="Logo" class="w-12 h-12 md:w-16 md:h-16" />
+          <img src="../assets/logo-small.webp" alt="Logo" class="w-12 h-12 md:w-16 md:h-16" decoding="async" />
           <h1 class="text-2xl md:text-4xl font-bold text-[var(--text-primary)]">欢迎来到万能涂鸦画布</h1>
         </div>
         

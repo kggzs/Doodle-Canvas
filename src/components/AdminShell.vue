@@ -50,6 +50,7 @@ const navItems = [
   { label: '生成记录', path: '/admin/records' },
   { label: '文件管理', path: '/admin/files' },
   { label: '错误日志', path: '/admin/error-logs' },
+  { label: '公告管理', path: '/admin/announcements' },
   { label: '问答模型', path: '/admin/models/chat' },
   { label: '图片模型', path: '/admin/models/image' },
   { label: '视频模型', path: '/admin/models/video' }

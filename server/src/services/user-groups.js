@@ -254,23 +254,21 @@ export async function assignGroup(userId, groupId, data = {}, operatorId = null)
     }
 
     const expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
-    const [membership, created] = await UserGroupMember.findOrCreate({
-      where: { userId, groupId },
-      defaults: {
+    await UserGroupMember.destroy({
+      where: { userId },
+      transaction
+    });
+
+    const membership = await UserGroupMember.create(
+      {
+        userId,
+        groupId,
         expiresAt,
         grantedBy: operatorId,
         grantReason: data.grantReason || null
       },
-      transaction
-    });
-
-    if (!created) {
-      await membership.update({
-        expiresAt,
-        grantedBy: operatorId,
-        grantReason: data.grantReason || membership.grantReason
-      }, { transaction });
-    }
+      { transaction }
+    );
 
     await refreshUserMainGroup(userId, transaction);
     return sanitize(await UserGroupMember.findByPk(membership.id, {

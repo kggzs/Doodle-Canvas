@@ -92,7 +92,16 @@
             <div class="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
               <n-select v-model:value="groupForm.group_id" :options="groupOptions" placeholder="选择用户组" filterable clearable />
               <n-input v-model:value="groupForm.grant_reason" placeholder="分配原因" clearable />
-              <n-button :loading="saving" @click="assignGroup">分配</n-button>
+              <n-button :loading="saving" @click="assignGroup">替换</n-button>
+            </div>
+          </div>
+
+          <div class="rounded-md border border-[var(--border-color)] p-3">
+            <h3 class="mb-2 font-medium">修改密码</h3>
+            <div class="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+              <n-input v-model:value="passwordForm.newPassword" type="password" show-password-on="click" placeholder="新密码" />
+              <n-input v-model:value="passwordForm.confirmPassword" type="password" show-password-on="click" placeholder="再次输入新密码" />
+              <n-button type="warning" :loading="passwordSaving" @click="forceChangePassword">强制修改</n-button>
             </div>
           </div>
 
@@ -132,6 +141,33 @@
               <n-button type="primary" :loading="saving" @click="rechargeUser">充值</n-button>
               <n-button type="info" :loading="saving" @click="giftUser">赠送</n-button>
               <n-button type="warning" :loading="saving" @click="adjustCoins">调整余额</n-button>
+            </div>
+          </div>
+
+          <div class="rounded-md border border-[var(--border-color)] p-3">
+            <div class="mb-2 flex items-center justify-between">
+              <h3 class="font-medium">金币流水</h3>
+              <n-button size="small" :loading="coinTransactionsLoading" @click="loadUserCoinTransactions()">刷新</n-button>
+            </div>
+            <n-data-table
+              :columns="coinColumns"
+              :data="coinTransactions"
+              :loading="coinTransactionsLoading"
+              :pagination="false"
+              size="small"
+              striped
+            />
+            <div class="mt-2 flex justify-end">
+              <n-pagination
+                v-model:page="coinPage"
+                v-model:page-size="coinPageSize"
+                :item-count="coinTotal"
+                :page-sizes="[5, 10, 20, 50]"
+                size="small"
+                show-size-picker
+                @update:page="loadUserCoinTransactions"
+                @update:page-size="handleCoinPageSizeChange"
+              />
             </div>
           </div>
 
@@ -236,6 +272,7 @@ import { adminUserApi, adminUserGroupApi } from '@/api/backend'
 
 const loading = ref(false)
 const saving = ref(false)
+const passwordSaving = ref(false)
 const users = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -248,8 +285,13 @@ const userProjects = ref([])
 const groupOptions = ref([])
 const loginLogs = ref([])
 const projectsLoading = ref(false)
+const coinTransactionsLoading = ref(false)
 const projectFlowVisible = ref(false)
 const selectedProject = ref(null)
+const coinTransactions = ref([])
+const coinTotal = ref(0)
+const coinPage = ref(1)
+const coinPageSize = ref(5)
 
 const filters = reactive({
   keyword: '',
@@ -283,6 +325,11 @@ const coinForm = reactive({
   reason: ''
 })
 
+const passwordForm = reactive({
+  newPassword: '',
+  confirmPassword: ''
+})
+
 const statusOptions = [
   { label: '正常', value: 'active' },
   { label: '待验证', value: 'pending_email' },
@@ -304,6 +351,28 @@ const riskOptionsWithAll = [{ label: '全部风险', value: null }, ...riskOptio
 const coinModeOptions = [
   { label: '增加', value: 'increase' },
   { label: '扣减', value: 'decrease' }
+]
+const txTypeOptions = [
+  { label: '充值', value: 'recharge' },
+  { label: '充值赠送', value: 'recharge_bonus' },
+  { label: '卡密兑换', value: 'redeem' },
+  { label: '赠送', value: 'gift' },
+  { label: '注册赠送', value: 'register_gift' },
+  { label: '消费', value: 'consume' },
+  { label: '退款', value: 'refund' },
+  { label: '管理员增加', value: 'adjust_add' },
+  { label: '管理员扣减', value: 'adjust_deduct' },
+  { label: '冻结', value: 'freeze' },
+  { label: '解冻', value: 'unfreeze' },
+  { label: '没收', value: 'forfeit' },
+  { label: '过期', value: 'expire' },
+  { label: '转入', value: 'transfer_in' },
+  { label: '转出', value: 'transfer_out' },
+  { label: '冲正', value: 'rollback' }
+]
+const directionOptions = [
+  { label: '入账', value: 'in' },
+  { label: '出账', value: 'out' }
 ]
 
 function optionLabel(options, value) {
@@ -447,6 +516,50 @@ const columns = [
   }
 ]
 
+const coinColumns = [
+  {
+    title: '时间',
+    key: 'createdAt',
+    width: 150,
+    render(row) {
+      return formatDateTime(row.createdAt)
+    }
+  },
+  {
+    title: '类型',
+    key: 'type',
+    width: 100,
+    render(row) {
+      return renderTag(row.type, txTypeOptions)
+    }
+  },
+  {
+    title: '方向',
+    key: 'direction',
+    width: 80,
+    render(row) {
+      return renderTag(row.direction, directionOptions, row.direction === 'in' ? 'success' : 'warning')
+    }
+  },
+  {
+    title: '金额',
+    key: 'amount',
+    width: 90,
+    render(row) {
+      return `${row.direction === 'in' ? '+' : '-'}${formatCoins(row.amount)}`
+    }
+  },
+  {
+    title: '说明',
+    key: 'description',
+    minWidth: 160,
+    ellipsis: { tooltip: true },
+    render(row) {
+      return row.description || row.reason || '-'
+    }
+  }
+]
+
 async function loadUsers() {
   loading.value = true
   try {
@@ -503,13 +616,42 @@ async function openDetail(row) {
     banForm.ban_reason = data.user.banReason || ''
     Object.assign(groupForm, { group_id: null, grant_reason: '' })
     Object.assign(coinForm, { amount: 0, mode: 'increase', reason: '' })
+    Object.assign(passwordForm, { newPassword: '', confirmPassword: '' })
     userProjects.value = []
+    coinTransactions.value = []
+    coinTotal.value = 0
+    coinPage.value = 1
     selectedProject.value = null
     detailVisible.value = true
-    await loadUserProjects(data.user.id)
+    await Promise.all([
+      loadUserProjects(data.user.id),
+      loadUserCoinTransactions(data.user.id)
+    ])
   } catch (err) {
     window.$message?.error(err?.message || '加载用户详情失败')
   }
+}
+
+async function loadUserCoinTransactions(userId = selectedUser.value?.id) {
+  if (!userId) return
+  coinTransactionsLoading.value = true
+  try {
+    const data = await adminUserApi.coins(userId, {
+      page: coinPage.value,
+      pageSize: coinPageSize.value
+    })
+    coinTransactions.value = data.items || []
+    coinTotal.value = data.total || 0
+  } catch (err) {
+    window.$message?.error(err?.message || '加载金币流水失败')
+  } finally {
+    coinTransactionsLoading.value = false
+  }
+}
+
+function handleCoinPageSizeChange() {
+  coinPage.value = 1
+  loadUserCoinTransactions()
 }
 
 async function loadUserProjects(userId = selectedUser.value?.id) {
@@ -606,12 +748,36 @@ async function assignGroup() {
       group_id: groupForm.group_id,
       grant_reason: groupForm.grant_reason || undefined
     })
-    window.$message?.success('用户组已分配')
+    window.$message?.success('用户组已替换')
     await refreshSelectedUser()
   } catch (err) {
     window.$message?.error(err?.message || '分配失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function forceChangePassword() {
+  if (!selectedUser.value) return
+  if (!passwordForm.newPassword || passwordForm.newPassword.length < 8 || !/[a-zA-Z]/.test(passwordForm.newPassword) || !/[0-9]/.test(passwordForm.newPassword)) {
+    window.$message?.warning('新密码至少 8 位，且需同时包含字母和数字')
+    return
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    window.$message?.warning('两次输入的新密码不一致')
+    return
+  }
+  passwordSaving.value = true
+  try {
+    await adminUserApi.changePassword(selectedUser.value.id, {
+      newPassword: passwordForm.newPassword
+    })
+    Object.assign(passwordForm, { newPassword: '', confirmPassword: '' })
+    window.$message?.success('密码已修改，用户需重新登录')
+  } catch (err) {
+    window.$message?.error(err?.message || '修改密码失败')
+  } finally {
+    passwordSaving.value = false
   }
 }
 
@@ -638,6 +804,7 @@ async function rechargeUser() {
       reason: coinForm.reason || undefined
     })
     window.$message?.success('充值成功')
+    await loadUserCoinTransactions()
     await refreshSelectedUser()
   } catch (err) {
     window.$message?.error(err?.message || '充值失败')
@@ -655,6 +822,7 @@ async function giftUser() {
       reason: coinForm.reason || undefined
     })
     window.$message?.success('赠送成功')
+    await loadUserCoinTransactions()
     await refreshSelectedUser()
   } catch (err) {
     window.$message?.error(err?.message || '赠送失败')
@@ -673,6 +841,7 @@ async function adjustCoins() {
       reason: coinForm.reason || undefined
     })
     window.$message?.success('余额已调整')
+    await loadUserCoinTransactions()
     await refreshSelectedUser()
   } catch (err) {
     window.$message?.error(err?.message || '调整失败')

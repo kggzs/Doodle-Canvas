@@ -76,6 +76,14 @@ export async function fetchProfile() {
   return user
 }
 
+export async function changePassword({ oldPassword, newPassword }) {
+  return backend.put('/auth/password', {
+    oldPassword,
+    newPassword,
+    refreshToken: refreshToken.value || authStorage.getRefreshToken()
+  })
+}
+
 export async function logout() {
   const currentRefreshToken = refreshToken.value || authStorage.getRefreshToken()
   try {
@@ -96,6 +104,7 @@ export default {
   resendVerification,
   verifyEmail,
   fetchProfile,
+  changePassword,
   logout,
   clearAuthSession
 }

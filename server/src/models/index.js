@@ -25,6 +25,7 @@ import Project from './Project.js';
 import SystemSetting from './SystemSetting.js';
 import MigrateImport from './MigrateImport.js';
 import ErrorLog from './ErrorLog.js';
+import Announcement from './Announcement.js';
 
 // ============================
 // 建立模型关联关系
@@ -243,6 +244,16 @@ Project.belongsTo(File, {
   as: 'thumbnail'
 });
 
+// User 1:N Announcement
+User.hasMany(Announcement, {
+  foreignKey: 'created_by',
+  as: 'announcements'
+});
+Announcement.belongsTo(User, {
+  foreignKey: 'created_by',
+  as: 'creator'
+});
+
 // User 1:N MigrateImport / Project 1:N MigrateImport
 User.hasMany(MigrateImport, {
   foreignKey: 'user_id',
@@ -287,6 +298,7 @@ export const db = {
   SystemSetting,
   MigrateImport,
   ErrorLog,
+  Announcement,
   ModelChannel,
   ModelConfig,
   ModelChannelBinding

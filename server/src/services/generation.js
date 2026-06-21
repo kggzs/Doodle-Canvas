@@ -240,6 +240,35 @@ function errorMessageFromUpstream(data, fallback) {
     || fallback;
 }
 
+const UPSTREAM_ERROR_MAP = [
+  {
+    pattern: /content.*(?:you provided|machine outputted).*blocked/i,
+    message: '您提供的内容或模型生成的内容因安全策略被阻止，请调整提示词后重试'
+  },
+  {
+    pattern: /content.*policy|policy.*content/i,
+    message: '内容违反安全策略，请修改后重试'
+  },
+  {
+    pattern: /rate limit|too many requests/i,
+    message: '请求频率过高，请稍后重试'
+  },
+  {
+    pattern: /insufficient.*quota|quota.*exceeded/i,
+    message: 'API 额度不足，请联系管理员'
+  },
+  {
+    pattern: /context length|maximum context|token.*limit/i,
+    message: '输入内容过长，请减少提示词长度后重试'
+  }
+];
+
+function translateUpstreamError(message) {
+  const text = String(message || '');
+  const matched = UPSTREAM_ERROR_MAP.find((item) => item.pattern.test(text));
+  return matched?.message || message;
+}
+
 function upstreamPublicMessage(err) {
   if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) {
     return '上游服务响应超时，请稍后再试';
@@ -423,6 +452,7 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
     if (response.status >= 400) {
       const raw = stream ? await streamToText(response.data) : response.data;
       const upstreamMessage = errorMessageFromUpstream(raw, `上游接口返回 ${response.status}`);
+      const publicMessage = translateUpstreamError(upstreamMessage);
       recordError({
         scope: 'upstream',
         level: response.status >= 500 ? 'error' : 'warn',
@@ -431,7 +461,7 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
         message: upstreamMessage,
         publicMessage: response.status === 401 || response.status === 403
           ? '渠道认证失败，请检查后台配置'
-          : '上游接口请求失败',
+          : publicMessage,
         details: {
           channel_id: channel.id,
           channel_name: channel.name,
@@ -452,7 +482,7 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
       }
       throw new GenerationError(
         response.status >= 500 ? 50201 : 40001,
-        upstreamMessage,
+        publicMessage,
         { upstream_status: response.status, channel_id: channel.id }
       );
     }

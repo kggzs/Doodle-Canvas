@@ -7,9 +7,11 @@
  * - 登录日志查询
  */
 import { Op } from 'sequelize';
+import bcrypt from 'bcryptjs';
 
 import User from '../models/User.js';
 import LoginLog from '../models/LoginLog.js';
+import RefreshToken from '../models/RefreshToken.js';
 import db from '../models/index.js';
 import * as CoinService from './coins.js';
 import * as UserGroupService from './user-groups.js';
@@ -19,6 +21,7 @@ const { Project, UserBalance, UserGroup, UserGroupMember } = db;
 const USER_STATUSES = ['active', 'disabled', 'banned', 'pending_email'];
 const USER_ROLES = ['user', 'admin'];
 const RISK_LEVELS = ['low', 'medium', 'high'];
+const BCRYPT_COST = 12;
 
 export class AdminUserError extends Error {
   constructor(code, message, extra = {}) {
@@ -68,6 +71,11 @@ function assertNotSelfTarget(targetUserId, operatorId, action) {
   if (targetUserId && operatorId && targetUserId === operatorId) {
     throw new AdminUserError(42201, `不能${action}当前管理员账号`);
   }
+}
+
+function isValidPassword(password) {
+  if (!password || password.length < 8) return false;
+  return /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
 }
 
 export async function listUsers(params = {}) {
@@ -294,6 +302,27 @@ export async function getUserProjects(id, params = {}) {
   };
 }
 
+export async function adminChangePassword(id, newPassword) {
+  const user = await requireUser(id);
+  if (!isValidPassword(newPassword)) {
+    throw new AdminUserError(42201, '新密码至少 8 位，且需同时包含字母和数字');
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+  await user.update({ passwordHash });
+  await RefreshToken.revokeByUserId(id);
+
+  return { changed: true };
+}
+
+export async function getUserCoinTransactions(id, params = {}) {
+  await requireUser(id, { paranoid: false });
+  return CoinService.listTransactions({
+    ...params,
+    userId: id
+  });
+}
+
 export async function assignUserGroup(id, groupId, data = {}, operatorId = null) {
   return UserGroupService.assignGroup(id, groupId, data, operatorId);
 }
@@ -357,6 +386,8 @@ export default {
   softDeleteUser,
   getUserGroups,
   getUserProjects,
+  adminChangePassword,
+  getUserCoinTransactions,
   assignUserGroup,
   removeUserGroup,
   rechargeUser,

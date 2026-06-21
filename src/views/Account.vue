@@ -1,9 +1,9 @@
 <template>
   <div class="h-screen overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)]">
-    <AppHeader>
+    <AppHeader :show-projects-link="true">
       <template #left>
         <button class="flex items-center gap-2" @click="router.push('/projects')">
-          <img src="../assets/logo.png" alt="Doodle Canvas" class="h-9 w-9" />
+          <img src="../assets/logo-small.webp" alt="Doodle Canvas" class="h-9 w-9" decoding="async" />
           <span class="font-semibold">用户中心</span>
         </button>
       </template>
@@ -12,16 +12,16 @@
     <main class="mx-auto max-w-6xl px-4 py-8">
       <section class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 class="text-2xl font-semibold">我的账号</h1>
-          <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ currentUser?.email || '-' }}</p>
+          <h1 class="text-2xl font-semibold">{{ recordsOnly ? '积分使用记录' : '我的账号' }}</h1>
+          <p v-if="!recordsOnly" class="mt-1 text-sm text-[var(--text-secondary)]">{{ currentUser?.email || '-' }}</p>
         </div>
-        <div class="flex gap-2">
-          <n-button secondary @click="router.push('/projects')">我的画布</n-button>
+        <div v-if="!recordsOnly" class="flex gap-2">
+          <n-button secondary @click="router.push('/change-password')">修改密码</n-button>
           <n-button type="primary" :loading="loading" @click="loadAccount">刷新</n-button>
         </div>
       </section>
 
-      <section class="mb-4 grid gap-3 md:grid-cols-4">
+      <section v-if="!recordsOnly" class="mb-4 grid gap-3 md:grid-cols-4">
         <div
           v-for="item in balanceCards"
           :key="item.label"
@@ -33,7 +33,7 @@
         </div>
       </section>
 
-      <section class="mb-4 grid gap-4 md:grid-cols-[300px_1fr]">
+      <section v-if="!recordsOnly" class="mb-4 grid gap-4 md:grid-cols-[300px_1fr]">
         <div class="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4">
           <h2 class="mb-3 font-semibold">账号信息</h2>
           <dl class="space-y-3 text-sm">
@@ -114,13 +114,14 @@
 
 <script setup>
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { NButton, NDataTable, NPagination, NSelect, NTag } from 'naive-ui'
 import AppHeader from '@/components/AppHeader.vue'
 import { coinApi } from '@/api/backend'
 import { currentUser, fetchProfile } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const transactionsLoading = ref(false)
 const balance = ref(null)
@@ -134,6 +135,8 @@ const filters = reactive({
   type: null,
   direction: null
 })
+
+const recordsOnly = computed(() => route.query.view === 'transactions')
 
 const typeOptions = [
   { label: '充值', value: 'recharge' },

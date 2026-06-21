@@ -13,6 +13,8 @@ export const adminUserApi = {
   loginLogs: (id, params) => backend.get(`/admin/users/${id}/login-logs`, { params }),
   groups: (id) => backend.get(`/admin/users/${id}/groups`),
   projects: (id, params) => backend.get(`/admin/users/${id}/projects`, { params }),
+  coins: (id, params) => backend.get(`/admin/users/${id}/coins`, { params }),
+  changePassword: (id, data) => backend.put(`/admin/users/${id}/password`, data),
   addGroup: (id, data) => backend.post(`/admin/users/${id}/groups`, data),
   removeGroup: (id, groupId) => backend.delete(`/admin/users/${id}/groups/${groupId}`),
   recharge: (id, data) => backend.post(`/admin/users/${id}/recharge`, data),
@@ -80,6 +82,23 @@ export const adminBillingApi = {
   removeRule: (id) => backend.delete(`/admin/billing/rules/${id}`)
 }
 
+export const billingApi = {
+  pricing: () => backend.get('/billing/pricing'),
+  estimate: (params) => backend.get('/billing/estimate', { params })
+}
+
+export const announcementApi = {
+  latest: (params) => backend.get('/announcements/latest', { params }),
+  detail: (id) => backend.get(`/announcements/${id}`)
+}
+
+export const adminAnnouncementApi = {
+  list: (params) => backend.get('/admin/announcements', { params }),
+  create: (data) => backend.post('/admin/announcements', data),
+  update: (id, data) => backend.put(`/admin/announcements/${id}`, data),
+  remove: (id) => backend.delete(`/admin/announcements/${id}`)
+}
+
 export const adminFileApi = {
   list: (params) => backend.get('/admin/files', { params }),
   restore: (id) => backend.post(`/admin/files/${id}/restore`)
@@ -121,6 +140,9 @@ export default {
   adminDashboardApi,
   adminRecordApi,
   adminBillingApi,
+  billingApi,
+  announcementApi,
+  adminAnnouncementApi,
   adminFileApi,
   adminErrorLogApi,
   adminChannelApi,

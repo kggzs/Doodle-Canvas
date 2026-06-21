@@ -47,6 +47,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('../views/ChangePassword.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     redirect: '/admin/dashboard',
     meta: { requiresAuth: true, requiresAdmin: true }
@@ -96,6 +102,12 @@ const routes = [
     path: '/admin/error-logs',
     name: 'AdminErrorLogs',
     component: () => import('../views/AdminErrorLogs.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/announcements',
+    name: 'AdminAnnouncements',
+    component: () => import('../views/AdminAnnouncements.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {

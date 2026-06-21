@@ -4,7 +4,7 @@
  * 路径前缀：/api/admin/dashboard
  */
 import { Router } from 'express';
-import { Op, fn, col } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
 
 import db from '../../models/index.js';
 import { error, success } from '../../utils/response.js';
@@ -49,6 +49,34 @@ async function sumCoins(where) {
   return toNumber(row?.amount);
 }
 
+async function fileStorageStats() {
+  const row = await File.findOne({
+    where: { status: 'active' },
+    attributes: [
+      [fn('COUNT', col('id')), 'totalCount'],
+      [fn('SUM', col('file_size')), 'totalSize'],
+      [literal("SUM(CASE WHEN mime_type LIKE 'image/%' OR type IN ('generated_image','thumbnail') THEN 1 ELSE 0 END)"), 'imageCount'],
+      [literal("SUM(CASE WHEN mime_type LIKE 'image/%' OR type IN ('generated_image','thumbnail') THEN file_size ELSE 0 END)"), 'imageSize'],
+      [literal("SUM(CASE WHEN mime_type LIKE 'video/%' OR type = 'generated_video' THEN 1 ELSE 0 END)"), 'videoCount'],
+      [literal("SUM(CASE WHEN mime_type LIKE 'video/%' OR type = 'generated_video' THEN file_size ELSE 0 END)"), 'videoSize'],
+      [literal("SUM(CASE WHEN NOT (mime_type LIKE 'image/%' OR type IN ('generated_image','thumbnail') OR mime_type LIKE 'video/%' OR type = 'generated_video') THEN 1 ELSE 0 END)"), 'otherCount'],
+      [literal("SUM(CASE WHEN NOT (mime_type LIKE 'image/%' OR type IN ('generated_image','thumbnail') OR mime_type LIKE 'video/%' OR type = 'generated_video') THEN file_size ELSE 0 END)"), 'otherSize']
+    ],
+    raw: true
+  });
+
+  return {
+    total_count: toNumber(row?.totalCount),
+    total_size: toNumber(row?.totalSize),
+    image_count: toNumber(row?.imageCount),
+    image_size: toNumber(row?.imageSize),
+    video_count: toNumber(row?.videoCount),
+    video_size: toNumber(row?.videoSize),
+    other_count: toNumber(row?.otherCount),
+    other_size: toNumber(row?.otherSize)
+  };
+}
+
 function handleError(res, err) {
   logger.error(`管理仪表盘接口异常：${err.message}`, { stack: err.stack });
   return error(res, 50001, '服务器内部错误', 500);
@@ -69,6 +97,7 @@ router.get('/overview', async (req, res) => {
       failedGenerationsToday,
       activeFiles,
       deletedFiles,
+      storageStats,
       consumedToday,
       incomeToday
     ] = await Promise.all([
@@ -80,6 +109,7 @@ router.get('/overview', async (req, res) => {
       GenerationRecord.count({ where: { createdAt: todayRange, status: 'failed' } }),
       File.count({ where: { status: 'active' } }),
       File.count({ where: { status: 'deleted' } }),
+      fileStorageStats(),
       sumCoins({ type: 'consume', direction: 'out', createdAt: todayRange }),
       sumCoins({
         type: { [Op.in]: ['recharge', 'recharge_bonus', 'redeem', 'gift', 'register_gift'] },
@@ -105,7 +135,8 @@ router.get('/overview', async (req, res) => {
       },
       files: {
         active: activeFiles,
-        deleted: deletedFiles
+        deleted: deletedFiles,
+        storage: storageStats
       }
     }, '获取仪表盘概况成功');
   } catch (err) {

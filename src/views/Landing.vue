@@ -75,6 +75,8 @@
                     :src="canvasImage"
                     alt="万能涂鸦画布节点工作台"
                     class="h-full w-full object-cover object-[52%_42%]"
+                    decoding="async"
+                    fetchpriority="high"
                   />
                   <div class="scanline absolute inset-0"></div>
                 </div>
@@ -117,7 +119,7 @@
           <div class="grid gap-4 md:grid-cols-2">
             <figure class="glass-panel overflow-hidden rounded-lg border border-white/12">
               <div class="aspect-[16/9] bg-slate-950">
-                <img :src="workflowImage" alt="提示词到图片再到视频的流程画布" class="h-full w-full object-cover object-center" />
+                <img :src="workflowImage" alt="提示词到图片再到视频的流程画布" class="h-full w-full object-cover object-center" loading="lazy" decoding="async" />
               </div>
               <figcaption class="border-t border-white/10 px-4 py-3 text-sm font-semibold text-slate-200">
                 图文到视频生成链路
@@ -125,7 +127,7 @@
             </figure>
             <figure class="glass-panel overflow-hidden rounded-lg border border-white/12 md:translate-y-8">
               <div class="aspect-[16/9] bg-slate-950">
-                <img :src="workflowStoryboardImage" alt="角色参考与分镜生成流程画布" class="h-full w-full object-cover object-center" />
+                <img :src="workflowStoryboardImage" alt="角色参考与分镜生成流程画布" class="h-full w-full object-cover object-center" loading="lazy" decoding="async" />
               </div>
               <figcaption class="border-t border-white/10 px-4 py-3 text-sm font-semibold text-slate-200">
                 角色参考与分镜迭代
@@ -139,7 +141,7 @@
         <div class="mx-auto grid max-w-7xl gap-8 px-5 py-12 md:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <figure class="glass-panel overflow-hidden rounded-lg border border-white/12 lg:order-first">
             <div class="aspect-[16/9] bg-slate-950">
-              <img :src="homeImage" alt="万能涂鸦画布项目首页" class="h-full w-full object-cover object-top" />
+              <img :src="homeImage" alt="万能涂鸦画布项目首页" class="h-full w-full object-cover object-top" loading="lazy" decoding="async" />
             </div>
           </figure>
 
@@ -188,10 +190,10 @@ import {
   SparklesOutline
 } from '@vicons/ionicons5'
 import AppHeader from '@/components/AppHeader.vue'
-import canvasImage from '../../doc/canvas.png'
-import homeImage from '../../doc/home.png'
-import workflowImage from '../../doc/workflow.png'
-import workflowStoryboardImage from '../../doc/workflow2.png'
+import canvasImage from '../assets/landing-canvas.webp'
+import homeImage from '../assets/landing-home.webp'
+import workflowImage from '../assets/landing-workflow.webp'
+import workflowStoryboardImage from '../assets/landing-workflow2.webp'
 
 const router = useRouter()
 

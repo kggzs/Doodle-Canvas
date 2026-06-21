@@ -14,6 +14,7 @@ import billingRoutes from './billing.js';
 import recordRoutes from './records.js';
 import projectRoutes from './projects.js';
 import fileRoutes from './files.js';
+import announcementRoutes from './announcements.js';
 
 const router = Router();
 
@@ -40,6 +41,9 @@ router.use('/records', recordRoutes);
 
 // 用户侧项目持久化：/api/projects/*
 router.use('/projects', projectRoutes);
+
+// 用户侧公告：/api/announcements/*
+router.use('/announcements', announcementRoutes);
 
 // 用户侧文件与上传：/api/upload/image、/api/files/*
 router.use('/', fileRoutes);

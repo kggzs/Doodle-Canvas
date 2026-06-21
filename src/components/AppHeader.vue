@@ -14,8 +14,10 @@
       <slot name="center"></slot>
 
       <template v-if="showAuthNav">
+        <AnnouncementBanner />
+
         <button
-          v-if="isLoggedIn"
+          v-if="isLoggedIn && showProjectsLink"
           @click="router.push('/projects')"
           class="hidden px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors md:block"
         >
@@ -24,8 +26,17 @@
 
         <button
           v-if="isLoggedIn"
-          @click="router.push('/account')"
+          @click="pricingVisible = true"
           class="hidden rounded-md border border-[var(--border-color)] px-2 py-1 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-color)] hover:text-[var(--text-primary)] sm:inline-flex"
+        >
+          模型价格
+        </button>
+
+        <button
+          v-if="isLoggedIn"
+          @click="router.push({ path: '/account', query: { view: 'transactions' } })"
+          class="hidden rounded-md border border-[var(--border-color)] px-2 py-1 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-color)] hover:text-[var(--text-primary)] sm:inline-flex"
+          title="点击查看积分使用记录"
         >
           积分 {{ balanceText }}
         </button>
@@ -50,6 +61,15 @@
             {{ currentUser?.username || '账号' }}
           </button>
         </n-dropdown>
+
+        <n-tag
+          v-if="primaryGroup"
+          size="small"
+          :color="groupTagColor(primaryGroup)"
+          class="hidden md:inline-flex"
+        >
+          {{ primaryGroup.name }}
+        </n-tag>
       </template>
 
       <!-- Right slot | 右侧插槽 -->
@@ -80,6 +100,7 @@
         </button>
       </div>
     </div>
+    <ModelPricingModal v-model:show="pricingVisible" />
   </header>
 </template>
 
@@ -90,7 +111,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { NDropdown, NIcon } from 'naive-ui'
+import { NDropdown, NIcon, NTag } from 'naive-ui'
 import { 
   SunnyOutline, 
   MoonOutline,
@@ -99,10 +120,13 @@ import {
 import { isDark, toggleTheme } from '../stores/theme'
 import { currentUser, isLoggedIn, logout } from '../stores/auth'
 import { coinApi } from '@/api/backend'
+import AnnouncementBanner from '@/components/AnnouncementBanner.vue'
+import ModelPricingModal from '@/components/ModelPricingModal.vue'
 
 const BALANCE_CACHE_KEY = 'doodle-balance-cache'
 const BALANCE_CACHE_TTL_MS = 30 * 1000
 const router = useRouter()
+const pricingVisible = ref(false)
 const balance = ref(null)
 const balanceLoading = ref(false)
 const balanceRefreshPending = ref(false)
@@ -116,11 +140,22 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
+  showProjectsLink: {
+    type: Boolean,
+    default: false
+  },
   loginPath: {
     type: String,
     default: '/login'
   }
 })
+
+const userOptions = computed(() => [
+  { label: '用户中心', key: 'account' },
+  { label: '修改密码', key: 'change-password' },
+  { type: 'divider', key: 'divider' },
+  { label: '退出登录', key: 'logout' }
+])
 
 const balanceText = computed(() => {
   if (balanceLoading.value && balance.value === null) return '...'
@@ -128,20 +163,36 @@ const balanceText = computed(() => {
   return Number.isInteger(value) ? String(value) : value.toFixed(2)
 })
 
-const userOptions = computed(() => [
-  { label: '用户中心', key: 'account' },
-  { label: '我的画布', key: 'projects' },
-  { type: 'divider', key: 'divider' },
-  { label: '退出登录', key: 'logout' }
-])
+const primaryGroup = computed(() => {
+  const groups = currentUser.value?.userGroups || []
+  return groups.find(group => group?.name) || null
+})
+
+function textColorForBadge(color) {
+  const hex = String(color || '').replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111827' : '#ffffff'
+}
+
+function groupTagColor(group = {}) {
+  if (!group?.badgeColor) return undefined
+  return {
+    color: group.badgeColor,
+    borderColor: group.badgeColor,
+    textColor: textColorForBadge(group.badgeColor)
+  }
+}
 
 async function handleUserAction(key) {
   if (key === 'account') {
     router.push('/account')
     return
   }
-  if (key === 'projects') {
-    router.push('/projects')
+  if (key === 'change-password') {
+    router.push('/change-password')
     return
   }
   if (key === 'logout') {

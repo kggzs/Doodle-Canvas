@@ -62,6 +62,19 @@ function formatCoins(value) {
   return Number(value || 0).toFixed(2)
 }
 
+function formatBytes(value) {
+  const bytes = Number(value || 0)
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let size = bytes / 1024
+  let index = 0
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024
+    index += 1
+  }
+  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[index]}`
+}
+
 function typeLabel(value) {
   const labels = { image: '图片', video: '视频', chat: '问答' }
   return labels[value] || value || '-'
@@ -87,8 +100,18 @@ const summaryItems = computed(() => {
     },
     {
       label: '文件',
-      value: formatNumber(data.files?.active),
-      extra: `已删除 ${formatNumber(data.files?.deleted)}`
+      value: formatBytes(data.files?.storage?.total_size),
+      extra: `活跃 ${formatNumber(data.files?.active)} / 已删除 ${formatNumber(data.files?.deleted)}`
+    },
+    {
+      label: '图片文件',
+      value: formatBytes(data.files?.storage?.image_size),
+      extra: `${formatNumber(data.files?.storage?.image_count)} 个文件`
+    },
+    {
+      label: '视频文件',
+      value: formatBytes(data.files?.storage?.video_size),
+      extra: `${formatNumber(data.files?.storage?.video_count)} 个文件`
     }
   ]
 })

@@ -8,14 +8,14 @@
 mysql -u root -p < server/sql/init.sql
 ```
 
-`init.sql` 是当前合并版结构，和 `server/src/models` 下的 Sequelize 模型保持一致。脚本包含 18 张核心表：
+`init.sql` 是当前合并版结构，和 `server/src/models` 下的 Sequelize 模型保持一致。脚本包含 19 张核心表：
 
 - 用户与认证：`users`、`refresh_tokens`、`email_verifications`、`login_logs`
 - 用户组与金币：`user_groups`、`user_group_members`、`user_balances`、`coin_transactions`
 - 模型与渠道：`models`、`model_channels`、`model_channel_bindings`
 - 生成与文件：`generation_records`、`files`
 - 项目与迁移：`projects`、`migrate_imports`
-- 计费与系统：`billing_rules`、`system_settings`
+- 计费、系统与公告：`billing_rules`、`system_settings`、`announcements`
 - 错误日志：`error_logs`
 
 脚本只写入必要基础数据：
@@ -44,6 +44,7 @@ npm run create-admin -- --email admin@example.com --username admin --password 'C
 
 - `upgrade-user-groups-coins.sql`：旧版用户组/金币系统升级参考。
 - `upgrade-core-features.sql`：旧版核心功能补表参考。
+- `upgrade-20260621-announcements-user-updates.sql`：本次公告、用户组单组约束相关升级脚本。
 - `npm --prefix server run upgrade-core-features`：兼容部分 MySQL/MariaDB 语法差异的 Node 升级脚本。
 
 全新服务器不要叠加执行升级脚本。

@@ -30,6 +30,7 @@ import recordRoutes from './records.js';
 import fileRoutes from './files.js';
 import dashboardRoutes from './dashboard.js';
 import errorLogRoutes from './error-logs.js';
+import announcementRoutes from './announcements.js';
 
 const router = Router();
 
@@ -65,6 +66,9 @@ router.use('/files', fileRoutes);
 
 // 错误日志：/api/admin/error-logs/*
 router.use('/error-logs', errorLogRoutes);
+
+// 公告管理：/api/admin/announcements/*
+router.use('/announcements', announcementRoutes);
 
 /**
  * 管理后台健康检查占位接口

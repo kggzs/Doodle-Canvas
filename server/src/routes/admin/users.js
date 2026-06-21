@@ -277,6 +277,48 @@ router.get(
   }
 );
 
+router.put(
+  '/:id/password',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    body('newPassword').isLength({ min: 8 }).withMessage('新密码至少 8 位').matches(/^(?=.*[a-zA-Z])(?=.*[0-9]).+$/).withMessage('新密码需同时包含字母和数字')
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.adminChangePassword(req.params.id, req.body.newPassword, req.user?.id);
+      return success(res, result, '密码已修改，用户需重新登录');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
+router.get(
+  '/:id/coins',
+  [
+    param('id').isUUID().withMessage('用户 ID 格式不正确'),
+    query('page').optional().isInt({ min: 1 }).withMessage('页码需为正整数').toInt(),
+    query('pageSize').optional().isInt({ min: 1, max: 100 }).withMessage('每页条数需为 1-100').toInt()
+  ],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await AdminUserService.getUserCoinTransactions(req.params.id, {
+        page: req.query.page,
+        pageSize: req.query.pageSize
+      });
+      return paginate(res, result);
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
 router.post(
   '/:id/groups',
   [

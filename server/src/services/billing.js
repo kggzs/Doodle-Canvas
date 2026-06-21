@@ -13,6 +13,7 @@ import * as CoinService from './coins.js';
 const {
   BillingRule,
   GenerationRecord,
+  ModelChannel,
   ModelConfig,
   Project,
   UserGroup,
@@ -365,6 +366,67 @@ export async function listRules(params = {}) {
   return { items: rows, total: count, page, pageSize };
 }
 
+export async function listPublicPricing(userId) {
+  const group = userId ? await getEffectiveGroup(userId) : null;
+  const multiplier = Number(group?.costMultiplier || 1);
+  const rows = await ModelConfig.findAll({
+    where: { isActive: true },
+    include: [
+      {
+        model: BillingRule,
+        as: 'billingRule',
+        where: { isActive: true },
+        required: false
+      },
+      {
+        model: ModelChannel,
+        as: 'channels',
+        attributes: ['id'],
+        through: { attributes: [], where: { isActive: true } },
+        where: { isActive: true, circuitOpen: false },
+        required: false
+      }
+    ],
+    order: [
+      ['modelType', 'ASC'],
+      ['sortOrder', 'ASC'],
+      ['displayName', 'ASC']
+    ]
+  });
+
+  const items = rows.map((model) => {
+    const rule = model.billingRule || null;
+    const baseAmount = calculateBaseAmount(rule, {}, model.modelType);
+    return {
+      id: model.id,
+      model_key: model.modelKey,
+      display_name: model.displayName,
+      model_type: model.modelType,
+      description: model.description,
+      available_channels: Array.isArray(model.channels) ? model.channels.length : 0,
+      rule: rule ? {
+        id: rule.id,
+        rule_type: rule.ruleType,
+        fixed_amount: Number(rule.fixedAmount || 0)
+      } : null,
+      base_amount: baseAmount,
+      cost_multiplier: multiplier,
+      final_cost: toMoney(baseAmount * multiplier)
+    };
+  });
+
+  return {
+    items,
+    total: items.length,
+    group: group ? {
+      id: group.id,
+      code: group.code,
+      name: group.name,
+      cost_multiplier: multiplier
+    } : null
+  };
+}
+
 export async function upsertRule(data = {}) {
   const model = await resolveModel({ modelId: data.modelId || data.model_id });
   const payload = {
@@ -413,6 +475,7 @@ export default {
   chargeForGeneration,
   refundGeneration,
   listRules,
+  listPublicPricing,
   upsertRule,
   updateRule,
   deleteRule

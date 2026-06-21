@@ -39,6 +39,15 @@ function handleServiceError(res, err) {
 
 router.use(authMiddleware);
 
+router.get('/pricing', async (req, res) => {
+  try {
+    const result = await BillingService.listPublicPricing(req.userId);
+    return success(res, result, '获取模型价格成功');
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+});
+
 router.get(
   '/estimate',
   [

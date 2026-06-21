@@ -514,7 +514,28 @@ ON DUPLICATE KEY UPDATE
     `description` = VALUES(`description`);
 
 -- ============================================
--- 17. error_logs 错误日志表
+-- 17. announcements 公告表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `announcements` (
+    `id`           CHAR(36)      NOT NULL,
+    `title`        VARCHAR(200)  NOT NULL,
+    `content`      LONGTEXT      NOT NULL,
+    `status`       ENUM('draft','published','archived') NOT NULL DEFAULT 'draft',
+    `priority`     INT           NOT NULL DEFAULT 0,
+    `published_at` DATETIME      DEFAULT NULL,
+    `created_by`   CHAR(36)      DEFAULT NULL,
+    `created_at`   DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_announcement_status_time` (`status`, `published_at`, `priority`),
+    KEY `idx_announcement_creator` (`created_by`),
+    CONSTRAINT `fk_announcements_creator` FOREIGN KEY (`created_by`)
+        REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公告表';
+
+-- ============================================
+-- 18. error_logs 错误日志表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `error_logs` (
     `id`             CHAR(36) NOT NULL,
@@ -544,7 +565,7 @@ CREATE TABLE IF NOT EXISTS `error_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='错误日志表';
 
 -- ============================================
--- 18. migrate_imports 迁移导入映射表
+-- 19. migrate_imports 迁移导入映射表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `migrate_imports` (
     `id`          BIGINT       NOT NULL AUTO_INCREMENT,

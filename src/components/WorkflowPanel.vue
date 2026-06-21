@@ -4,18 +4,7 @@
     <div v-if="visible" class="workflow-panel" v-click-outside="handleClickOutside">
       <!-- Header | 头部 -->
       <div class="panel-header">
-        <div class="panel-tabs">
-          <span 
-            class="tab-item" 
-            :class="{ active: activeTab === 'public' }"
-            @click="activeTab = 'public'"
-          >公共工作流</span>
-          <span 
-            class="tab-item" 
-            :class="{ active: activeTab === 'my' }"
-            @click="activeTab = 'my'"
-          >我的工作流</span>
-        </div>
+        <h3 class="panel-title">公共工作流</h3>
         <button class="expand-btn" @click="visible = false">
           <n-icon :size="16"><CloseOutline /></n-icon>
         </button>
@@ -24,7 +13,7 @@
       <!-- Content | 内容 -->
       <div class="panel-content">
         <!-- Public workflows | 公共工作流 -->
-        <div v-if="activeTab === 'public'" class="workflow-grid">
+        <div class="workflow-grid">
           <div 
             v-for="workflow in publicWorkflows" 
             :key="workflow.id"
@@ -40,14 +29,6 @@
             <div class="card-title">{{ workflow.name }}</div>
           </div>
         </div>
-        
-        <!-- My workflows | 我的工作流 -->
-        <div v-else class="empty-state">
-          <n-icon :size="36" class="text-gray-500">
-            <FolderOpenOutline />
-          </n-icon>
-          <p class="text-gray-500 text-sm mt-2">暂无自定义工作流</p>
-        </div>
       </div>
     </div>
   </Transition>
@@ -58,14 +39,13 @@
  * Workflow Panel Component | 工作流面板组件
  * 显示工作流模板列表，支持一键添加到画布
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { 
   CloseOutline,
   GridOutline, 
   ImageOutline, 
   VideocamOutline,
-  FolderOpenOutline,
   BookOutline,
   PersonOutline,
   CartOutline,
@@ -78,9 +58,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:show', 'add-workflow'])
-
-// Active tab | 当前标签
-const activeTab = ref('public')
 
 // Visible state | 显示状态
 const visible = computed({
@@ -168,24 +145,8 @@ const vClickOutside = {
   border-bottom: 1px solid var(--border-color);
 }
 
-.panel-tabs {
-  display: flex;
-  gap: 24px;
-}
-
-.tab-item {
+.panel-title {
   font-size: 15px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color 0.2s;
-  padding-bottom: 4px;
-}
-
-.tab-item:hover {
-  color: var(--text-primary);
-}
-
-.tab-item.active {
   color: var(--text-primary);
   font-weight: 500;
 }
@@ -267,17 +228,6 @@ const vClickOutside = {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Empty state | 空状态 */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 24px;
-  text-align: center;
-  color: var(--text-secondary);
 }
 
 /* Transition | 过渡动画 */
