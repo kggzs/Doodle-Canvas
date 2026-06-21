@@ -266,7 +266,7 @@ flowchart LR
 
 ## 🚢 部署
 
-完整部署流程请查看 [📄 DEPLOYMENT.md](./DEPLOYMENT.md)。
+完整部署流程请查看 [📄 DEPLOYMENT.md](./doc/DEPLOYMENT.md)。
 
 > ⚠️ **重要**：新服务器只导入 `server/sql/init.sql`，**不要**叠加执行历史升级脚本。
 
@@ -276,12 +276,14 @@ flowchart LR
 
 | 文档 | 说明 |
 |:--- |:--- |
-| [📗 运行指南](./RUN-GUIDE.md) | 本地开发与调试指引 |
-| [📘 部署流程](./DEPLOYMENT.md) | 生产环境部署步骤 |
+| [📚 文档索引](./doc/README.md) | 所有工程文档入口 |
+| [🛡️ 代码审计报告](./doc/code-audit-2026-06-21.md) | 当前安全与可靠性审计 |
+| [📗 运行指南](./doc/RUN-GUIDE.md) | 本地开发与调试指引 |
+| [📘 部署流程](./doc/DEPLOYMENT.md) | 生产环境部署步骤 |
 | [📙 服务端架构](./doc/server-design.md) | 后端设计与架构说明 |
 | [📊 开发进度](./doc/development-progress.md) | 项目开发进展追踪 |
 | [📝 剩余待办](./doc/missing-features.md) | 暂未实现的功能清单 |
-| [🗄️ 数据库脚本说明](./server/sql/README.md) | SQL 初始化与升级说明 |
+| [🗄️ 数据库说明](./doc/database.md) | SQL 初始化与升级说明 |
 
 ---
 
