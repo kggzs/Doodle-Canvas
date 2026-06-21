@@ -2,6 +2,7 @@
 /**
  * 用户侧文件路由
  * - POST /api/upload/image
+ * - POST /api/upload/video
  * - GET /api/files/:id
  * - DELETE /api/files/:id
  */
@@ -56,6 +57,24 @@ router.post('/upload/image', StorageService.uploadImageMiddleware.single('file')
       mimeType: req.file.mimetype
     });
     return success(res, { file }, '图片上传成功');
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+});
+
+router.post('/upload/video', StorageService.uploadVideoMiddleware.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      throw new StorageError(42201, '请上传视频文件');
+    }
+    const file = await StorageService.saveBuffer({
+      buffer: req.file.buffer,
+      userId: req.userId,
+      type: 'upload',
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype
+    });
+    return success(res, { file }, '视频上传成功');
   } catch (err) {
     return handleServiceError(res, err);
   }

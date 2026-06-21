@@ -6,13 +6,13 @@
       <template #left>
         <button 
           @click="goBack"
-          class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
+          class="shrink-0 rounded-lg p-2 transition-colors hover:bg-[var(--bg-tertiary)]"
         >
           <n-icon :size="20"><ChevronBackOutline /></n-icon>
         </button>
         <n-dropdown :options="projectOptions" @select="handleProjectAction">
-          <button class="flex items-center gap-1 hover:bg-[var(--bg-tertiary)] px-2 py-1 rounded-lg transition-colors">
-            <span class="font-medium">{{ projectName }}</span>
+          <button class="flex min-w-0 items-center gap-1 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--bg-tertiary)]">
+            <span class="max-w-[42vw] truncate font-medium sm:max-w-[260px]">{{ projectName }}</span>
             <n-icon :size="16"><ChevronDownOutline /></n-icon>
           </button>
         </n-dropdown>
@@ -61,10 +61,10 @@
       </VueFlow>
 
       <!-- Left toolbar | 左侧工具栏 -->
-      <aside class="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-1 p-2 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] shadow-lg z-10">
+      <aside class="absolute left-3 top-4 z-10 flex flex-col gap-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-1.5 shadow-lg md:left-4 md:top-1/2 md:-translate-y-1/2 md:p-2">
         <button 
           @click="showNodeMenu = !showNodeMenu"
-          class="w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--accent-color)] text-white hover:bg-[var(--accent-hover)] transition-colors"
+          class="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-color)] text-white transition-colors hover:bg-[var(--accent-hover)]"
           title="添加节点"
         >
           <n-icon :size="20"><AddOutline /></n-icon>
@@ -92,7 +92,7 @@
       <!-- Node menu popup | 节点菜单弹窗 -->
       <div 
         v-if="showNodeMenu"
-        class="absolute left-20 top-1/2 -translate-y-1/2 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] shadow-lg p-2 z-20"
+        class="absolute left-16 top-4 z-20 max-w-[calc(100vw-5rem)] rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 shadow-lg md:left-20 md:top-1/2 md:-translate-y-1/2"
       >
         <button 
           v-for="nodeType in nodeTypeOptions" 
@@ -106,7 +106,7 @@
       </div>
 
       <!-- Bottom controls | 底部控制 -->
-      <div class="absolute bottom-4 left-4 flex items-center gap-2 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] p-1">
+      <div class="absolute bottom-4 left-4 hidden items-center gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-1 sm:flex">
         <button 
           @click="fitView({ padding: 0.2 })" 
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded transition-colors"
@@ -126,7 +126,7 @@
       </div>
 
       <!-- Bottom input panel (floating) | 底部输入面板（悬浮） -->
-      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-20">
+      <div class="absolute bottom-3 left-1/2 z-20 w-full max-w-2xl -translate-x-1/2 px-3 sm:bottom-4 sm:px-4">
         <!-- Processing indicator | 处理中指示器 -->
         <div 
           v-if="isProcessing" 
@@ -141,7 +141,7 @@
           </div>
         </div>
 
-        <div class="bg-[var(--bg-primary)] rounded-xl border border-[var(--border-color)] p-3">
+        <div class="rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] p-3 shadow-lg">
           <textarea
             v-model="chatInput"
             :placeholder="inputPlaceholder"
@@ -152,11 +152,11 @@
             @keydown.enter.ctrl="sendMessage"
           />
           <div class="flex items-center justify-between mt-2">
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 items-center gap-2">
               <button
                 @click="handlePolish"
                 :disabled="isProcessing || !chatInput.trim() || !polishChatModelOptions.length"
-                class="px-3 py-1.5 text-xs rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] px-3 py-1.5 text-xs transition-colors hover:bg-[var(--bg-tertiary)] disabled:cursor-not-allowed disabled:opacity-50"
                 title="AI 润色提示词"
               >
                 ✨ AI 润色
@@ -167,14 +167,14 @@
                 trigger="click"
                 @select="setPolishChatModel"
               >
-                <button class="flex items-center gap-1 text-xs text-[var(--text-primary)] hover:text-[var(--accent-color)]">
-                  {{ displayPolishModelName }}
+                <button class="hidden min-w-0 items-center gap-1 text-xs text-[var(--text-primary)] hover:text-[var(--accent-color)] sm:flex">
+                  <span class="max-w-[160px] truncate">{{ displayPolishModelName }}</span>
                   <n-icon :size="12"><ChevronDownOutline /></n-icon>
                 </button>
               </n-dropdown>
             </div>
-            <div class="flex items-center gap-3">
-              <label class="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+            <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+              <label class="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] sm:gap-2 sm:text-sm">
                 <n-switch v-model:value="autoExecute" size="small" />
                 自动执行
               </label>
@@ -191,7 +191,7 @@
         </div>
         
         <!-- Quick suggestions | 快捷建议 -->
-        <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
+        <div class="mt-2 hidden flex-wrap items-center justify-center gap-2 sm:flex">
           <span class="text-xs text-[var(--text-secondary)]">推荐：</span>
           <button 
             v-for="tag in suggestions" 

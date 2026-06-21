@@ -245,7 +245,7 @@ flowchart LR
 | **💰 计费** | `GET /api/billing/estimate` |
 | **📝 记录** | `GET /api/records` · `GET /api/records/:id` |
 | **📁 项目** | `GET /api/projects` · `POST /api/projects` · `GET/PUT/DELETE /api/projects/:id` |
-| **🗂️ 文件** | `POST /api/upload/image` · `GET /api/files/:id` · `DELETE /api/files/:id` |
+| **🗂️ 文件** | `POST /api/upload/image` · `POST /api/upload/video` · `GET /api/files/:id` · `DELETE /api/files/:id` |
 
 ### 🔒 管理侧 API
 

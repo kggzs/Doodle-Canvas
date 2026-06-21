@@ -1,15 +1,21 @@
 <template>
   <!-- App Header | 应用头部 -->
-  <header class="flex items-center justify-between px-4 md:px-8 py-4 border-b border-[var(--border-color)]">
+  <header class="flex min-h-[64px] items-center justify-between gap-3 border-b border-[var(--border-color)] px-3 py-3 sm:px-4 md:px-8 md:py-4">
     <!-- Left slot | 左侧插槽 -->
-    <div class="flex items-center gap-2">
+    <div class="flex min-w-0 flex-1 items-center gap-2">
       <slot name="left">
-        <!-- Default: empty or logo -->
+        <button
+          class="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-[var(--bg-tertiary)]"
+          @click="router.push(isLoggedIn ? '/projects' : '/')"
+        >
+          <img :src="logoSmall" alt="Doodle Canvas" class="h-9 w-9 shrink-0" decoding="async" />
+          <span class="truncate font-semibold text-[var(--text-primary)]">万能涂鸦画布</span>
+        </button>
       </slot>
     </div>
     
     <!-- Right section | 右侧区域 -->
-    <div class="flex items-center gap-3">
+    <div class="flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3">
       <!-- Center slot | 中间插槽 -->
       <slot name="center"></slot>
 
@@ -19,7 +25,7 @@
         <button
           v-if="isLoggedIn && showProjectsLink"
           @click="router.push('/projects')"
-          class="hidden px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors md:block"
+          class="hidden rounded-lg px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-tertiary)] md:inline-flex"
         >
           我的画布
         </button>
@@ -27,7 +33,7 @@
         <button
           v-if="isLoggedIn"
           @click="pricingVisible = true"
-          class="hidden rounded-md border border-[var(--border-color)] px-2 py-1 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-color)] hover:text-[var(--text-primary)] sm:inline-flex"
+          class="hidden rounded-md border border-[var(--border-color)] px-2 py-1 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-color)] hover:text-[var(--text-primary)] md:inline-flex"
         >
           模型价格
         </button>
@@ -35,7 +41,7 @@
         <button
           v-if="isLoggedIn"
           @click="router.push({ path: '/account', query: { view: 'transactions' } })"
-          class="hidden rounded-md border border-[var(--border-color)] px-2 py-1 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-color)] hover:text-[var(--text-primary)] sm:inline-flex"
+          class="hidden rounded-md border border-[var(--border-color)] px-2 py-1 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-color)] hover:text-[var(--text-primary)] md:inline-flex"
           title="点击查看积分使用记录"
         >
           积分 {{ balanceText }}
@@ -50,14 +56,14 @@
           </button>
           <button
             @click="router.push('/register')"
-            class="hidden px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors sm:block"
+            class="hidden rounded-lg px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-tertiary)] sm:inline-flex"
           >
             注册
           </button>
         </template>
 
         <n-dropdown v-else :options="userOptions" @select="handleUserAction" placement="bottom-end">
-          <button class="px-2 py-1 text-sm rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors">
+          <button class="hidden rounded-lg px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-tertiary)] md:inline-flex">
             {{ currentUser?.username || '账号' }}
           </button>
         </n-dropdown>
@@ -66,7 +72,7 @@
           v-if="primaryGroup"
           size="small"
           :color="groupTagColor(primaryGroup)"
-          class="hidden md:inline-flex"
+          class="hidden lg:inline-flex"
         >
           {{ primaryGroup.name }}
         </n-tag>
@@ -81,7 +87,7 @@
           :href="githubUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-primary)] hover:text-[var(--accent-color)]"
+          class="hidden rounded-lg p-2 text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent-color)] sm:inline-flex"
           title="GitHub"
         >
           <n-icon :size="20"><LogoGithub /></n-icon>
@@ -98,6 +104,21 @@
             <MoonOutline v-else />
           </n-icon>
         </button>
+
+        <n-dropdown
+          v-if="showAuthNav"
+          :options="mobileNavOptions"
+          placement="bottom-end"
+          trigger="click"
+          @select="handleMobileNavSelect"
+        >
+          <button
+            class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-[var(--bg-tertiary)] md:hidden"
+            title="导航菜单"
+          >
+            <n-icon :size="22"><MenuOutline /></n-icon>
+          </button>
+        </n-dropdown>
       </div>
     </div>
     <ModelPricingModal v-model:show="pricingVisible" />
@@ -115,13 +136,15 @@ import { NDropdown, NIcon, NTag } from 'naive-ui'
 import { 
   SunnyOutline, 
   MoonOutline,
-  LogoGithub
+  LogoGithub,
+  MenuOutline
 } from '@vicons/ionicons5'
 import { isDark, toggleTheme } from '../stores/theme'
 import { currentUser, isLoggedIn, logout } from '../stores/auth'
 import { coinApi } from '@/api/backend'
 import AnnouncementBanner from '@/components/AnnouncementBanner.vue'
 import ModelPricingModal from '@/components/ModelPricingModal.vue'
+import logoSmall from '@/assets/logo-small.webp'
 
 const BALANCE_CACHE_KEY = 'doodle-balance-cache'
 const BALANCE_CACHE_TTL_MS = 30 * 1000
@@ -156,6 +179,26 @@ const userOptions = computed(() => [
   { type: 'divider', key: 'divider' },
   { label: '退出登录', key: 'logout' }
 ])
+
+const mobileNavOptions = computed(() => {
+  if (!isLoggedIn.value) {
+    return [
+      { label: '登录', key: 'login' },
+      { label: '注册账号', key: 'register' }
+    ]
+  }
+
+  return [
+    { label: '我的画布', key: 'projects' },
+    { label: '模型价格', key: 'pricing' },
+    { label: `积分 ${balanceText.value}`, key: 'transactions' },
+    { type: 'divider', key: 'divider-account' },
+    { label: '用户中心', key: 'account' },
+    { label: '修改密码', key: 'change-password' },
+    { type: 'divider', key: 'divider-session' },
+    { label: '退出登录', key: 'logout' }
+  ]
+})
 
 const balanceText = computed(() => {
   if (balanceLoading.value && balance.value === null) return '...'
@@ -201,6 +244,30 @@ async function handleUserAction(key) {
     window.$message?.success('已退出登录')
     router.push(props.loginPath)
   }
+}
+
+async function handleMobileNavSelect(key) {
+  if (key === 'login') {
+    router.push(props.loginPath)
+    return
+  }
+  if (key === 'register') {
+    router.push('/register')
+    return
+  }
+  if (key === 'projects') {
+    router.push('/projects')
+    return
+  }
+  if (key === 'pricing') {
+    pricingVisible.value = true
+    return
+  }
+  if (key === 'transactions') {
+    router.push({ path: '/account', query: { view: 'transactions' } })
+    return
+  }
+  await handleUserAction(key)
 }
 
 function readCachedBalance() {

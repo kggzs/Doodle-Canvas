@@ -20,6 +20,7 @@ import sharp from 'sharp';
 import { Op } from 'sequelize';
 
 import db from '../models/index.js';
+import { createTimestampFileName } from '../utils/file-name.js';
 
 const { File, GenerationRecord, ModelChannel, ModelConfig, Project, User } = db;
 
@@ -30,6 +31,7 @@ const DEFAULT_STORAGE_ROOT = path.resolve(SERVER_ROOT, 'storage');
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm']);
 const STORAGE_MAX_UPLOAD_BYTES = parseInt(process.env.STORAGE_MAX_UPLOAD_BYTES || `${20 * 1024 * 1024}`, 10);
+const STORAGE_MAX_VIDEO_UPLOAD_BYTES = parseInt(process.env.STORAGE_MAX_VIDEO_UPLOAD_BYTES || `${100 * 1024 * 1024}`, 10);
 const STORAGE_REMOTE_MAX_BYTES = parseInt(process.env.STORAGE_REMOTE_MAX_BYTES || `${100 * 1024 * 1024}`, 10);
 const EXT_BY_MIME = {
   'image/png': '.png',
@@ -93,6 +95,20 @@ export const uploadImageMiddleware = multer({
   fileFilter(req, file, cb) {
     if (!IMAGE_MIME_TYPES.has(file.mimetype)) {
       cb(new StorageError(42201, '仅支持 PNG/JPEG/WebP/GIF 图片'));
+      return;
+    }
+    cb(null, true);
+  }
+});
+
+export const uploadVideoMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: STORAGE_MAX_VIDEO_UPLOAD_BYTES
+  },
+  fileFilter(req, file, cb) {
+    if (!VIDEO_MIME_TYPES.has(file.mimetype)) {
+      cb(new StorageError(42201, '仅支持 MP4/WebM 视频'));
       return;
     }
     cb(null, true);
@@ -172,22 +188,31 @@ function sniffMimeType(buffer, fallback = 'application/octet-stream') {
   return detectMimeType(buffer) || fallback;
 }
 
-function maxBytesForType(type) {
+function maxBytesForType(type, mimeType = '') {
+  if (type === 'upload' && String(mimeType).startsWith('video/')) {
+    return STORAGE_MAX_VIDEO_UPLOAD_BYTES;
+  }
   return type === 'upload' || type === 'thumbnail'
     ? STORAGE_MAX_UPLOAD_BYTES
     : STORAGE_REMOTE_MAX_BYTES;
 }
 
 function validateBufferForStorage(buffer, requestedMimeType, type) {
-  const limit = maxBytesForType(type);
+  const detectedMimeType = detectMimeType(buffer);
+  const normalizedRequested = String(requestedMimeType || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+  const limit = maxBytesForType(type, detectedMimeType || normalizedRequested);
   if (buffer.length > limit) {
     throw new StorageError(42201, `文件大小超过限制（最大 ${Math.round(limit / 1024 / 1024)}MB）`);
   }
 
-  const detectedMimeType = detectMimeType(buffer);
-  const normalizedRequested = String(requestedMimeType || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+  if (type === 'upload') {
+    if (!detectedMimeType || (!IMAGE_MIME_TYPES.has(detectedMimeType) && !VIDEO_MIME_TYPES.has(detectedMimeType))) {
+      throw new StorageError(42201, '文件内容不是受支持的图片或视频格式');
+    }
+    return detectedMimeType;
+  }
 
-  if (type === 'upload' || type === 'thumbnail' || type === 'generated_image') {
+  if (type === 'thumbnail' || type === 'generated_image') {
     if (!detectedMimeType || !IMAGE_MIME_TYPES.has(detectedMimeType)) {
       throw new StorageError(42201, '文件内容不是受支持的图片格式');
     }
@@ -368,7 +393,7 @@ export async function saveBuffer({
   await ensureDir(absoluteDir);
 
   const ext = guessExt(safeMimeType, originalName);
-  const fileName = `${crypto.randomUUID()}${ext}`;
+  const fileName = createTimestampFileName(ext);
   const storagePath = path.posix.join(relativeDir, fileName);
   const absolutePath = path.join(getStorageRoot(), storagePath);
   await fs.writeFile(absolutePath, buffer);
@@ -378,7 +403,7 @@ export async function saveBuffer({
     userId,
     generationId,
     type,
-    fileName: originalName || fileName,
+    fileName,
     storagePath,
     fileUrl: buildFileUrl(storagePath),
     fileSize: buffer.length,
@@ -527,6 +552,7 @@ export async function listFiles(params = {}) {
 export default {
   StorageError,
   uploadImageMiddleware,
+  uploadVideoMiddleware,
   getStorageRoot,
   getStorageBaseUrl,
   normalizeStoragePath,

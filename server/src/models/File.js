@@ -6,6 +6,8 @@
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import { normalizeOriginalFileName } from '../utils/file-name.js';
 
 const File = sequelize.define(
   'File',
@@ -33,7 +35,14 @@ const File = sequelize.define(
     fileName: {
       type: DataTypes.STRING(255),
       allowNull: false,
-      field: 'file_name'
+      field: 'file_name',
+      get() {
+        const value = this.getDataValue('fileName');
+        const normalized = normalizeOriginalFileName(value);
+        if (normalized && path.extname(normalized)) return normalized;
+        const storageBaseName = path.posix.basename(this.getDataValue('storagePath') || '');
+        return storageBaseName || normalized || value;
+      }
     },
     storagePath: {
       type: DataTypes.STRING(500),

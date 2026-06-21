@@ -16,7 +16,14 @@
     </AppHeader>
 
     <main class="mx-auto max-w-7xl px-4 py-6">
-      <nav class="mb-4 flex flex-wrap gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+      <n-select
+        class="mb-4 md:hidden"
+        :value="route.path"
+        :options="mobileNavOptions"
+        @update:value="path => router.push(path)"
+      />
+
+      <nav class="mb-4 hidden flex-wrap gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 md:flex">
         <button
           v-for="item in navItems"
           :key="item.path"
@@ -34,8 +41,9 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton } from 'naive-ui'
+import { NButton, NSelect } from 'naive-ui'
 import AppHeader from '@/components/AppHeader.vue'
 import { currentUser, logout } from '@/stores/auth'
 
@@ -55,6 +63,11 @@ const navItems = [
   { label: '图片模型', path: '/admin/models/image' },
   { label: '视频模型', path: '/admin/models/video' }
 ]
+
+const mobileNavOptions = computed(() => navItems.map(item => ({
+  label: item.label,
+  value: item.path
+})))
 
 function isActive(item) {
   return route.path === item.path

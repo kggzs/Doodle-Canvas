@@ -684,6 +684,8 @@ const handleGenerate = async (mode = 'auto') => {
         error: null,
         label: genLabel,
         model: localModel.value,
+        fileId: result[0].file_id || result[0].fileId,
+        fileName: result[0].fileName || result[0].file_name,
         updatedAt: Date.now()
       })
       

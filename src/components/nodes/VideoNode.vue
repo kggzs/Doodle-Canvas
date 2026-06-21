@@ -147,6 +147,7 @@ import { TrashOutline, ExpandOutline, VideocamOutline, CopyOutline, CloseCircleO
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
 import { useVideoGeneration } from '../../hooks/useApi'
 import NodeHandleMenu from './NodeHandleMenu.vue'
+import { fileApi } from '@/api/backend'
 
 // VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
 defineOptions({ inheritAttrs: false })
@@ -263,14 +264,24 @@ const handleSelect = (item) => {
 }
 
 // Handle file upload | 处理文件上传
-const handleFileUpload = (event) => {
+const handleFileUpload = async (event) => {
   const file = event.target.files[0]
   if (file) {
-    const url = URL.createObjectURL(file)
-    updateNode(props.id, { 
-      url,
-      updatedAt: Date.now()
-    })
+    try {
+      const result = await fileApi.uploadVideo(file)
+      const uploaded = result.file
+      updateNode(props.id, {
+        url: uploaded.fileUrl || uploaded.file_url,
+        fileId: uploaded.id,
+        fileName: uploaded.fileName || uploaded.file_name || file.name,
+        fileType: file.type,
+        label: '视频',
+        updatedAt: Date.now()
+      })
+    } catch (err) {
+      console.error('Video upload error:', err)
+      window.$message?.error('视频上传失败')
+    }
   }
 }
 

@@ -555,7 +555,7 @@ const handleGenerate = async () => {
     }
 
     // 只创建任务，获取 taskId，不在这里轮询
-    const { taskId: newTaskId, url, recordId } = await createVideoTaskOnly(params)
+    const { taskId: newTaskId, url, recordId, fileId, fileName } = await createVideoTaskOnly(params)
 
     // 如果有直接 URL，更新视频节点
     if (url) {
@@ -565,6 +565,8 @@ const handleGenerate = async () => {
         label: '视频生成',
         model: localModel.value,
         recordId,
+        fileId,
+        fileName,
         updatedAt: Date.now()
       })
       window.$message?.success('视频生成成功')

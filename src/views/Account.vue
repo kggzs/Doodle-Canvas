@@ -9,13 +9,13 @@
       </template>
     </AppHeader>
 
-    <main class="mx-auto max-w-6xl px-4 py-8">
+    <main class="mx-auto max-w-6xl px-3 py-6 sm:px-4 md:py-8">
       <section class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 class="text-2xl font-semibold">{{ recordsOnly ? '积分使用记录' : '我的账号' }}</h1>
           <p v-if="!recordsOnly" class="mt-1 text-sm text-[var(--text-secondary)]">{{ currentUser?.email || '-' }}</p>
         </div>
-        <div v-if="!recordsOnly" class="flex gap-2">
+        <div v-if="!recordsOnly" class="flex flex-wrap gap-2">
           <n-button secondary @click="router.push('/change-password')">修改密码</n-button>
           <n-button type="primary" :loading="loading" @click="loadAccount">刷新</n-button>
         </div>
@@ -93,10 +93,11 @@
           :loading="transactionsLoading"
           :pagination="false"
           :row-key="row => row.id"
+          :scroll-x="1100"
           size="small"
           striped
         />
-        <div class="flex justify-end border-t border-[var(--border-color)] p-3">
+        <div class="flex justify-end overflow-x-auto border-t border-[var(--border-color)] p-3">
           <n-pagination
             v-model:page="page"
             v-model:page-size="pageSize"

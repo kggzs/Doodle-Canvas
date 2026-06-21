@@ -695,7 +695,7 @@ const handleFileUpload = async (event) => {
       updateNode(props.id, {
         url: uploaded.fileUrl || uploaded.file_url,
         fileId: uploaded.id,
-        fileName: file.name,
+        fileName: uploaded.fileName || uploaded.file_name || file.name,
         fileType: file.type,
         label: '参考图',
         updatedAt: Date.now()
@@ -753,7 +753,7 @@ const handleReplaceFileUpload = async (event) => {
       updateNode(props.id, {
         url: uploaded.fileUrl || uploaded.file_url,
         fileId: uploaded.id,
-        fileName: file.name,
+        fileName: uploaded.fileName || uploaded.file_name || file.name,
         fileType: file.type,
         label: '参考图',
         updatedAt: Date.now()

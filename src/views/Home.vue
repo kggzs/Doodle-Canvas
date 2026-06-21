@@ -6,12 +6,12 @@
     </AppHeader>
 
     <!-- Main content | 主要内容 -->
-    <main class="max-w-5xl mx-auto px-4 py-8 md:py-16">
+    <main class="mx-auto max-w-5xl px-3 py-6 sm:px-4 md:py-16">
       <!-- Welcome section | 欢迎区域 -->
-      <section class="text-center mb-12">
-        <div class="flex items-center justify-center gap-4 mb-8">
+      <section class="mb-10 text-center md:mb-12">
+        <div class="mb-6 flex flex-col items-center justify-center gap-3 sm:mb-8 sm:flex-row sm:gap-4">
           <img src="../assets/logo-small.webp" alt="Logo" class="w-12 h-12 md:w-16 md:h-16" decoding="async" />
-          <h1 class="text-2xl md:text-4xl font-bold text-[var(--text-primary)]">欢迎来到万能涂鸦画布</h1>
+          <h1 class="text-2xl font-bold leading-tight text-[var(--text-primary)] md:text-4xl">欢迎来到万能涂鸦画布</h1>
         </div>
         
         <!-- Input area | 输入区域 -->
@@ -63,11 +63,11 @@
 
       <!-- My projects section | 我的项目区域 -->
       <section ref="projectsSection">
-        <div class="flex items-center justify-between mb-4">
+        <div class="mb-4 flex items-center justify-between gap-3">
           <h2 class="text-lg font-semibold text-[var(--text-primary)]">我的项目</h2>
           <button 
             @click="createNewProject"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white transition-colors"
+            class="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--accent-color)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
           >
             <n-icon :size="16"><AddOutline /></n-icon>
             新建项目
@@ -87,7 +87,7 @@
         </div>
         
         <!-- Projects grid | 项目网格 -->
-        <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div 
             v-for="project in projects" 
             :key="project.id"
@@ -99,7 +99,7 @@
               class="cursor-pointer"
             >
               <div 
-                class="aspect-video rounded-xl overflow-hidden bg-[var(--bg-tertiary)] mb-2 border border-[var(--border-color)] relative"
+                class="relative mb-2 aspect-video overflow-hidden rounded-lg border border-[var(--border-color)] bg-[var(--bg-tertiary)]"
                 @mouseenter="handleThumbnailHover(project, true)"
                 @mouseleave="handleThumbnailHover(project, false)"
               >
@@ -137,7 +137,7 @@
             </div>
             
             <!-- Project actions | 项目操作 -->
-            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <div class="absolute right-2 top-2 z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
               <n-dropdown :options="getProjectActions(project)" @select="(key) => handleProjectAction(key, project)" placement="bottom-end">
                 <button 
                   @click.stop

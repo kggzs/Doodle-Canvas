@@ -135,6 +135,7 @@ async function backfillRecord(record) {
       replacements.set(media.url, file.fileUrl);
       media.item.url = file.fileUrl;
       media.item.file_id = file.id;
+      media.item.fileName = file.fileName;
       if (!String(media.url).startsWith('data:')) {
         media.item.originalUrl = media.item.originalUrl || media.url;
       }

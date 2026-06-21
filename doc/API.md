@@ -142,6 +142,7 @@
 | 方法 | 路径 | 说明 | 鉴权 |
 | --- | --- | --- | --- |
 | POST | `/upload/image` | 上传图片，字段名 `file` | 是 |
+| POST | `/upload/video` | 上传视频，字段名 `file` | 是 |
 | GET | `/files/:id` | 文件详情 | 是 |
 | DELETE | `/files/:id` | 软删除文件 | 是 |
 | GET | `/storage/*` | 访问 active 文件内容 | 表状态校验 |

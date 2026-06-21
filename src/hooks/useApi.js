@@ -416,7 +416,9 @@ export const useVideoGeneration = () => {
       return {
         taskId: null,
         recordId,
-        url: task.url
+        url: task.url,
+        fileId: task.file_id || task.fileId,
+        fileName: task.fileName || task.file_name
       }
     }
 
@@ -496,11 +498,11 @@ export const useVideoGeneration = () => {
 
     try {
       // 创建任务
-      const { taskId: newTaskId, url, recordId } = await createVideoTaskOnly(params)
+      const { taskId: newTaskId, url, recordId, fileId, fileName } = await createVideoTaskOnly(params)
 
       // 如果有直接 URL，返回
       if (url) {
-        video.value = { url, record_id: recordId }
+        video.value = { url, record_id: recordId, file_id: fileId, fileName }
         setSuccess()
         return video.value
       }

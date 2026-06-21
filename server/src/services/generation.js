@@ -1291,7 +1291,8 @@ async function persistGeneratedFiles(items = [], { userId, generationId, type })
         ...item,
         ...(String(item.url).startsWith('data:') ? {} : { originalUrl: item.url }),
         url: file.fileUrl,
-        file_id: file.id
+        file_id: file.id,
+        fileName: file.fileName
       });
     } catch (err) {
       logger.error(`生成结果转存失败：${err.message}`, {
@@ -1514,7 +1515,8 @@ export async function createVideoTask(payload, userId, auditContext = {}) {
         ...completedResult,
         url: persisted.items[0]?.url || result.url,
         originalUrl: persisted.items[0]?.originalUrl || undefined,
-        file_id: persisted.items[0]?.file_id || undefined
+        file_id: persisted.items[0]?.file_id || undefined,
+        fileName: persisted.items[0]?.fileName || undefined
       };
     }
 
@@ -1609,7 +1611,8 @@ export async function queryVideoTask(taskId, userId) {
           ...result,
           url: persisted.items[0]?.url || result.url,
           originalUrl: persisted.items[0]?.originalUrl || undefined,
-          file_id: persisted.items[0]?.file_id || undefined
+          file_id: persisted.items[0]?.file_id || undefined,
+          fileName: persisted.items[0]?.fileName || undefined
         };
       }
       await markRecordCompleted(record, finalResult, {

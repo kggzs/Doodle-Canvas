@@ -61,6 +61,13 @@ export const fileApi = {
     return backend.post('/upload/image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
+  },
+  uploadVideo: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return backend.post('/upload/video', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   }
 }
 
