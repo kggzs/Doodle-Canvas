@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-    <AppHeader>
+    <AppHeader :show-projects-link="true">
       <template #left>
         <button class="flex items-center gap-2" @click="router.push('/projects')">
           <img src="../assets/logo-small.webp" alt="Doodle Canvas" class="h-9 w-9" decoding="async" />

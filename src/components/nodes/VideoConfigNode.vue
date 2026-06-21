@@ -555,7 +555,7 @@ const handleGenerate = async () => {
     }
 
     // 只创建任务，获取 taskId，不在这里轮询
-    const { taskId: newTaskId, url } = await createVideoTaskOnly(params)
+    const { taskId: newTaskId, url, recordId } = await createVideoTaskOnly(params)
 
     // 如果有直接 URL，更新视频节点
     if (url) {
@@ -564,6 +564,7 @@ const handleGenerate = async () => {
         loading: false,
         label: '视频生成',
         model: localModel.value,
+        recordId,
         updatedAt: Date.now()
       })
       window.$message?.success('视频生成成功')
@@ -573,6 +574,7 @@ const handleGenerate = async () => {
       // 需要轮询，传递 taskId 给 VideoNode
       updateNode(videoNodeId, {
         taskId: newTaskId,
+        recordId,
         loading: true,
         label: '视频生成中...',
         model: localModel.value,

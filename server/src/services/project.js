@@ -5,6 +5,8 @@
 import db from '../models/index.js';
 
 const { GenerationRecord, Project } = db;
+const DEFAULT_PROJECT_NAME = '未命名项目';
+const DEFAULT_CANVAS_DATA = { nodes: [], edges: [], viewport: {} };
 
 export class ProjectError extends Error {
   constructor(code, message, extra = {}) {
@@ -40,6 +42,33 @@ function latestMediaThumbnail(canvasData = {}) {
   return mediaNodes[0]?.data?.thumbnail || mediaNodes[0]?.data?.url || '';
 }
 
+function normalizeProjectName(name, fallback = DEFAULT_PROJECT_NAME) {
+  const normalized = String(name || '').trim();
+  return normalized || fallback;
+}
+
+function normalizeCanvasData(value) {
+  if (typeof value === 'string') {
+    try {
+      return normalizeCanvasData(JSON.parse(value));
+    } catch {
+      return DEFAULT_CANVAS_DATA;
+    }
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return DEFAULT_CANVAS_DATA;
+  }
+
+  return {
+    ...DEFAULT_CANVAS_DATA,
+    ...value,
+    nodes: Array.isArray(value.nodes) ? value.nodes : [],
+    edges: Array.isArray(value.edges) ? value.edges : [],
+    viewport: value.viewport && typeof value.viewport === 'object' ? value.viewport : {}
+  };
+}
+
 function serializeProject(project) {
   const plain = typeof project.toJSON === 'function' ? project.toJSON() : { ...project };
   const canvasData = plain.canvasData || {};
@@ -71,17 +100,15 @@ export async function listProjects(userId, params = {}) {
 }
 
 export async function createProject(userId, data = {}) {
-  if (!data.name || String(data.name).trim().length === 0) {
-    throw new ProjectError(42201, '项目名称不能为空');
-  }
+  const canvasData = normalizeCanvasData(data.canvas_data ?? data.canvasData);
 
   const project = await Project.create({
     userId,
-    name: String(data.name).trim(),
+    name: normalizeProjectName(data.name),
     description: data.description || null,
-    canvasData: data.canvas_data || data.canvasData || { nodes: [], edges: [], viewport: {} },
+    canvasData,
     thumbnailFileId: data.thumbnail_file_id || data.thumbnailFileId || null,
-    nodeCount: countNodes(data.canvas_data || data.canvasData),
+    nodeCount: countNodes(canvasData),
     isPublic: Boolean(data.is_public ?? data.isPublic ?? false)
   });
   return serializeProject(project);
@@ -95,10 +122,13 @@ export async function updateProject(userId, id, data = {}) {
   const project = await requireProject(userId, id);
   const payload = {};
 
-  if (data.name !== undefined) payload.name = String(data.name).trim();
+  if (data.name !== undefined) {
+    payload.name = normalizeProjectName(data.name, '');
+    if (!payload.name) throw new ProjectError(42201, '项目名称不能为空');
+  }
   if (data.description !== undefined) payload.description = data.description || null;
   if (data.canvas_data !== undefined || data.canvasData !== undefined) {
-    const canvasData = data.canvas_data || data.canvasData || {};
+    const canvasData = normalizeCanvasData(data.canvas_data ?? data.canvasData);
     payload.canvasData = canvasData;
     payload.nodeCount = countNodes(canvasData);
   }

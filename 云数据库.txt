@@ -1,8 +1,0 @@
-以下信息只做记录，不使用
-连接协议：MySQL
-主机地址：mysql-c71533d-kggzs-5786.d.aivencloud.com
-端口：24969
-数据库名：defaultdb
-用户名：avnadmin
-密码：AVNS_QCL4sQwysU3Fqms3WLe
-SSL 模式：REQUIRED（必须开启 SSL 连接）

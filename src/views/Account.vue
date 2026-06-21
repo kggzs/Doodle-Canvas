@@ -204,6 +204,29 @@ function optionLabel(options, value) {
   return options.find(item => item.value === value)?.label || value || '-'
 }
 
+function modelTypeLabel(value) {
+  const labels = { image: '图片', video: '视频', chat: '问答' }
+  return labels[value] || value || '-'
+}
+
+function modelTypeTagType(value) {
+  const types = { chat: 'info', image: 'success', video: 'warning' }
+  return types[value] || 'default'
+}
+
+function transactionModelType(row) {
+  return row?.generation?.type
+    || row?.generation?.model?.modelType
+    || row?.generation?.model?.model_type
+    || row?.metadata?.model_type
+    || row?.metadata?.modelType
+    || row?.costSnapshot?.model?.type
+    || row?.costSnapshot?.model?.model_type
+    || row?.costSnapshot?.model_type
+    || row?.costSnapshot?.modelType
+    || null
+}
+
 function formatCoins(value) {
   return Number(value || 0).toFixed(2)
 }
@@ -280,6 +303,16 @@ const columns = [
     width: 90,
     render(row) {
       return h(NTag, { size: 'small', type: row.direction === 'in' ? 'success' : 'warning' }, { default: () => optionLabel(directionOptions, row.direction) })
+    }
+  },
+  {
+    title: '模型类型',
+    key: 'modelType',
+    width: 100,
+    render(row) {
+      const modelType = transactionModelType(row)
+      if (!modelType) return '-'
+      return h(NTag, { size: 'small', type: modelTypeTagType(modelType) }, { default: () => modelTypeLabel(modelType) })
     }
   },
   {

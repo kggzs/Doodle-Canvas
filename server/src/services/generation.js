@@ -1153,6 +1153,21 @@ async function readVideoTask(taskId) {
   }
 }
 
+function videoResultFromRecord(record, { taskId, metadata, channel }) {
+  const result = record.result && typeof record.result === 'object' ? record.result : {};
+  const url = result.url || result.video_url || result.videoUrl || '';
+
+  return compactObject({
+    taskId,
+    record_id: record.id,
+    model: result.model || metadata.modelKey,
+    channel_used: result.channel_used || channel?.name,
+    ...result,
+    status: 'completed',
+    url
+  });
+}
+
 function extractPromptText(payload = {}, type = 'image') {
   if (payload.prompt) return String(payload.prompt);
   if (type === 'chat' && Array.isArray(payload.messages)) {
@@ -1533,6 +1548,22 @@ export async function queryVideoTask(taskId, userId) {
     throw new GenerationError(40402, '视频任务关联渠道不存在');
   }
 
+  const record = metadata.generationId ? await GenerationRecord.findByPk(metadata.generationId) : null;
+  if (record) {
+    if (record.userId !== userId) {
+      throw new GenerationError(40301, '无权查看该视频任务');
+    }
+
+    if (record.status === 'completed') {
+      const cachedResult = videoResultFromRecord(record, { taskId, metadata, channel });
+      if (cachedResult.url) return cachedResult;
+    }
+
+    if (record.status === 'failed' || record.status === 'cancelled') {
+      throw new GenerationError(50201, record.errorMessage || '视频生成失败');
+    }
+  }
+
   const response = await callUpstream({
     channel,
     endpointKey: 'videoQuery',
@@ -1542,7 +1573,6 @@ export async function queryVideoTask(taskId, userId) {
 
   const result = adaptVideoStatusResponse(metadata.providerType || channel.providerType, response.data);
   if (result.status === 'failed') {
-    const record = metadata.generationId ? await GenerationRecord.findByPk(metadata.generationId) : null;
     if (record && record.status !== 'failed') {
       const refundTx = metadata.costInfo?.transactionId
         ? await BillingService.refundGeneration({
@@ -1567,7 +1597,6 @@ export async function queryVideoTask(taskId, userId) {
   let finalResult = result;
   let files = [];
   if (result.status === 'completed' && metadata.generationId) {
-    const record = await GenerationRecord.findByPk(metadata.generationId);
     if (record && record.status !== 'completed') {
       if (result.url) {
         const persisted = await persistGeneratedFiles([{ url: result.url }], {

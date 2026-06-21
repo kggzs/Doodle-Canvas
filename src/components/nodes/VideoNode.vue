@@ -204,19 +204,26 @@ const startPolling = async (taskId) => {
   isPolling.value = true
 
   try {
-    const result = await pollVideoTask(taskId, (attempt, percentage) => {
-      // 更新进度
-      updateNode(props.id, {
-        progress: percentage,
-        attempt
-      })
-    })
+    const result = await pollVideoTask(
+      taskId,
+      (attempt, percentage) => {
+        // 更新进度
+        updateNode(props.id, {
+          progress: percentage,
+          attempt
+        })
+      },
+      { recordId: props.data?.recordId || props.data?.record_id }
+    )
     // 轮询成功，更新视频节点
     updateNode(props.id, {
       url: result.url,
       loading: false,
       progress: 100,
       label: '视频生成',
+      recordId: result.record_id || result.recordId || props.data?.recordId,
+      fileId: result.file_id || result.fileId || props.data?.fileId,
+      fileName: result.fileName || result.file_name || props.data?.fileName,
       taskId: null  // 清除 taskId
     })
     window.$message?.success('视频生成成功')

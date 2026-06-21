@@ -7,9 +7,16 @@ export default defineConfig({
   base: '/',
   plugins: [vue()],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src')
-    }
+    alias: [
+      {
+        find: /^vueuc$/,
+        replacement: path.resolve(__dirname, 'src/vendor/vueuc/index.js')
+      },
+      {
+        find: '@',
+        replacement: path.resolve(__dirname, 'src')
+      }
+    ]
   },
   server: {
     port: 3003,

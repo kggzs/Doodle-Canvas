@@ -14,6 +14,44 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
+function parseJsonObject(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function isPlainObject(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function projectNameValidator({ required = false } = {}) {
+  const optionalOptions = required ? { values: 'undefined' } : { nullable: true };
+  const chain = body('name').optional(optionalOptions).isString().withMessage('项目名称格式不正确').bail().trim();
+  return required
+    ? chain.isLength({ min: 1, max: 200 }).withMessage('项目名称不能为空且不能超过 200 字')
+    : chain.isLength({ max: 200 }).withMessage('项目名称不能超过 200 字');
+}
+
+function canvasDataValidator() {
+  return body(['canvas_data', 'canvasData'])
+    .optional({ nullable: true })
+    .customSanitizer(parseJsonObject)
+    .custom((value) => value === null || isPlainObject(value))
+    .withMessage('canvas_data 必须为对象');
+}
+
+function thumbnailFileIdValidator() {
+  return body(['thumbnail_file_id', 'thumbnailFileId'])
+    .optional({ nullable: true, checkFalsy: true })
+    .isUUID()
+    .withMessage('thumbnail_file_id 格式不正确');
+}
+
 function validateRequest(req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -55,10 +93,11 @@ router.get(
 router.post(
   '/',
   [
-    body('name').isLength({ min: 1, max: 200 }).withMessage('项目名称不能为空且不能超过 200 字'),
+    projectNameValidator(),
     body('description').optional({ nullable: true }).isString(),
-    body('canvas_data').optional({ nullable: true }).isObject().withMessage('canvas_data 必须为对象'),
-    body('thumbnail_file_id').optional({ nullable: true }).isUUID().withMessage('thumbnail_file_id 格式不正确')
+    canvasDataValidator(),
+    thumbnailFileIdValidator(),
+    body(['is_public', 'isPublic']).optional().isBoolean().withMessage('is_public 格式不正确').toBoolean()
   ],
   async (req, res) => {
     const validErr = validateRequest(req, res);
@@ -93,10 +132,11 @@ router.put(
   '/:id',
   [
     param('id').isUUID().withMessage('项目 ID 格式不正确'),
-    body('name').optional().isLength({ min: 1, max: 200 }).withMessage('项目名称不能超过 200 字'),
+    projectNameValidator({ required: true }),
     body('description').optional({ nullable: true }).isString(),
-    body('canvas_data').optional({ nullable: true }).isObject().withMessage('canvas_data 必须为对象'),
-    body('thumbnail_file_id').optional({ nullable: true }).isUUID().withMessage('thumbnail_file_id 格式不正确')
+    canvasDataValidator(),
+    thumbnailFileIdValidator(),
+    body(['is_public', 'isPublic']).optional().isBoolean().withMessage('is_public 格式不正确').toBoolean()
   ],
   async (req, res) => {
     const validErr = validateRequest(req, res);

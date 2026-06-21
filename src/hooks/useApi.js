@@ -307,6 +307,69 @@ export const useVideoGeneration = () => {
     percentage: 0
   })
 
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const isRecoverableDisconnect = (err) => {
+    const code = Number(err?.code || 0)
+    const message = String(err?.message || '')
+    return [49901, 50201, 50401].includes(code)
+      || /请求处理时间较长|找回|断开|超时|timeout|abort|canceled|network|服务暂时不可用/i.test(message)
+  }
+
+  const recordIdFrom = (value = {}) => {
+    return value.record_id || value.recordId || value.generation_id || value.generationId || ''
+  }
+
+  const videoFromRecord = (record) => {
+    const result = record?.result || {}
+    const files = Array.isArray(record?.files) ? record.files : []
+    const file = files.find(item => item?.type === 'generated_video' && item?.status !== 'deleted') || files[0]
+    const url = result.url
+      || result.video_url
+      || result.videoUrl
+      || file?.fileUrl
+      || file?.file_url
+      || ''
+
+    if (!url) return null
+
+    return {
+      ...result,
+      status: 'completed',
+      url,
+      record_id: record.id,
+      file_id: result.file_id || file?.id,
+      fileName: result.fileName || result.file_name || file?.fileName || file?.file_name
+    }
+  }
+
+  const recoverVideoResult = async (recordId, attempts = 15, interval = 2000) => {
+    if (!recordId) return null
+
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const response = await recordApi.detail(recordId)
+        const record = response.record || response
+
+        if (record?.status === 'completed') {
+          const recoveredVideo = videoFromRecord(record)
+          if (recoveredVideo) return recoveredVideo
+          throw new Error('视频已生成，但未找到结果文件')
+        }
+
+        if (record?.status === 'failed' || record?.status === 'cancelled') {
+          throw new Error(record.errorMessage || '视频生成失败')
+        }
+      } catch (err) {
+        if (!isRecoverableDisconnect(err)) throw err
+      }
+
+      await sleep(interval)
+    }
+
+    return null
+  }
+
   /**
    * Create video task only (no polling) | 仅创建视频任务（不轮询）
    */
@@ -347,10 +410,12 @@ export const useVideoGeneration = () => {
 
     // Call API to create task | 调用 API 创建任务
     const task = await createVideoTask(requestData)
+    const recordId = recordIdFrom(task) || task.id || ''
 
     if (task.url) {
       return {
         taskId: null,
+        recordId,
         url: task.url
       }
     }
@@ -360,31 +425,59 @@ export const useVideoGeneration = () => {
       throw new Error('未获取到任务 ID')
     }
 
-    return { taskId: newTaskId }
+    return { taskId: newTaskId, recordId }
   }
 
   /**
    * Poll video task | 轮询视频任务
    */
-  const pollVideoTask = async (pollTaskId, onProgress = () => {}) => {
+  const pollVideoTask = async (pollTaskId, onProgress = () => {}, options = {}) => {
     const maxAttempts = 60
     const interval = 30000
+    let activeRecordId = options.recordId || options.record_id || ''
+    let lastRecoverableError = null
 
     for (let i = 0; i < maxAttempts; i++) {
       // 先等待再查询，避免任务刚创建就发起无效查询
-      await new Promise(resolve => setTimeout(resolve, interval))
+      await sleep(interval)
 
       onProgress(i + 1, Math.min(Math.round((i / maxAttempts) * 100), 99))
 
-      const result = await getVideoTaskStatus(pollTaskId)
+      try {
+        const result = await getVideoTaskStatus(pollTaskId)
+        activeRecordId = activeRecordId || recordIdFrom(result)
 
-      if (result.status === 'completed') {
-        return { ...result }
-      }
+        if (result.status === 'completed') {
+          return { ...result }
+        }
 
-      if (result.status === 'failed') {
-        throw new Error('视频生成失败，请稍后再试')
+        if (result.status === 'failed') {
+          throw new Error(result.error || '视频生成失败，请稍后再试')
+        }
+      } catch (err) {
+        if (!isRecoverableDisconnect(err)) throw err
+
+        lastRecoverableError = err
+        const recoveredVideo = await recoverVideoResult(activeRecordId)
+        if (recoveredVideo) {
+          return {
+            taskId: pollTaskId,
+            ...recoveredVideo
+          }
+        }
       }
+    }
+
+    const recoveredVideo = await recoverVideoResult(activeRecordId, 1, 0)
+    if (recoveredVideo) {
+      return {
+        taskId: pollTaskId,
+        ...recoveredVideo
+      }
+    }
+
+    if (lastRecoverableError) {
+      throw new Error('视频仍在生成中，请稍后在记录中查看结果')
     }
 
     throw new Error('视频生成超时')
@@ -403,11 +496,11 @@ export const useVideoGeneration = () => {
 
     try {
       // 创建任务
-      const { taskId: newTaskId, url } = await createVideoTaskOnly(params)
+      const { taskId: newTaskId, url, recordId } = await createVideoTaskOnly(params)
 
       // 如果有直接 URL，返回
       if (url) {
-        video.value = { url }
+        video.value = { url, record_id: recordId }
         setSuccess()
         return video.value
       }
@@ -417,10 +510,14 @@ export const useVideoGeneration = () => {
       status.value = 'polling'
 
       // 轮询获取结果
-      const result = await pollVideoTask(newTaskId, (attempt, percentage) => {
-        progress.attempt = attempt
-        progress.percentage = percentage
-      })
+      const result = await pollVideoTask(
+        newTaskId,
+        (attempt, percentage) => {
+          progress.attempt = attempt
+          progress.percentage = percentage
+        },
+        { recordId }
+      )
 
       video.value = result
       setSuccess()

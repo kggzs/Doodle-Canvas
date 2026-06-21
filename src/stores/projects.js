@@ -6,6 +6,7 @@ import { computed, ref } from 'vue'
 import { projectApi } from '@/api/backend'
 
 const DEFAULT_CANVAS = { nodes: [], edges: [], viewport: { x: 100, y: 50, zoom: 0.8 } }
+const DEFAULT_PROJECT_NAME = '未命名项目'
 
 export const projects = ref([])
 export const projectsLoading = ref(false)
@@ -43,6 +44,25 @@ function thumbnailFromCanvas(canvasData = {}) {
   return mediaNodes[0]?.data?.thumbnail || mediaNodes[0]?.data?.url || ''
 }
 
+function normalizeProjectName(name) {
+  const normalized = String(name || '').trim()
+  return normalized || DEFAULT_PROJECT_NAME
+}
+
+function normalizeCanvasPayload(canvasData) {
+  const source = canvasData && typeof canvasData === 'object' && !Array.isArray(canvasData)
+    ? canvasData
+    : {}
+
+  return {
+    ...DEFAULT_CANVAS,
+    ...source,
+    nodes: Array.isArray(source.nodes) ? source.nodes : [],
+    edges: Array.isArray(source.edges) ? source.edges : [],
+    viewport: source.viewport || DEFAULT_CANVAS.viewport
+  }
+}
+
 function upsertProject(project) {
   const normalized = normalizeProject(project)
   const index = projects.value.findIndex(item => item.id === normalized.id)
@@ -72,13 +92,10 @@ export async function initProjectsStore({ force = false } = {}) {
   return loadProjects()
 }
 
-export async function createProject(name = '未命名项目', canvasData = DEFAULT_CANVAS) {
+export async function createProject(name = DEFAULT_PROJECT_NAME, canvasData = DEFAULT_CANVAS) {
   const result = await projectApi.create({
-    name,
-    canvas_data: {
-      ...DEFAULT_CANVAS,
-      ...canvasData
-    }
+    name: normalizeProjectName(name),
+    canvas_data: normalizeCanvasPayload(canvasData)
   })
   const project = upsertProject(result.project)
   return project.id
