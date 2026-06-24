@@ -114,7 +114,8 @@ export const adminFileApi = {
 export const adminErrorLogApi = {
   list: (params) => backend.get('/admin/error-logs', { params }),
   detail: (id) => backend.get(`/admin/error-logs/${id}`),
-  resolve: (id) => backend.post(`/admin/error-logs/${id}/resolve`)
+  resolve: (id) => backend.post(`/admin/error-logs/${id}/resolve`),
+  remove: (id) => backend.delete(`/admin/error-logs/${id}`)
 }
 
 export const adminChannelApi = {

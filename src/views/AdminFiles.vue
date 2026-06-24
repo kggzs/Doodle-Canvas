@@ -76,6 +76,16 @@ function optionLabel(options, value) {
   return options.find(item => item.value === value)?.label || value || '-'
 }
 
+function typeTagType(value) {
+  const map = {
+    upload: 'default',
+    generated_image: 'success',
+    generated_video: 'info',
+    thumbnail: 'warning'
+  }
+  return map[value] || 'default'
+}
+
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString('zh-CN')
@@ -130,7 +140,7 @@ const columns = [
     key: 'type',
     width: 110,
     render(row) {
-      return h(NTag, { size: 'small' }, { default: () => optionLabel(typeOptions, row.type) })
+      return h(NTag, { size: 'small', type: typeTagType(row.type) }, { default: () => optionLabel(typeOptions, row.type) })
     }
   },
   {

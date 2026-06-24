@@ -128,10 +128,19 @@ export async function markResolved(id) {
   return log;
 }
 
+export async function deleteLog(id) {
+  await ensureTable();
+  const log = await ErrorLog.findByPk(id);
+  if (!log) return null;
+  await log.destroy();
+  return { id };
+}
+
 export default {
   recordError,
   recordResponseError,
   listLogs,
   getLog,
-  markResolved
+  markResolved,
+  deleteLog
 };

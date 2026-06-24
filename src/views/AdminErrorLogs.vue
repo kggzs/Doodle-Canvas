@@ -69,6 +69,12 @@
         <template #footer>
           <div class="flex justify-end gap-2">
             <n-button @click="drawerVisible = false">关闭</n-button>
+            <n-popconfirm v-if="selectedLog" @positive-click="deleteSelected">
+              <template #trigger>
+                <n-button type="error" ghost :loading="deleting">删除</n-button>
+              </template>
+              确定删除这条错误日志？
+            </n-popconfirm>
             <n-button v-if="selectedLog && !selectedLog.isResolved" type="primary" :loading="resolving" @click="resolveSelected">标记处理</n-button>
           </div>
         </template>
@@ -86,6 +92,7 @@ import {
   NDrawerContent,
   NInput,
   NPagination,
+  NPopconfirm,
   NSelect,
   NTag
 } from 'naive-ui'
@@ -94,6 +101,7 @@ import { adminErrorLogApi } from '@/api/backend'
 
 const loading = ref(false)
 const resolving = ref(false)
+const deleting = ref(false)
 const rows = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -163,10 +171,16 @@ const columns = [
   {
     title: '操作',
     key: 'actions',
-    width: 110,
+    width: 150,
     fixed: 'right',
     render(row) {
-      return h(NButton, { size: 'small', onClick: () => openDetail(row) }, { default: () => '查看' })
+      return h('div', { class: 'flex items-center gap-2' }, [
+        h(NButton, { size: 'small', onClick: () => openDetail(row) }, { default: () => '查看' }),
+        h(NPopconfirm, { onPositiveClick: () => deleteLog(row) }, {
+          trigger: () => h(NButton, { size: 'small', type: 'error', ghost: true }, { default: () => '删除' }),
+          default: () => '确定删除这条错误日志？'
+        })
+      ])
     }
   }
 ]
@@ -218,6 +232,28 @@ async function resolveSelected() {
   } finally {
     resolving.value = false
   }
+}
+
+async function deleteLog(row) {
+  if (!row?.id) return
+  deleting.value = true
+  try {
+    await adminErrorLogApi.remove(row.id)
+    window.$message?.success('错误日志已删除')
+    if (selectedLog.value?.id === row.id) {
+      selectedLog.value = null
+      drawerVisible.value = false
+    }
+    await loadLogs()
+  } catch (err) {
+    window.$message?.error(err?.message || '删除错误日志失败')
+  } finally {
+    deleting.value = false
+  }
+}
+
+function deleteSelected() {
+  return deleteLog(selectedLog.value)
 }
 
 onMounted(loadLogs)

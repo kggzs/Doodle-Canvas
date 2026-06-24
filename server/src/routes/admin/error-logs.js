@@ -93,4 +93,21 @@ router.post(
   }
 );
 
+router.delete(
+  '/:id',
+  [param('id').isUUID().withMessage('日志 ID 格式不正确')],
+  async (req, res) => {
+    const validErr = validateRequest(req, res);
+    if (validErr) return validErr;
+
+    try {
+      const result = await ErrorLogService.deleteLog(req.params.id);
+      if (!result) return error(res, 40402, '错误日志不存在', 404);
+      return success(res, result, '错误日志已删除');
+    } catch (err) {
+      return handleServiceError(res, err);
+    }
+  }
+);
+
 export default router;

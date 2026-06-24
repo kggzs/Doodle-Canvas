@@ -186,6 +186,15 @@ function optionLabel(options, value) {
   return options.find(item => item.value === value)?.label || value || '-'
 }
 
+function typeTagType(value) {
+  const map = {
+    image: 'success',
+    video: 'info',
+    chat: 'warning'
+  }
+  return map[value] || 'default'
+}
+
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString('zh-CN')
@@ -218,7 +227,7 @@ const columns = [
     key: 'type',
     width: 90,
     render(row) {
-      return h(NTag, { size: 'small' }, { default: () => optionLabel(typeOptions, row.type) })
+      return h(NTag, { size: 'small', type: typeTagType(row.type) }, { default: () => optionLabel(typeOptions, row.type) })
     }
   },
   {
@@ -244,15 +253,6 @@ const columns = [
     render(row) {
       const type = row.status === 'completed' ? 'success' : row.status === 'failed' ? 'error' : 'warning'
       return h(NTag, { size: 'small', type }, { default: () => optionLabel(statusOptions, row.status) })
-    }
-  },
-  {
-    title: '审核',
-    key: 'reviewStatus',
-    width: 100,
-    render(row) {
-      const type = row.reviewStatus === 'pass' ? 'success' : row.reviewStatus === 'reject' ? 'error' : 'default'
-      return h(NTag, { size: 'small', type }, { default: () => optionLabel(reviewOptions, row.reviewStatus) })
     }
   },
   {
