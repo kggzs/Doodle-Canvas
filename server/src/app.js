@@ -139,7 +139,7 @@ app.use('/api', globalRateLimitMiddleware);
 app.get('/storage/*', async (req, res) => {
   try {
     const { file, absolutePath } = await getPublicFileByStoragePath(req.params[0]);
-    res.setHeader('Cache-Control', NODE_ENV === 'production' ? 'public, max-age=604800' : 'no-store');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.removeHeader('Access-Control-Allow-Credentials');

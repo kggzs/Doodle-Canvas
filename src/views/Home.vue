@@ -118,9 +118,11 @@
                   <!-- Image thumbnail | 图片缩略图 -->
                   <img 
                     v-else
-                    :src="project.thumbnail" 
+                    :src="getProjectThumbnailSrc(project)" 
                     :alt="project.name"
                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </template>
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -186,7 +188,7 @@
  * Home view component | 首页视图组件
  * Entry point with project list and creation input
  */
-import { ref, onMounted } from 'vue'
+import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NIcon, NDropdown, NModal, NInput, NButton, useDialog } from 'naive-ui'
 import { 
@@ -210,12 +212,17 @@ import {
   renameProject 
 } from '../stores/projects'
 import AppHeader from '../components/AppHeader.vue'
+import { getCachedImageObjectUrl, releaseCachedImageObjectUrls } from '../utils/media-cache'
 
 const router = useRouter()
 const dialog = useDialog()
 
 // Video refs for hover play | 视频引用用于悬停播放
 const videoRefs = new Map()
+const thumbnailSourceByProjectId = new Map()
+const thumbnailSrcByProjectId = ref({})
+const thumbnailPlaceholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+let isThumbnailCacheActive = true
 
 // Set video ref | 设置视频引用
 const setVideoRef = (projectId, el) => {
@@ -271,6 +278,52 @@ const createProjectNameFromPrompt = (prompt) => {
   return firstLine.length > MAX_PROJECT_NAME_LENGTH
     ? `${firstLine.slice(0, MAX_PROJECT_NAME_LENGTH)}...`
     : firstLine
+}
+
+const removeCachedThumbnailEntry = (projectId) => {
+  if (!thumbnailSourceByProjectId.has(projectId) && !thumbnailSrcByProjectId.value[projectId]) return
+
+  thumbnailSourceByProjectId.delete(projectId)
+  const next = { ...thumbnailSrcByProjectId.value }
+  delete next[projectId]
+  thumbnailSrcByProjectId.value = next
+}
+
+const getProjectThumbnailSrc = (project) => {
+  return thumbnailSrcByProjectId.value[project.id] || thumbnailPlaceholder
+}
+
+const syncProjectThumbnailCache = () => {
+  const activeProjectIds = new Set()
+
+  projects.value.forEach((project) => {
+    activeProjectIds.add(project.id)
+
+    if (!project.thumbnail || isVideoUrl(project.thumbnail)) {
+      removeCachedThumbnailEntry(project.id)
+      return
+    }
+
+    if (thumbnailSourceByProjectId.get(project.id) === project.thumbnail) return
+
+    removeCachedThumbnailEntry(project.id)
+    thumbnailSourceByProjectId.set(project.id, project.thumbnail)
+
+    getCachedImageObjectUrl(project.thumbnail).then((cachedSrc) => {
+      if (!isThumbnailCacheActive) return
+      const latestProject = projects.value.find((item) => item.id === project.id)
+      if (!latestProject || latestProject.thumbnail !== project.thumbnail) return
+
+      thumbnailSrcByProjectId.value = {
+        ...thumbnailSrcByProjectId.value,
+        [project.id]: cachedSrc
+      }
+    })
+  })
+
+  Array.from(thumbnailSourceByProjectId.keys()).forEach((projectId) => {
+    if (!activeProjectIds.has(projectId)) removeCachedThumbnailEntry(projectId)
+  })
 }
 
 // Format date | 格式化日期
@@ -382,5 +435,13 @@ const scrollToProjects = () => {
 // Initialize projects store on mount | 挂载时初始化项目存储
 onMounted(async () => {
   await initProjectsStore({ force: true })
+  syncProjectThumbnailCache()
+})
+
+watch(projects, syncProjectThumbnailCache, { deep: false })
+
+onBeforeUnmount(() => {
+  isThumbnailCacheActive = false
+  releaseCachedImageObjectUrls()
 })
 </script>
