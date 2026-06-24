@@ -9,6 +9,7 @@ import axios from 'axios';
 import { readFile } from 'fs/promises';
 import http from 'http';
 import https from 'https';
+import net from 'net';
 import path from 'path';
 import { Op } from 'sequelize';
 
@@ -254,7 +255,7 @@ const UPSTREAM_ERROR_MAP = [
     message: '请求频率过高，请稍后重试'
   },
   {
-    pattern: /insufficient.*quota|quota.*exceeded/i,
+    pattern: /insufficient.*quota|quota.*exceeded|额度不足|余额不足|剩余额度|没有可用账号或额度/i,
     message: 'API 额度不足，请联系管理员'
   },
   {
@@ -267,6 +268,16 @@ function translateUpstreamError(message) {
   const text = String(message || '');
   const matched = UPSTREAM_ERROR_MAP.find((item) => item.pattern.test(text));
   return matched?.message || message;
+}
+
+function isUpstreamQuotaError(message) {
+  return /insufficient.*quota|quota.*exceeded|额度不足|余额不足|剩余额度|没有可用账号或额度/i.test(String(message || ''));
+}
+
+function isUpstreamAuthError(status, message) {
+  if (status === 401) return true;
+  if (status !== 403 || isUpstreamQuotaError(message)) return false;
+  return /auth|api\s*key|invalid.*key|unauthorized|forbidden|permission|认证|密钥|无效|权限/i.test(String(message || ''));
 }
 
 function upstreamPublicMessage(err) {
@@ -444,13 +455,16 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
       const raw = stream ? await streamToText(response.data) : response.data;
       const upstreamMessage = errorMessageFromUpstream(raw, `上游接口返回 ${response.status}`);
       const publicMessage = translateUpstreamError(upstreamMessage);
+      const quotaError = isUpstreamQuotaError(upstreamMessage);
+      const authError = isUpstreamAuthError(response.status, upstreamMessage);
+      const errorCode = response.status >= 500 ? 50201 : quotaError ? 40201 : 40001;
       recordError({
         scope: 'upstream',
         level: response.status >= 500 ? 'error' : 'warn',
-        code: response.status >= 500 ? 50201 : 40001,
+        code: errorCode,
         httpStatus: response.status,
         message: upstreamMessage,
-        publicMessage: response.status === 401 || response.status === 403
+        publicMessage: authError
           ? '渠道认证失败，请检查后台配置'
           : publicMessage,
         details: {
@@ -464,7 +478,7 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
           upstream_body: raw
         }
       });
-      if (response.status === 401 || response.status === 403) {
+      if (authError) {
         throw new GenerationError(
           50301,
           `渠道 ${channel.name} 上游认证失败，请检查 API Key 是否正确`,
@@ -472,7 +486,7 @@ async function callUpstream({ channel, endpointKey, method = 'post', data, heade
         );
       }
       throw new GenerationError(
-        response.status >= 500 ? 50201 : 40001,
+        errorCode,
         publicMessage,
         { upstream_status: response.status, channel_id: channel.id }
       );
@@ -714,6 +728,132 @@ function storageUrlToPublicUrl(value, auditContext = {}) {
   return `${origin}/storage/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+function isPrivateOrLocalHostname(hostname = '') {
+  const host = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
+  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) {
+    return true;
+  }
+
+  const ipVersion = net.isIP(host);
+  if (ipVersion === 4) {
+    const [a, b] = host.split('.').map((part) => Number(part));
+    return a === 0
+      || a === 10
+      || a === 127
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+      || (a === 192 && b === 0)
+      || a >= 224;
+  }
+
+  if (ipVersion === 6) {
+    return host === '::'
+      || host === '::1'
+      || host.startsWith('fc')
+      || host.startsWith('fd')
+      || host.startsWith('fe80:')
+      || host.startsWith('ff');
+  }
+
+  return false;
+}
+
+function isFetchableHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return ['http:', 'https:'].includes(parsed.protocol)
+      && !parsed.username
+      && !parsed.password
+      && !isPrivateOrLocalHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function doubaoInputImage(value, options = {}) {
+  if (typeof value !== 'string' || !value) return value;
+  if (value.startsWith('blob:') || value.startsWith('upload://')) {
+    throw new GenerationError(42201, '豆包参考图是浏览器临时地址，请重新上传图片后再生成');
+  }
+  if (value.startsWith('data:')) {
+    throw new GenerationError(42201, '豆包参考图需要公网可访问的 HTTP/HTTPS 图片 URL，不能使用 data URL');
+  }
+  if (/^https?:\/\//i.test(value) && isFetchableHttpUrl(value)) {
+    return value;
+  }
+
+  const storagePath = storagePathFromUrl(value);
+  if (storagePath) {
+    const localFile = await localStorageFileFromUrl(value);
+    const mimeType = localFile.file.mimeType || mimeTypeFromName(localFile.file.fileName || localFile.absolutePath);
+    if (!String(mimeType).startsWith('image/')) {
+      throw new GenerationError(42201, '豆包参考图必须是图片文件');
+    }
+  }
+
+  const publicUrl = storageUrlToPublicUrl(value, options.auditContext);
+  if (publicUrl && isFetchableHttpUrl(publicUrl)) {
+    return publicUrl;
+  }
+
+  if (storagePath) {
+    throw new GenerationError(
+      42201,
+      '豆包参考图需要公网可访问的图片 URL，请配置 STORAGE_PUBLIC_BASE_URL 或 PUBLIC_BASE_URL 为公网域名'
+    );
+  }
+
+  throw new GenerationError(42201, '豆包参考图需要公网可访问的 HTTP/HTTPS 图片 URL');
+}
+
+async function doubaoInputImages(images = [], options = {}) {
+  const normalized = [];
+  for (const image of images) {
+    normalized.push(await doubaoInputImage(image, options));
+  }
+  return normalized;
+}
+
+async function aliyunInputImage(value) {
+  if (typeof value !== 'string' || !value) return value;
+  if (value.startsWith('blob:') || value.startsWith('upload://')) {
+    throw new GenerationError(42201, '阿里参考图是浏览器临时地址，请重新上传图片后再生成');
+  }
+  if (value.startsWith('file:')) {
+    throw new GenerationError(42201, '阿里 HTTP 接口不支持 file:// 参考图，请上传图片后再生成');
+  }
+  if (value.startsWith('data:')) {
+    if (!/^data:image\/[^;,]+;base64,/i.test(value)) {
+      throw new GenerationError(42201, '阿里参考图 data URL 必须是图片 base64 格式');
+    }
+    return value;
+  }
+
+  if (storagePathFromUrl(value)) {
+    return await localStorageUrlToDataUri(value);
+  }
+
+  if (/^https?:\/\//i.test(value) && isFetchableHttpUrl(value)) {
+    return value;
+  }
+
+  throw new GenerationError(42201, '阿里参考图需要公网可访问的 HTTP/HTTPS 图片 URL，或本地上传后的图片文件');
+}
+
+async function aliyunInputImages(images = []) {
+  if (images.length > 9) {
+    throw new GenerationError(42201, '阿里万相最多支持 9 张参考图');
+  }
+
+  const normalized = [];
+  for (const image of images) {
+    normalized.push(await aliyunInputImage(image));
+  }
+  return normalized;
+}
+
 async function localStorageFileFromUrl(value) {
   const storagePath = storagePathFromUrl(value);
   if (!storagePath) return null;
@@ -790,10 +930,48 @@ async function buildStepfunImageEditFormData(params) {
   return formData;
 }
 
-async function adaptImageRequest(providerType, endpointKey, params) {
+async function adaptImageRequest(providerType, endpointKey, params, auditContext = {}) {
   if (providerType === 'stepfun' && endpointKey === 'imageEdit') {
     return {
       data: await buildStepfunImageEditFormData(params),
+      headers: {}
+    };
+  }
+  if (providerType === 'aliyun') {
+    const upstreamParams = stripInternalParams(params);
+    const images = Array.isArray(upstreamParams.image)
+      ? upstreamParams.image
+      : upstreamParams.image
+        ? [upstreamParams.image]
+        : [];
+    const normalizedImages = images.length ? await aliyunInputImages(images) : [];
+    return {
+      data: adaptImagePayload(providerType, {
+        ...params,
+        image: Array.isArray(upstreamParams.image)
+          ? normalizedImages
+          : normalizedImages[0] || upstreamParams.image
+      }),
+      headers: params.async ? { 'X-DashScope-Async': 'enable' } : {}
+    };
+  }
+  if (providerType === 'doubao') {
+    const upstreamParams = stripInternalParams(params);
+    const images = Array.isArray(upstreamParams.image)
+      ? upstreamParams.image
+      : upstreamParams.image
+        ? [upstreamParams.image]
+        : [];
+    const normalizedImages = images.length
+      ? await doubaoInputImages(images, { auditContext })
+      : [];
+    return {
+      data: adaptImagePayload(providerType, {
+        ...params,
+        image: Array.isArray(upstreamParams.image)
+          ? normalizedImages
+          : normalizedImages[0] || upstreamParams.image
+      }),
       headers: {}
     };
   }
@@ -815,7 +993,7 @@ async function adaptImageRequest(providerType, endpointKey, params) {
   }
   return {
     data: adaptImagePayload(providerType, params),
-    headers: providerType === 'aliyun' && params.async ? { 'X-DashScope-Async': 'enable' } : {}
+    headers: {}
   };
 }
 
@@ -1329,7 +1507,7 @@ async function runImageGeneration({ startedAt, userId, model, channel, providerT
   try {
     costInfo = await charge(record, { userId, model, payload: params, type: 'image', auditContext });
     const endpointKey = imageEndpointKey(providerType, params);
-    const request = await adaptImageRequest(providerType, endpointKey, params);
+    const request = await adaptImageRequest(providerType, endpointKey, params, auditContext);
 
     const response = await callUpstream({
       channel,

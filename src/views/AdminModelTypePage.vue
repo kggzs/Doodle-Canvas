@@ -40,10 +40,10 @@
         <n-form :model="form" label-placement="top">
           <div class="grid gap-3 md:grid-cols-2">
             <n-form-item label="用户显示模型名称">
-              <n-input v-model:value="form.display_name" :disabled="channelOnlyMode" placeholder="例如：千问 Turbo / Doubao Seedream" />
+              <n-input v-model:value="form.display_name" placeholder="例如：千问 Turbo / Doubao Seedream" />
             </n-form-item>
             <n-form-item label="调用模型名称">
-              <n-input v-model:value="form.model_key" :disabled="channelOnlyMode" placeholder="例如：qwen-plus / doubao-seedream-3-0-t2i" />
+              <n-input v-model:value="form.model_key" placeholder="例如：qwen-plus / doubao-seedream-3-0-t2i" />
             </n-form-item>
             <n-form-item label="渠道名称">
               <n-input v-model:value="form.channel_name" placeholder="例如：千问主线路" />
@@ -89,7 +89,6 @@
             <n-input
               v-model:value="defaultParamsText"
               type="textarea"
-              :disabled="channelOnlyMode"
               :autosize="{ minRows: 4, maxRows: 8 }"
               :placeholder="typeMeta.defaultParamsPlaceholder"
             />
@@ -201,7 +200,6 @@ const editingId = ref('')
 const editingChannelId = ref('')
 const editingBillingId = ref('')
 const editingChannelConfig = ref({})
-const channelOnlyMode = ref(false)
 const defaultParamsText = ref('')
 
 const filters = reactive({
@@ -244,7 +242,6 @@ const inputProps = {
 }
 
 const drawerTitle = computed(() => {
-  if (channelOnlyMode.value) return `新增${typeMeta.value.shortName}线路`
   return editingId.value ? `编辑${typeMeta.value.shortName}` : `新增${typeMeta.value.shortName}`
 })
 const apiBaseUrlPlaceholder = computed(() => providerDefaultBaseUrls[form.provider_type] || 'https://api.example.com')
@@ -468,12 +465,11 @@ const columns = computed(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 300,
+    width: 240,
     fixed: 'right',
     render(row) {
       return h('div', { class: 'flex gap-2' }, [
         h(NButton, { size: 'small', onClick: () => openEdit(row) }, { default: () => '编辑' }),
-        h(NButton, { size: 'small', onClick: () => openAddChannel(row) }, { default: () => '新增线路' }),
         h(NButton, { size: 'small', type: row.isActive ? 'warning' : 'success', onClick: () => toggleStatus(row) }, { default: () => row.isActive ? '停用' : '启用' }),
         h(NPopconfirm, { onPositiveClick: () => deleteModel(row) }, {
           trigger: () => h(NButton, { size: 'small', type: 'error', ghost: true }, { default: () => '删除' }),
@@ -513,7 +509,6 @@ function resetForm() {
   editingChannelId.value = ''
   editingBillingId.value = ''
   editingChannelConfig.value = {}
-  channelOnlyMode.value = false
   Object.assign(form, {
     display_name: '',
     model_key: '',
@@ -553,28 +548,6 @@ function openEdit(row) {
     is_active: !!row.isActive,
     billing_active: row.billing ? !!row.billing.isActive : true
   })
-  defaultParamsText.value = stringifyJson(row.defaultParams)
-  drawerVisible.value = true
-}
-
-function openAddChannel(row) {
-  resetForm()
-  channelOnlyMode.value = true
-  editingId.value = row.id
-  editingBillingId.value = row.billing?.id || ''
-  Object.assign(form, {
-    display_name: row.displayName || '',
-    model_key: row.modelKey || '',
-    channel_name: `${row.displayName || row.modelKey}线路${(row.bindings?.length || 0) + 1}`,
-    provider_type: 'openai',
-    api_base_url: '',
-    api_path: '',
-    api_key: '',
-    fixed_amount: effectiveFixedAmount(row.billing?.fixedAmount),
-    is_active: true,
-    billing_active: row.billing ? !!row.billing.isActive : true
-  })
-  applyProviderDefaults()
   defaultParamsText.value = stringifyJson(row.defaultParams)
   drawerVisible.value = true
 }
@@ -631,9 +604,7 @@ async function saveModel(channelId, defaultParams) {
     description: null
   }
   if (editingId.value) {
-    if (!channelOnlyMode.value) {
-      await adminModelApi.update(editingId.value, payload)
-    }
+    await adminModelApi.update(editingId.value, payload)
     if (!editingChannelId.value && channelId) {
       await adminModelApi.addBinding(editingId.value, {
         channel_id: channelId,
