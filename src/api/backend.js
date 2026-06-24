@@ -55,18 +55,20 @@ export const recordApi = {
 }
 
 export const fileApi = {
-  uploadImage: (file) => {
+  uploadImage: (file, options = {}) => {
     const formData = new FormData()
     formData.append('file', file)
     return backend.post('/upload/image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: options.onUploadProgress
     })
   },
-  uploadVideo: (file) => {
+  uploadVideo: (file, options = {}) => {
     const formData = new FormData()
     formData.append('file', file)
     return backend.post('/upload/video', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: options.onUploadProgress
     })
   }
 }

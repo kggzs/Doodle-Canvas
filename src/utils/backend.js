@@ -227,6 +227,13 @@ function friendlyNetworkError(error) {
       request_id: null
     }
   }
+  if (error.response?.status === 504) {
+    return {
+      code: 50401,
+      message: '请求处理超时，请稍后再试',
+      request_id: null
+    }
+  }
   if ([522, 523, 524, 525].includes(error.response?.status)) {
     return {
       code: 50401,

@@ -7,6 +7,7 @@ import { projectApi } from '@/api/backend'
 
 const DEFAULT_CANVAS = { nodes: [], edges: [], viewport: { x: 100, y: 50, zoom: 0.8 } }
 const DEFAULT_PROJECT_NAME = '未命名项目'
+const MAX_PROJECT_NAME_LENGTH = 200
 
 export const projects = ref([])
 export const projectsLoading = ref(false)
@@ -46,7 +47,10 @@ function thumbnailFromCanvas(canvasData = {}) {
 
 function normalizeProjectName(name) {
   const normalized = String(name || '').trim()
-  return normalized || DEFAULT_PROJECT_NAME
+  const fallbackName = normalized || DEFAULT_PROJECT_NAME
+  return fallbackName.length > MAX_PROJECT_NAME_LENGTH
+    ? fallbackName.slice(0, MAX_PROJECT_NAME_LENGTH)
+    : fallbackName
 }
 
 function normalizeCanvasPayload(canvasData) {

@@ -45,7 +45,11 @@
             <!-- Replace button | 替换按钮 -->
             <n-tooltip trigger="hover">
               <template #trigger>
-                <button @click="showReplaceModal = true" class="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors">
+                <button
+                  @click="showReplaceModal = true"
+                  :disabled="isAnyUploadInProgress"
+                  class="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   <n-icon :size="14">
                     <SwapHorizontalOutline />
                   </n-icon>
@@ -222,13 +226,37 @@
         <!-- Upload placeholder | 上传占位 -->
         <div v-else class="rounded-xl bg-[var(--bg-tertiary)] border-2 border-dashed border-[var(--border-color)] p-3">
           <!-- Upload area | 上传区域 -->
-          <div class="aspect-video flex flex-col items-center justify-center gap-2 relative cursor-pointer hover:bg-[var(--bg-secondary)] rounded-lg transition-colors">
-            <n-icon :size="32" class="text-[var(--text-secondary)]">
-              <ImageOutline />
-            </n-icon>
-            <span class="text-sm text-[var(--text-secondary)] text-center">拖放图片或点击上传</span>
-            <input type="file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer"
-              @change="handleFileUpload" />
+          <div
+            class="aspect-video flex flex-col items-center justify-center gap-2 relative rounded-lg transition-colors"
+            :class="isUploading ? 'cursor-wait bg-[var(--bg-secondary)]' : 'cursor-pointer hover:bg-[var(--bg-secondary)]'"
+            @dragover.prevent
+            @drop.prevent="handleDropUpload"
+          >
+            <template v-if="isUploading">
+              <n-spin :size="28" />
+              <span class="text-sm font-medium text-[var(--text-primary)]">图片上传中</span>
+              <span class="text-xs text-[var(--text-secondary)]">{{ uploadProgressText }}</span>
+              <div class="h-1.5 w-28 overflow-hidden rounded-full bg-[var(--border-color)]">
+                <div
+                  class="h-full rounded-full bg-[var(--accent-color)] transition-all"
+                  :style="{ width: `${uploadProgress}%` }"
+                ></div>
+              </div>
+            </template>
+            <template v-else>
+              <n-icon :size="32" class="text-[var(--text-secondary)]">
+                <ImageOutline />
+              </n-icon>
+              <span class="text-sm text-[var(--text-secondary)] text-center">拖放图片或点击上传</span>
+            </template>
+            <input
+              type="file"
+              accept="image/*"
+              class="absolute inset-0 opacity-0"
+              :class="isUploading ? 'cursor-wait' : 'cursor-pointer'"
+              :disabled="isUploading"
+              @change="handleFileUpload"
+            />
           </div>
           
           <!-- Divider | 分割线 -->
@@ -244,12 +272,13 @@
               v-model="urlInput"
               type="text" 
               placeholder="输入图片地址..."
-              class="flex-1 px-2 py-1 text-sm bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg outline-none focus:border-[var(--accent-color)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+              :disabled="isUploading"
+              class="flex-1 px-2 py-1 text-sm bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg outline-none focus:border-[var(--accent-color)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
               @keydown.enter="handleUrlSubmit"
             />
             <button 
               @click="handleUrlSubmit"
-              :disabled="!urlInput.trim()"
+              :disabled="isUploading || !urlInput.trim()"
               class="px-3 py-2 text-xs bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               预览
@@ -271,14 +300,35 @@
   />
 
   <!-- Replace image modal | 替换图片弹窗 -->
-  <n-modal v-model:show="showReplaceModal" preset="card" title="替换图片" class="w-[400px]" :mask-closable="true">
+  <n-modal
+    v-model:show="showReplaceModal"
+    preset="card"
+    title="替换图片"
+    class="w-[400px]"
+    :mask-closable="!replaceUploading"
+    :closable="!replaceUploading"
+  >
     <div class="space-y-4">
       <!-- Upload area | 上传区域 -->
       <div
-        class="border-2 border-dashed border-[var(--border-color)] rounded-xl p-4 cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors"
-        @click="replaceFileInputRef?.click()"
+        class="border-2 border-dashed border-[var(--border-color)] rounded-xl p-4 transition-colors"
+        :class="replaceUploading ? 'cursor-wait bg-[var(--bg-tertiary)]' : 'cursor-pointer hover:bg-[var(--bg-tertiary)]'"
+        @click="openReplaceFilePicker"
+        @dragover.prevent
+        @drop.prevent="handleReplaceDropUpload"
       >
-        <div class="flex flex-col items-center gap-2">
+        <div v-if="replaceUploading" class="flex flex-col items-center gap-2">
+          <n-spin :size="28" />
+          <span class="text-sm font-medium text-[var(--text-primary)]">图片替换中</span>
+          <span class="text-xs text-[var(--text-secondary)]">{{ replaceUploadProgressText }}</span>
+          <div class="h-1.5 w-32 overflow-hidden rounded-full bg-[var(--border-color)]">
+            <div
+              class="h-full rounded-full bg-[var(--accent-color)] transition-all"
+              :style="{ width: `${replaceUploadProgress}%` }"
+            ></div>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center gap-2">
           <n-icon :size="32" class="text-[var(--text-secondary)]">
             <ImageOutline />
           </n-icon>
@@ -288,6 +338,7 @@
             type="file"
             accept="image/*"
             class="hidden"
+            :disabled="replaceUploading"
             @change="handleReplaceFileUpload"
           />
         </div>
@@ -306,10 +357,11 @@
           v-model="replaceUrlInput"
           type="text"
           placeholder="输入图片地址..."
-          class="flex-1 px-3 py-2 text-sm bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg outline-none focus:border-[var(--accent-color)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+          :disabled="replaceUploading"
+          class="flex-1 px-3 py-2 text-sm bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg outline-none focus:border-[var(--accent-color)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           @keydown.enter="handleReplaceUrlSubmit"
         />
-        <n-button type="primary" size="small" :disabled="!replaceUrlInput.trim()" @click="handleReplaceUrlSubmit">
+        <n-button type="primary" size="small" :disabled="replaceUploading || !replaceUrlInput.trim()" @click="handleReplaceUrlSubmit">
           确认
         </n-button>
       </div>
@@ -324,11 +376,14 @@
  */
 import { ref, nextTick, computed, watch } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
-import { NIcon, NTooltip, NSwitch, NImagePreview, NModal, NButton } from 'naive-ui'
+import { NIcon, NTooltip, NSwitch, NImagePreview, NModal, NButton, NSpin } from 'naive-ui'
 import { TrashOutline, ExpandOutline, ImageOutline, CloseCircleOutline, CopyOutline, VideocamOutline, DownloadOutline, EyeOutline, BrushOutline, RefreshOutline, ColorWandOutline, SwapHorizontalOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
 import NodeHandleMenu from './NodeHandleMenu.vue'
 import { fileApi } from '@/api/backend'
+
+const IMAGE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
 
 // VueFlow 传递的 attrs 不需要继承到根元素,避免 fragment 组件的 Vue warn
 defineOptions({ inheritAttrs: false })
@@ -370,10 +425,16 @@ const labelInputRef = ref(null)
 const urlInput = ref('')
 const urlLoading = ref(false)
 
+// Upload state | 上传状态
+const isUploading = ref(false)
+const uploadProgress = ref(0)
+
 // Replace modal state | 替换弹窗状态
 const showReplaceModal = ref(false)
 const replaceUrlInput = ref('')
 const replaceFileInputRef = ref(null)
+const replaceUploading = ref(false)
+const replaceUploadProgress = ref(0)
 
 // Inpainting state | 涂抹重绘状态
 const isInpaintMode = ref(false)
@@ -390,6 +451,10 @@ const maskData = ref(null)
 const isPublic = computed(() => {
   return props.data?.publicProps?.name != null && props.data?.publicProps?.name !== ''
 })
+
+const isAnyUploadInProgress = computed(() => isUploading.value || replaceUploading.value)
+const uploadProgressText = computed(() => uploadProgress.value > 0 ? `${uploadProgress.value}%` : '正在准备上传...')
+const replaceUploadProgressText = computed(() => replaceUploadProgress.value > 0 ? `${replaceUploadProgress.value}%` : '正在准备上传...')
 
 // Handle toggle public | 处理切换公开状态
 const handleTogglePublic = (value) => {
@@ -685,30 +750,123 @@ const createInpaintWorkflow = () => {
   window.$message?.success('已创建局部重绘工作流')
 }
 
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0MB'
+  return `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)}MB`
+}
+
+const validateImageFile = (file) => {
+  if (!file) return false
+
+  if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+    window.$message?.warning('仅支持 PNG、JPEG、WebP、GIF 图片')
+    return false
+  }
+
+  if (file.size > IMAGE_UPLOAD_MAX_BYTES) {
+    window.$message?.warning(`图片不能超过 ${formatFileSize(IMAGE_UPLOAD_MAX_BYTES)}`)
+    return false
+  }
+
+  return true
+}
+
+const syncUploadProgress = (event, progressRef) => {
+  if (event?.total) {
+    progressRef.value = Math.min(99, Math.round((event.loaded / event.total) * 100))
+    return
+  }
+
+  if (progressRef.value < 90) {
+    progressRef.value += 5
+  }
+}
+
+const getUploadErrorMessage = (err) => {
+  const message = typeof err === 'string'
+    ? err
+    : err?.message || err?.data?.message || ''
+
+  if (
+    err?.code === 50401 ||
+    /504|gateway time-out|gateway timeout|timeout|超时/i.test(message)
+  ) {
+    return '图片上传超时，请稍后重试，避免重复提交'
+  }
+
+  return message || '图片上传失败，请稍后再试'
+}
+
+const uploadImageFile = async (file, { replace = false } = {}) => {
+  if (!file || !validateImageFile(file)) return
+
+  if (isAnyUploadInProgress.value) {
+    window.$message?.warning('图片正在上传，请稍候')
+    return
+  }
+
+  const uploadingRef = replace ? replaceUploading : isUploading
+  const progressRef = replace ? replaceUploadProgress : uploadProgress
+
+  uploadingRef.value = true
+  progressRef.value = 0
+
+  try {
+    const result = await fileApi.uploadImage(file, {
+      onUploadProgress: (event) => syncUploadProgress(event, progressRef)
+    })
+    const uploaded = result?.file
+    const fileUrl = uploaded?.fileUrl || uploaded?.file_url
+
+    if (!fileUrl) {
+      throw new Error('上传返回异常，请稍后重试')
+    }
+
+    progressRef.value = 100
+    updateNode(props.id, {
+      url: fileUrl,
+      fileId: uploaded.id,
+      fileName: uploaded.fileName || uploaded.file_name || file.name,
+      fileType: file.type,
+      label: '参考图',
+      error: null,
+      updatedAt: Date.now()
+    })
+
+    if (replace) {
+      showReplaceModal.value = false
+      replaceUrlInput.value = ''
+      window.$message?.success('图片已替换')
+    } else {
+      window.$message?.success('图片上传成功')
+    }
+  } catch (err) {
+    console.error('File upload error:', err)
+    window.$message?.error(getUploadErrorMessage(err))
+  } finally {
+    uploadingRef.value = false
+    setTimeout(() => {
+      if (!uploadingRef.value) progressRef.value = 0
+    }, 300)
+  }
+}
+
 // Handle file upload | 处理文件上传
 const handleFileUpload = async (event) => {
-  const file = event.target.files[0]
-  if (file) {
-    try {
-      const result = await fileApi.uploadImage(file)
-      const uploaded = result.file
-      updateNode(props.id, {
-        url: uploaded.fileUrl || uploaded.file_url,
-        fileId: uploaded.id,
-        fileName: uploaded.fileName || uploaded.file_name || file.name,
-        fileType: file.type,
-        label: '参考图',
-        updatedAt: Date.now()
-      })
-    } catch (err) {
-      console.error('File upload error:', err)
-      window.$message?.error('图片上传失败')
-    }
-  }
+  const file = event.target.files?.[0]
+  await uploadImageFile(file)
+  event.target.value = ''
+}
+
+const handleDropUpload = async (event) => {
+  const file = event.dataTransfer?.files?.[0]
+  await uploadImageFile(file)
 }
 
 // Handle URL submit | 处理 URL 提交
 const handleUrlSubmit = () => {
+  if (isUploading.value) return
+
   const url = urlInput.value.trim()
   if (!url) return
   
@@ -743,33 +901,30 @@ const handleUrlSubmit = () => {
 
 
 
+const openReplaceFilePicker = () => {
+  if (isAnyUploadInProgress.value) {
+    window.$message?.warning('图片正在上传，请稍候')
+    return
+  }
+  replaceFileInputRef.value?.click()
+}
+
 // Handle replace file upload | 处理替换文件上传
 const handleReplaceFileUpload = async (event) => {
-  const file = event.target.files[0]
-  if (file) {
-    try {
-      const result = await fileApi.uploadImage(file)
-      const uploaded = result.file
-      updateNode(props.id, {
-        url: uploaded.fileUrl || uploaded.file_url,
-        fileId: uploaded.id,
-        fileName: uploaded.fileName || uploaded.file_name || file.name,
-        fileType: file.type,
-        label: '参考图',
-        updatedAt: Date.now()
-      })
-      showReplaceModal.value = false
-      replaceUrlInput.value = ''
-      window.$message?.success('图片已替换')
-    } catch (err) {
-      console.error('File upload error:', err)
-      window.$message?.error('图片上传失败')
-    }
-  }
+  const file = event.target.files?.[0]
+  await uploadImageFile(file, { replace: true })
+  event.target.value = ''
+}
+
+const handleReplaceDropUpload = async (event) => {
+  const file = event.dataTransfer?.files?.[0]
+  await uploadImageFile(file, { replace: true })
 }
 
 // Handle replace URL submit | 处理替换 URL 提交
 const handleReplaceUrlSubmit = () => {
+  if (replaceUploading.value) return
+
   const url = replaceUrlInput.value.trim()
   if (!url) return
 

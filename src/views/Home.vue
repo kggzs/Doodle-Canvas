@@ -259,6 +259,20 @@ const suggestions = [
   '雨天富声旁边花语'
 ]
 
+const MAX_PROJECT_NAME_LENGTH = 8
+
+const createProjectNameFromPrompt = (prompt) => {
+  const firstLine = String(prompt || '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(Boolean)
+
+  if (!firstLine) return '未命名项目'
+  return firstLine.length > MAX_PROJECT_NAME_LENGTH
+    ? `${firstLine.slice(0, MAX_PROJECT_NAME_LENGTH)}...`
+    : firstLine
+}
+
 // Format date | 格式化日期
 const formatDate = (date) => {
   if (!date) return ''
@@ -334,9 +348,8 @@ const createNewProject = async () => {
 
 // Create project with input text | 使用输入文本创建项目
 const handleCreateWithInput = async () => {
-  const name = inputText.value.trim() || '未命名项目'
-  const id = await createProject(name)
   const prompt = inputText.value.trim()
+  const id = await createProject(createProjectNameFromPrompt(prompt))
   inputText.value = ''
   router.push({ path: `/canvas/${id}`, query: prompt ? { prompt } : {} })
 }
