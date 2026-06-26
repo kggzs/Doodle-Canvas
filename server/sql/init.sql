@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS `login_logs` (
 CREATE TABLE IF NOT EXISTS `model_channels` (
     `id`              CHAR(36)     NOT NULL,
     `name`            VARCHAR(100) NOT NULL COMMENT '渠道名称（如 OpenAI-主、阿里云万相-备用）',
-    `provider_type`   ENUM('openai','aliyun','doubao','stepfun','agnes','custom') NOT NULL COMMENT '适配器类型',
+    `provider_type`   ENUM('openai','aliyun','doubao','stepfun','agnes','hunyuan','custom') NOT NULL COMMENT '适配器类型',
     `model_type`      ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型',
     `api_base_url`    VARCHAR(500) NOT NULL COMMENT 'API 基础地址',
     `api_key`         TEXT         NOT NULL COMMENT 'API Key（AES 加密 JSON）',
@@ -738,7 +738,7 @@ ALTER TABLE `model_channel_bindings`
   NOT NULL DEFAULT 'priority';
 
 ALTER TABLE `model_channels`
-  MODIFY COLUMN `provider_type` ENUM('openai','aliyun','doubao','stepfun','agnes','custom') NOT NULL COMMENT '适配器类型';
+  MODIFY COLUMN `provider_type` ENUM('openai','aliyun','doubao','stepfun','agnes','hunyuan','custom') NOT NULL COMMENT '适配器类型';
 
 ALTER TABLE `model_channels`
   ADD COLUMN IF NOT EXISTS `model_type` ENUM('image','video','chat') NOT NULL DEFAULT 'chat' COMMENT '渠道用途类型' AFTER `provider_type`;

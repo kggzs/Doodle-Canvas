@@ -13,6 +13,7 @@ import {
   SEEDREAM_QUALITY_OPTIONS,
   STEPFUN_SIZE_OPTIONS,
   AGNES_IMAGE_SIZE_OPTIONS,
+  HUNYUAN_IMAGE_SIZE_OPTIONS,
   WAN_SIZE_OPTIONS,
   WAN_PRO_SIZE_OPTIONS,
   SEEDANCE_RESOLUTION_OPTIONS,
@@ -89,6 +90,7 @@ const KNOWN_IMAGE_SIZE_OPTIONS = [
   ...SEEDREAM_4K_SIZE_OPTIONS,
   ...STEPFUN_SIZE_OPTIONS,
   ...AGNES_IMAGE_SIZE_OPTIONS,
+  ...HUNYUAN_IMAGE_SIZE_OPTIONS,
   ...WAN_SIZE_OPTIONS,
   ...WAN_PRO_SIZE_OPTIONS
 ]
@@ -179,6 +181,7 @@ const providerDefaultSizeOptions = (model) => {
   }
   if (hasProvider(model, 'doubao')) return SEEDREAM_SIZE_OPTIONS
   if (hasProvider(model, 'agnes')) return AGNES_IMAGE_SIZE_OPTIONS
+  if (hasProvider(model, 'hunyuan')) return HUNYUAN_IMAGE_SIZE_OPTIONS
   if (hasProvider(model, 'openai') || hasProvider(model, 'custom')) return GENERIC_IMAGE_SIZE_OPTIONS
   return []
 }

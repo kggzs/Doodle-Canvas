@@ -54,6 +54,11 @@ const DEFAULT_ENDPOINTS = {
     video: '/v1/videos',
     videoQuery: '/agnesapi?video_id={taskId}'
   },
+  hunyuan: {
+    image: '/v1/api/image/submit',
+    imageLite: '/v1/api/image/lite',
+    imageQuery: '/v1/api/image/query'
+  },
   custom: {
     chat: '/v1/chat/completions',
     image: '/v1/images/generations',
@@ -70,6 +75,16 @@ const HTTPS_AGENT = new https.Agent({ family: 4 });
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 60000;
 const STEPFUN_IMAGE_SIZES = ['1024x1024', '768x1360', '896x1184', '1360x768', '1184x896'];
 const AGNES_IMAGE_SIZES = ['1024x768', '1024x1024', '1344x768', '768x1344'];
+const HUNYUAN_IMAGE_SIZES = [
+  '2048:512', '1984:512', '1920:512', '1856:512', '1792:512',
+  '1728:512', '1664:512', '1600:512', '1536:512', '1472:576',
+  '1408:640', '1344:704', '1280:768', '1216:832', '1152:896',
+  '1088:960', '1024:1024', '960:1088', '896:1152', '832:1216',
+  '768:1280', '704:1344', '640:1408', '576:1472', '512:1536',
+  '512:1600', '512:1664', '512:1728', '512:1792', '512:1856',
+  '512:1920', '512:1984', '512:2048', '768:1024', '720:1280',
+  '1024:768', '1280:720'
+];
 
 export class GenerationError extends Error {
   constructor(code, message, extra = {}) {
@@ -188,6 +203,10 @@ function configuredImageSizes(model) {
 function providerImageSizes(providerType, model) {
   if (providerType === 'stepfun') return STEPFUN_IMAGE_SIZES;
   if (providerType === 'agnes') return AGNES_IMAGE_SIZES;
+  if (providerType === 'hunyuan') {
+    const configured = configuredImageSizes(model);
+    return configured.length ? configured : HUNYUAN_IMAGE_SIZES;
+  }
   const configured = configuredImageSizes(model);
   if (configured.length) return configured;
   return [];
@@ -640,6 +659,29 @@ function adaptImagePayload(providerType, params) {
     });
   }
 
+  if (providerType === 'hunyuan') {
+    const images = Array.isArray(upstreamParams.images)
+      ? upstreamParams.images
+      : Array.isArray(upstreamParams.image)
+        ? upstreamParams.image
+        : upstreamParams.image
+          ? [upstreamParams.image]
+          : [];
+    const size = upstreamParams.size
+      ? String(upstreamParams.size).replace('x', ':')
+      : undefined;
+    const payload = compactObject({
+      model: upstreamParams.model,
+      prompt: upstreamParams.prompt || '',
+      size
+    });
+    if (images.length) payload.images = images;
+    if (upstreamParams.rsp_img_type || upstreamParams.model === 'hy-image-lite') {
+      payload.rsp_img_type = upstreamParams.rsp_img_type || 'url';
+    }
+    return payload;
+  }
+
   return compactObject({
     ...upstreamParams,
     model: upstreamParams.model,
@@ -648,6 +690,9 @@ function adaptImagePayload(providerType, params) {
 }
 
 function imageEndpointKey(providerType, params) {
+  if (providerType === 'hunyuan') {
+    return params.model === 'hy-image-lite' ? 'imageLite' : 'image';
+  }
   if (providerType !== 'stepfun') return 'image';
   const images = Array.isArray(params.image) ? params.image : params.image ? [params.image] : [];
   return images.length ? 'imageEdit' : 'image';
@@ -812,6 +857,50 @@ async function doubaoInputImages(images = [], options = {}) {
   const normalized = [];
   for (const image of images) {
     normalized.push(await doubaoInputImage(image, options));
+  }
+  return normalized;
+}
+
+async function hunyuanInputImage(value, options = {}) {
+  if (typeof value !== 'string' || !value) return value;
+  if (value.startsWith('blob:') || value.startsWith('upload://')) {
+    throw new GenerationError(42201, '混元参考图是浏览器临时地址，请重新上传图片后再生成');
+  }
+  if (value.startsWith('data:') || value.startsWith('file:')) {
+    throw new GenerationError(42201, '混元参考图需要公网可访问的 HTTP/HTTPS 图片 URL');
+  }
+  if (/^https?:\/\//i.test(value) && isFetchableHttpUrl(value)) {
+    return value;
+  }
+
+  const storagePath = storagePathFromUrl(value);
+  if (storagePath) {
+    const localFile = await localStorageFileFromUrl(value);
+    const mimeType = localFile.file.mimeType || mimeTypeFromName(localFile.file.fileName || localFile.absolutePath);
+    if (!String(mimeType).startsWith('image/')) {
+      throw new GenerationError(42201, '混元参考图必须是图片文件');
+    }
+  }
+
+  const publicUrl = storageUrlToPublicUrl(value, options.auditContext);
+  if (publicUrl && isFetchableHttpUrl(publicUrl)) {
+    return publicUrl;
+  }
+
+  if (storagePath) {
+    throw new GenerationError(
+      42201,
+      '混元参考图需要公网可访问的图片 URL，请配置 STORAGE_PUBLIC_BASE_URL 或 PUBLIC_BASE_URL 为公网域名'
+    );
+  }
+
+  throw new GenerationError(42201, '混元参考图需要公网可访问的 HTTP/HTTPS 图片 URL');
+}
+
+async function hunyuanInputImages(images = [], options = {}) {
+  const normalized = [];
+  for (const image of images) {
+    normalized.push(await hunyuanInputImage(image, options));
   }
   return normalized;
 }
@@ -991,6 +1080,26 @@ async function adaptImageRequest(providerType, endpointKey, params, auditContext
       headers: {}
     };
   }
+  if (providerType === 'hunyuan') {
+    const upstreamParams = stripInternalParams(params);
+    const images = Array.isArray(upstreamParams.image)
+      ? upstreamParams.image
+      : upstreamParams.image
+        ? [upstreamParams.image]
+        : [];
+    const normalizedImages = images.length
+      ? await hunyuanInputImages(images, { auditContext })
+      : [];
+    return {
+      data: adaptImagePayload(providerType, {
+        ...params,
+        image: Array.isArray(upstreamParams.image)
+          ? normalizedImages
+          : normalizedImages[0] || upstreamParams.image
+      }),
+      headers: {}
+    };
+  }
   return {
     data: adaptImagePayload(providerType, params),
     headers: {}
@@ -1166,6 +1275,40 @@ function adaptImageResponse(providerType, responseData) {
     };
   }
 
+  if (providerType === 'hunyuan') {
+    if (responseData?.error) {
+      throw new GenerationError(50201, responseData.error.message || responseData.message || '混元图片生成失败');
+    }
+
+    const status = String(responseData?.status || '').toLowerCase();
+    if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
+      throw new GenerationError(50201, responseData?.message || '混元图片生成失败');
+    }
+
+    const rawData = responseData?.data || responseData?.images || responseData?.result || [];
+    const fromData = (Array.isArray(rawData) ? rawData : [rawData])
+      .filter(Boolean)
+      .map((item) => normalizeImageItem(item))
+      .filter((item) => item.url);
+    const directUrl = responseData?.url || responseData?.image_url || responseData?.image;
+    const fromDirect = directUrl ? [normalizeImageItem({ url: directUrl })].filter((item) => item.url) : [];
+    const images = [...fromData, ...fromDirect];
+
+    if (images.length || ['completed', 'succeeded', 'success'].includes(status)) {
+      return { images };
+    }
+
+    const taskId = responseData?.id || responseData?.task_id || responseData?.taskId;
+    if (taskId) {
+      return {
+        asyncTaskId: taskId,
+        taskStatus: responseData.status || 'pending'
+      };
+    }
+
+    return { images: [] };
+  }
+
   const data = responseData.data || responseData;
   return {
     images: (Array.isArray(data) ? data : [data])
@@ -1286,18 +1429,30 @@ function adaptVideoStatusResponse(providerType, responseData) {
   };
 }
 
-async function waitForImageTask(channel, taskId) {
+async function waitForImageTask(channel, taskId, params = {}) {
+  const providerType = normalizeProvider(channel.providerType);
   for (let i = 0; i < IMAGE_MAX_POLLS; i += 1) {
     await sleep(IMAGE_POLL_INTERVAL_MS);
+    const request = providerType === 'hunyuan'
+      ? {
+          method: 'post',
+          data: compactObject({
+            model: params.model,
+            id: taskId
+          })
+        }
+      : {
+          method: 'get',
+          taskId
+        };
     const response = await callUpstream({
       channel,
       endpointKey: 'imageQuery',
-      method: 'get',
-      taskId
+      ...request
     });
-    const adapted = adaptImageResponse(channel.providerType, response.data);
+    const adapted = adaptImageResponse(providerType, response.data);
     if (adapted.images?.length) return adapted.images;
-    if (adapted.taskStatus === 'FAILED') {
+    if (['failed', 'error', 'cancelled', 'canceled'].includes(String(adapted.taskStatus || '').toLowerCase())) {
       throw new GenerationError(50201, response.data?.message || '图片生成失败');
     }
   }
@@ -1520,7 +1675,7 @@ async function runImageGeneration({ startedAt, userId, model, channel, providerT
     const images = adapted.images?.length
       ? adapted.images
       : adapted.asyncTaskId
-        ? await waitForImageTask(channel, adapted.asyncTaskId)
+        ? await waitForImageTask(channel, adapted.asyncTaskId, params)
         : [];
 
     if (!images.length) {

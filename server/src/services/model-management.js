@@ -17,7 +17,7 @@ import { assertSafeRemoteUrl, SAFE_HTTP_AGENT, SAFE_HTTPS_AGENT } from './storag
 
 const { GenerationRecord, ModelChannel, ModelConfig, ModelChannelBinding } = db;
 
-const PROVIDER_TYPES = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes', 'custom'];
+const PROVIDER_TYPES = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes', 'hunyuan', 'custom'];
 const MODEL_TYPES = ['image', 'video', 'chat'];
 const ROTATION_STRATEGIES = ['round_robin', 'weighted_random', 'priority', 'failover'];
 

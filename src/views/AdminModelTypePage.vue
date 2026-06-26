@@ -174,15 +174,17 @@ const providerOptions = [
   { label: '豆包', value: 'doubao' },
   { label: '阶跃星辰', value: 'stepfun' },
   { label: 'Agnes AI', value: 'agnes' },
+  { label: '腾讯混元', value: 'hunyuan' },
   { label: '自定义', value: 'custom' }
 ]
 const providerDefaultBaseUrls = {
   aliyun: getProviderConfig('aliyun').defaultBaseUrl,
   doubao: getProviderConfig('doubao').defaultBaseUrl,
   stepfun: getProviderConfig('stepfun').defaultBaseUrl,
-  agnes: getProviderConfig('agnes').defaultBaseUrl
+  agnes: getProviderConfig('agnes').defaultBaseUrl,
+  hunyuan: getProviderConfig('hunyuan').defaultBaseUrl
 }
-const providerDefaultApiPathTypes = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes']
+const providerDefaultApiPathTypes = ['openai', 'aliyun', 'doubao', 'stepfun', 'agnes', 'hunyuan']
 const activeOptions = [
   { label: '全部状态', value: null },
   { label: '启用', value: true },
@@ -303,16 +305,29 @@ function normalizeApiPath(value) {
 
 function providerDefaultApiPath(providerType) {
   if (!providerDefaultApiPathTypes.includes(providerType)) return ''
-  const endpoint = getProviderConfig(providerType).endpoints?.[typeMeta.value.endpointKey] || ''
+  const endpoints = getProviderConfig(providerType).endpoints || {}
+  const endpoint = providerType === 'hunyuan' && props.modelType === 'image' && form.model_key === 'hy-image-lite'
+    ? endpoints.imageLite || endpoints.image || ''
+    : endpoints[typeMeta.value.endpointKey] || ''
   return endpoint && endpoint !== '暂不支持' ? endpoint : ''
+}
+
+function providerDefaultApiPathCandidates(providerType) {
+  if (!providerDefaultApiPathTypes.includes(providerType)) return []
+  const endpoints = getProviderConfig(providerType).endpoints || {}
+  const keys = props.modelType === 'image'
+    ? ['image', 'imageLite', 'imageEdit', 'imageQuery']
+    : [typeMeta.value.endpointKey]
+  return [...new Set([providerDefaultApiPath(providerType), ...keys.map(key => endpoints[key])])]
+    .filter(endpoint => endpoint && endpoint !== '暂不支持')
 }
 
 function isKnownProviderDefaultApiPath(value) {
   const normalized = normalizeApiPath(value)
   if (!normalized) return false
   return providerOptions.some((provider) => {
-    const endpoint = providerDefaultApiPath(provider.value)
-    return endpoint && normalizeApiPath(endpoint) === normalized
+    return providerDefaultApiPathCandidates(provider.value)
+      .some(endpoint => normalizeApiPath(endpoint) === normalized)
   })
 }
 
@@ -558,9 +573,14 @@ function buildChannelConfig() {
     ...(current.endpoints || {}),
     [typeMeta.value.endpointKey]: normalizeApiPath(form.api_path)
   }
-  const imageEditEndpoint = getProviderConfig(form.provider_type).endpoints?.imageEdit
-  if (props.modelType === 'image' && imageEditEndpoint && imageEditEndpoint !== '暂不支持' && !endpoints.imageEdit) {
-    endpoints.imageEdit = imageEditEndpoint
+  const providerEndpoints = getProviderConfig(form.provider_type).endpoints || {}
+  if (props.modelType === 'image') {
+    for (const key of ['imageEdit', 'imageLite', 'imageQuery']) {
+      const endpoint = providerEndpoints[key]
+      if (endpoint && endpoint !== '暂不支持' && !endpoints[key]) {
+        endpoints[key] = endpoint
+      }
+    }
   }
   return {
     ...current,
@@ -702,6 +722,12 @@ watch(() => props.modelType, () => {
 
 watch(() => form.provider_type, () => {
   applyProviderDefaults()
+})
+
+watch(() => form.model_key, () => {
+  if (form.provider_type === 'hunyuan' && props.modelType === 'image') {
+    applyProviderDefaults()
+  }
 })
 
 onMounted(loadRows)

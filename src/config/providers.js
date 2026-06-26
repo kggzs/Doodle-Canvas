@@ -469,6 +469,54 @@ export const PROVIDERS = {
     }
   },
 
+  hunyuan: {
+    label: '腾讯混元 (Tencent Hunyuan)',
+    defaultBaseUrl: 'https://tokenhub.tencentmaas.com',
+    endpoints: {
+      chat: '暂不支持',
+      image: '/v1/api/image/submit',
+      imageLite: '/v1/api/image/lite',
+      imageQuery: '/v1/api/image/query',
+      video: '暂不支持',
+      videoQuery: '暂不支持'
+    },
+    requestAdapter: {
+      image: (params) => {
+        const images = Array.isArray(params.image)
+          ? params.image
+          : params.image
+            ? [params.image]
+            : []
+        const adapted = {
+          model: params.model,
+          prompt: params.prompt || ''
+        }
+        if (params.size) adapted.size = String(params.size).replace('x', ':')
+        if (images.length) adapted.images = images
+        if (params.rsp_img_type || params.model === 'hy-image-lite') {
+          adapted.rsp_img_type = params.rsp_img_type || 'url'
+        }
+        return adapted
+      }
+    },
+    responseAdapter: {
+      image: (response) => {
+        if (response.id && response.status && response.status !== 'completed') {
+          return {
+            taskId: response.id,
+            taskStatus: response.status,
+            isAsync: true
+          }
+        }
+        const data = response.data || response
+        return (Array.isArray(data) ? data : [data]).map(item => ({
+          url: item.url || item.b64_json || '',
+          revisedPrompt: item.revised_prompt || ''
+        }))
+      }
+    }
+  },
+
   // 默认使用 OpenAI 格式
   default: 'openai'
 }

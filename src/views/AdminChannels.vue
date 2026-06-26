@@ -115,17 +115,19 @@ const providerOptions = [
   { label: '豆包', value: 'doubao' },
   { label: '阶跃星辰', value: 'stepfun' },
   { label: 'Agnes AI', value: 'agnes' },
+  { label: '腾讯混元', value: 'hunyuan' },
   { label: '自定义', value: 'custom' }
 ]
 const providerDefaultBaseUrls = {
   aliyun: getProviderConfig('aliyun').defaultBaseUrl,
   doubao: getProviderConfig('doubao').defaultBaseUrl,
   stepfun: getProviderConfig('stepfun').defaultBaseUrl,
-  agnes: getProviderConfig('agnes').defaultBaseUrl
+  agnes: getProviderConfig('agnes').defaultBaseUrl,
+  hunyuan: getProviderConfig('hunyuan').defaultBaseUrl
 }
 const endpointKeysByType = {
   chat: ['chat'],
-  image: ['image', 'imageEdit', 'imageQuery'],
+  image: ['image', 'imageEdit', 'imageLite', 'imageQuery'],
   video: ['video', 'videoQuery']
 }
 const typeOptions = [

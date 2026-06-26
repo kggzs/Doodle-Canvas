@@ -62,6 +62,47 @@ export const AGNES_IMAGE_SIZE_OPTIONS = [
     { label: '9:16', key: '768x1344' }
 ]
 
+// Hunyuan image size options | 腾讯混元图片尺寸选项
+export const HUNYUAN_IMAGE_SIZE_OPTIONS = [
+    { label: '2048:512', key: '2048:512' },
+    { label: '1984:512', key: '1984:512' },
+    { label: '1920:512', key: '1920:512' },
+    { label: '1856:512', key: '1856:512' },
+    { label: '1792:512', key: '1792:512' },
+    { label: '1728:512', key: '1728:512' },
+    { label: '1664:512', key: '1664:512' },
+    { label: '1600:512', key: '1600:512' },
+    { label: '1536:512', key: '1536:512' },
+    { label: '1472:576', key: '1472:576' },
+    { label: '1408:640', key: '1408:640' },
+    { label: '1344:704', key: '1344:704' },
+    { label: '1280:768', key: '1280:768' },
+    { label: '1216:832', key: '1216:832' },
+    { label: '1152:896', key: '1152:896' },
+    { label: '1088:960', key: '1088:960' },
+    { label: '1024:1024', key: '1024:1024' },
+    { label: '960:1088', key: '960:1088' },
+    { label: '896:1152', key: '896:1152' },
+    { label: '832:1216', key: '832:1216' },
+    { label: '768:1280', key: '768:1280' },
+    { label: '704:1344', key: '704:1344' },
+    { label: '640:1408', key: '640:1408' },
+    { label: '576:1472', key: '576:1472' },
+    { label: '512:1536', key: '512:1536' },
+    { label: '512:1600', key: '512:1600' },
+    { label: '512:1664', key: '512:1664' },
+    { label: '512:1728', key: '512:1728' },
+    { label: '512:1792', key: '512:1792' },
+    { label: '512:1856', key: '512:1856' },
+    { label: '512:1920', key: '512:1920' },
+    { label: '512:1984', key: '512:1984' },
+    { label: '512:2048', key: '512:2048' },
+    { label: '768:1024', key: '768:1024' },
+    { label: '720:1280', key: '720:1280' },
+    { label: '1024:768', key: '1024:768' },
+    { label: '1280:720', key: '1280:720' }
+]
+
 // Wan (阿里云万相) image size options | 万相图片尺寸选项
 // wan2.7 使用分辨率规格(1K/2K/4K),不再使用像素值
 export const WAN_SIZE_OPTIONS = [
@@ -116,6 +157,25 @@ export const IMAGE_MODELS = [
             n: 1,
             thinking_mode: true,
             watermark: false
+        }
+    },
+    {
+        label: '腾讯混元 HY-Image 3.0',
+        key: 'hy-image-v3.0',
+        provider: ['hunyuan'],
+        sizes: HUNYUAN_IMAGE_SIZE_OPTIONS.map(s => s.key),
+        defaultParams: {
+            size: '1024:1024'
+        }
+    },
+    {
+        label: '腾讯混元 HY-Image Lite',
+        key: 'hy-image-lite',
+        provider: ['hunyuan'],
+        sizes: HUNYUAN_IMAGE_SIZE_OPTIONS.map(s => s.key),
+        defaultParams: {
+            size: '1024:1024',
+            rsp_img_type: 'url'
         }
     },
     {
