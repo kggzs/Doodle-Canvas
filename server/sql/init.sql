@@ -58,7 +58,6 @@ CREATE TABLE IF NOT EXISTS `users` (
     `risk_tags`             LONGTEXT     DEFAULT NULL COMMENT '风险标签 JSON 字符串（如 ["刷量","异地登录"]）',
     `violation_count`       INT          DEFAULT 0 COMMENT '累计违规次数',
     `coins_frozen`          DECIMAL(12,2) DEFAULT 0.00 COMMENT '被冻结的金币（封禁时锁定）',
-    `pwd_version`           INT          NOT NULL DEFAULT 0 COMMENT '密码版本号（改密+1，旧AccessToken自动失效）',
 
     -- 来源与登录信息（注册时记录）
     `register_ip`           VARCHAR(45)  DEFAULT NULL COMMENT '注册 IP（兼容 IPv6）',
